@@ -9,6 +9,7 @@ import { MCPClient } from './client.js';
 import { selectTools } from './mcp-tool-list.js';
 import { validateBranchName } from './validation.js';
 import { formatDiffForTool } from './diff-format.js';
+import { isRelaySourceKind, RELAY_SOURCE_KINDS } from '../shared/relay-payload.js';
 import type { LandSelfInput } from './types.js';
 
 export interface MCPToolHandlerContext {
@@ -110,6 +111,53 @@ export async function handleMCPToolCall(
               text: result.queued
                 ? 'Prompt queued. It will be sent after the current initial prompt or user hold clears.'
                 : 'Prompt sent successfully.',
+            },
+          ],
+        };
+      }
+
+      case 'relay_to_task': {
+        const p = params as Record<string, unknown>;
+        if (typeof p.fromTaskId !== 'string' || !p.fromTaskId.trim()) {
+          return {
+            content: [{ type: 'text', text: 'Error: fromTaskId must be a non-empty string' }],
+            isError: true,
+          };
+        }
+        if (typeof p.toTaskId !== 'string' || !p.toTaskId.trim()) {
+          return {
+            content: [{ type: 'text', text: 'Error: toTaskId must be a non-empty string' }],
+            isError: true,
+          };
+        }
+        if (!isRelaySourceKind(p.source)) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `Error: source must be one of ${RELAY_SOURCE_KINDS.join(', ')}`,
+              },
+            ],
+            isError: true,
+          };
+        }
+        const note = optionalString(p.note, 'note');
+        const result = await client.relayToTask(p.toTaskId, {
+          fromTaskId: p.fromTaskId,
+          source: p.source,
+          note,
+        });
+        const truncationNote = result.truncated
+          ? ` The source content was truncated to fit the relay size limit (${result.sourceBytes ?? 'unknown'} bytes originally).`
+          : '';
+        return {
+          content: [
+            {
+              type: 'text',
+              text:
+                (result.queued
+                  ? 'Relay queued. It will be delivered after the current initial prompt or user hold clears.'
+                  : 'Relay delivered.') + truncationNote,
             },
           ],
         };

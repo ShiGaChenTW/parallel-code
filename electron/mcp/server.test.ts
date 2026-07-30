@@ -16,6 +16,7 @@ function makeClient(): MCPClient {
       exitCode: null,
     }),
     sendPrompt: vi.fn().mockResolvedValue({ queued: false }),
+    relayToTask: vi.fn().mockResolvedValue({ queued: false, truncated: false }),
   } as unknown as MCPClient;
 }
 
@@ -361,5 +362,146 @@ describe('MCP server tool handling', () => {
       content: [{ text: expect.stringContaining('not available to sub-tasks') }],
     });
     expect(client.sendPrompt).not.toHaveBeenCalled();
+  });
+});
+
+describe('relay_to_task tool handling', () => {
+  it('rejects relay_to_task from sub-task scoped MCP clients', async () => {
+    const client = makeClient();
+
+    // Second enforcement layer. The tool list already hides relay_to_task from
+    // sub-tasks, but a sub-task that names the tool anyway must still be
+    // refused: the list is advertising, this is the gate.
+    const result = await handleMCPToolCall(
+      { client, taskId: 'task-1', coordinatorId: '' },
+      'relay_to_task',
+      { fromTaskId: 'task-2', toTaskId: 'task-3', source: 'output' },
+    );
+
+    expect(result).toMatchObject({
+      isError: true,
+      content: [{ text: expect.stringContaining('not available to sub-tasks') }],
+    });
+    expect(client.relayToTask).not.toHaveBeenCalled();
+  });
+
+  it('names only land_self and signal_done as the sub-task surface when refusing', async () => {
+    const client = makeClient();
+
+    const result = await handleMCPToolCall(
+      { client, taskId: 'task-1', coordinatorId: '' },
+      'relay_to_task',
+      { fromTaskId: 'task-2', toTaskId: 'task-3', source: 'output' },
+    );
+
+    expect(result).toMatchObject({
+      content: [{ text: expect.stringContaining('Only land_self and signal_done are permitted') }],
+    });
+  });
+
+  it('forwards every field to the client for a coordinator caller', async () => {
+    const client = makeClient();
+
+    const result = await handleMCPToolCall(
+      { client, taskId: '', coordinatorId: 'coord-1' },
+      'relay_to_task',
+      {
+        fromTaskId: 'task-a',
+        toTaskId: 'task-b',
+        source: 'diff',
+        note: 'compare against your branch',
+      },
+    );
+
+    expect(result).not.toHaveProperty('isError');
+    expect(client.relayToTask).toHaveBeenCalledWith('task-b', {
+      fromTaskId: 'task-a',
+      source: 'diff',
+      note: 'compare against your branch',
+    });
+  });
+
+  it('rejects an unknown source kind before calling the backend', async () => {
+    const client = makeClient();
+
+    const result = await handleMCPToolCall(
+      { client, taskId: '', coordinatorId: 'coord-1' },
+      'relay_to_task',
+      { fromTaskId: 'task-a', toTaskId: 'task-b', source: 'everything' },
+    );
+
+    expect(result).toMatchObject({
+      isError: true,
+      content: [{ text: 'Error: source must be one of output, diff' }],
+    });
+    expect(client.relayToTask).not.toHaveBeenCalled();
+  });
+
+  it('rejects a missing fromTaskId before calling the backend', async () => {
+    const client = makeClient();
+
+    const result = await handleMCPToolCall(
+      { client, taskId: '', coordinatorId: 'coord-1' },
+      'relay_to_task',
+      { toTaskId: 'task-b', source: 'output' },
+    );
+
+    expect(result).toMatchObject({
+      isError: true,
+      content: [{ text: 'Error: fromTaskId must be a non-empty string' }],
+    });
+    expect(client.relayToTask).not.toHaveBeenCalled();
+  });
+
+  it('rejects a missing toTaskId before calling the backend', async () => {
+    const client = makeClient();
+
+    const result = await handleMCPToolCall(
+      { client, taskId: '', coordinatorId: 'coord-1' },
+      'relay_to_task',
+      { fromTaskId: 'task-a', source: 'output' },
+    );
+
+    expect(result).toMatchObject({
+      isError: true,
+      content: [{ text: 'Error: toTaskId must be a non-empty string' }],
+    });
+    expect(client.relayToTask).not.toHaveBeenCalled();
+  });
+
+  it('reports truncation back to the coordinator so it knows it saw a slice', async () => {
+    const client = makeClient();
+    (client.relayToTask as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      queued: false,
+      truncated: true,
+      sourceBytes: 99_000,
+    });
+
+    const result = await handleMCPToolCall(
+      { client, taskId: '', coordinatorId: 'coord-1' },
+      'relay_to_task',
+      { fromTaskId: 'task-a', toTaskId: 'task-b', source: 'diff' },
+    );
+
+    expect(result).toMatchObject({
+      content: [{ text: expect.stringContaining('truncated') }],
+    });
+    expect(result.content[0].text).toContain('99000');
+  });
+
+  it('says the relay was queued when delivery is deferred', async () => {
+    const client = makeClient();
+    (client.relayToTask as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      queued: true,
+      truncated: false,
+    });
+
+    const result = await handleMCPToolCall(
+      { client, taskId: '', coordinatorId: 'coord-1' },
+      'relay_to_task',
+      { fromTaskId: 'task-a', toTaskId: 'task-b', source: 'output' },
+    );
+
+    expect(result.content[0].text).toContain('Relay queued');
   });
 });

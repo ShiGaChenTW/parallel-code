@@ -78,6 +78,23 @@ export class MCPClient {
     );
   }
 
+  /**
+   * Relay is addressed to the *target* task, matching every other task-scoped
+   * route, so the existing `requireOwnedTask` path check applies to it
+   * unchanged. The source task ID travels in the body and is ownership-checked
+   * separately on the server.
+   */
+  async relayToTask(
+    toTaskId: string,
+    opts: { fromTaskId: string; source: 'output' | 'diff'; note?: string },
+  ): Promise<{ queued?: boolean; truncated?: boolean; sourceBytes?: number }> {
+    return this.request<{ queued?: boolean; truncated?: boolean; sourceBytes?: number }>(
+      'POST',
+      `/api/tasks/${encodeURIComponent(toTaskId)}/relay`,
+      opts,
+    );
+  }
+
   async waitForIdle(
     taskId: string,
     timeoutMs?: number,

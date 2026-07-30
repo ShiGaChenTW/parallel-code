@@ -14,6 +14,10 @@ const capturePath = argValue('--capture');
 const transientReady = process.argv.includes('--transient-ready');
 const minEnterDelayMs = Number(argValue('--min-enter-delay-ms', '0'));
 const bracketedPaste = process.argv.includes('--bracketed-paste');
+// Models an agent whose line editor submits on LF as well as CR — the case wave
+// P flagged as the residual risk of preserving `\n` in automated prompts. With
+// no bracketed paste, a multi-line payload becomes several submissions.
+const newlineSubmits = process.argv.includes('--newline-submits');
 
 function write(text) {
   process.stdout.write(text);
@@ -100,17 +104,27 @@ function boot() {
 let inputBuffer = '';
 let lastBodyAt = 0;
 
+/** Index of the next byte this agent treats as Enter, or -1 if there is none. */
+function nextSubmitIdx() {
+  const cr = inputBuffer.indexOf('\r');
+  if (!newlineSubmits) return cr;
+  const lf = inputBuffer.indexOf('\n');
+  if (cr < 0) return lf;
+  if (lf < 0) return cr;
+  return Math.min(cr, lf);
+}
+
 process.stdin.setEncoding('utf8');
 process.stdin.setRawMode?.(true);
 process.stdin.resume();
 process.stdin.on('data', (chunk) => {
   if (chunk && !/^\r+$/.test(chunk)) lastBodyAt = Date.now();
   inputBuffer += chunk;
-  let submitIdx = inputBuffer.indexOf('\r');
+  let submitIdx = nextSubmitIdx();
   while (submitIdx >= 0) {
     if (minEnterDelayMs > 0 && Date.now() - lastBodyAt < minEnterDelayMs) {
       inputBuffer = inputBuffer.replace('\r', '');
-      submitIdx = inputBuffer.indexOf('\r');
+      submitIdx = nextSubmitIdx();
       continue;
     }
     const payload = inputBuffer.slice(0, submitIdx);
@@ -120,7 +134,7 @@ process.stdin.on('data', (chunk) => {
       write('\r\nworking...\r\n');
       setTimeout(prompt, 50);
     }
-    submitIdx = inputBuffer.indexOf('\r');
+    submitIdx = nextSubmitIdx();
   }
 });
 

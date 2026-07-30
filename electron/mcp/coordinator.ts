@@ -27,7 +27,7 @@ import {
   restoreSubTaskPreambleInjection,
   type InjectedSubTaskPreamble,
 } from './preamble.js';
-import { truncateDiffForTool } from './diff-format.js';
+import { formatDiffForTool, truncateDiffForTool } from './diff-format.js';
 
 const execAsync = promisify(execFile);
 import type { BrowserWindow } from 'electron';
@@ -59,6 +59,7 @@ import {
   sanitisePromptBody,
   MAX_PROVENANCE_HEADER_BYTES,
 } from '../shared/prompt-sanitise.js';
+import { buildRelayPrompt, type RelaySourceKind } from '../shared/relay-payload.js';
 import { SUB_TASK_PREAMBLE, buildRolePreamble } from './sub-task-preamble.js';
 import { info as logInfo, warn as logWarn } from '../log.js';
 import type {
@@ -101,9 +102,23 @@ const PREAMBLE_ARTIFACT_PATHS = new Set([
 ]);
 const UNRESOLVED_LANDED_COMMIT = 'unresolved';
 
+/** Columns assumed when converting payload length into wrapped terminal rows. */
+const ASSUMED_TERMINAL_COLUMNS = 80;
+
+/**
+ * Settle delay between writing the prompt body and pressing Enter.
+ *
+ * Line count was the original proxy for "how much the target's editor has to
+ * absorb". That proxy breaks for a relay payload, which is deliberately a
+ * single line: the line count says 1 while the byte count says tens of
+ * kilobytes, and the body would get the 50ms floor. Counting wrapped rows as
+ * well restores the intent — a long single line now gets the same settle time
+ * a multi-line paste of the same size always got. The 500ms ceiling is
+ * unchanged.
+ */
 function pasteDelayMs(text: string): number {
-  const lines = text.split('\n').length;
-  return Math.min(500, Math.max(50, lines * 15));
+  const rows = Math.max(text.split('\n').length, Math.ceil(text.length / ASSUMED_TERMINAL_COLUMNS));
+  return Math.min(500, Math.max(50, rows * 15));
 }
 
 class PromptWriteError extends Error {
@@ -1102,8 +1117,26 @@ export class Coordinator {
         removedChars: delivered.removed,
       });
     }
-    const prompt = delivered.text;
+    return this.deliverAutomatedPrompt(task, delivered.text);
+  }
 
+  /**
+   * Queue-or-write for a fully composed automated payload.
+   *
+   * Extracted from `sendPrompt` so `relayToTask` reuses the exact same
+   * sequencing — the `pendingPrompts` FIFO, `MAX_PENDING_PROMPTS`, the
+   * `writingPromptTaskIds` mutex, the undelivered-initial-prompt hand-off, and
+   * the yield to a human who has taken the terminal. Relay must not invent new
+   * timing; it must inherit this.
+   *
+   * Callers own admission: byte limits, sanitisation, and the provenance header
+   * are applied before the payload gets here, so what is queued is byte-for-byte
+   * what will be written.
+   */
+  private async deliverAutomatedPrompt(
+    task: CoordinatedTask,
+    prompt: string,
+  ): Promise<{ queued: boolean }> {
     const queueLen = task.pendingPrompts?.length ?? 0;
     if (queueLen >= MAX_PENDING_PROMPTS)
       throw new Error(`Prompt queue full (${MAX_PENDING_PROMPTS} pending)`);
@@ -1117,7 +1150,7 @@ export class Coordinator {
       task.pendingPrompts = [...task.pendingPrompts, prompt];
       return { queued: true };
     }
-    if (this.controlMap.get(taskId) === 'human' || this.writingPromptTaskIds.has(taskId)) {
+    if (this.controlMap.get(task.id) === 'human' || this.writingPromptTaskIds.has(task.id)) {
       task.pendingPrompts = [...(task.pendingPrompts ?? []), prompt];
       return { queued: true };
     }
@@ -1132,6 +1165,92 @@ export class Coordinator {
       void this.flushNextQueuedPrompt(task);
     }
     return { queued: false };
+  }
+
+  /**
+   * Copy one sub-task's terminal output or diff into a sibling sub-task.
+   *
+   * Shape note: the backend fetches the source content itself rather than
+   * accepting it as a parameter. That is the whole reason this is a distinct
+   * tool rather than a `fromTaskId` label on `send_prompt` — if the coordinator
+   * supplied both the text and the attribution, the provenance header would be
+   * an unverified claim. Fetching the bytes here makes it a fact.
+   *
+   * Authorisation shape: hub-and-spoke is preserved. Source and target must be
+   * sub-tasks of the same coordinator, so this adds no edge to the ownership
+   * graph — it only lets the coordinator move data along edges it already owns.
+   * `writeToAgent` still has no per-caller authorisation, which is exactly why
+   * no caller may nominate an arbitrary pair of task IDs.
+   */
+  async relayToTask(opts: {
+    fromTaskId: string;
+    toTaskId: string;
+    source: RelaySourceKind;
+    note?: string;
+  }): Promise<{
+    queued: boolean;
+    truncated: boolean;
+    sourceBytes: number;
+    deliveredBytes: number;
+  }> {
+    const from = this.tasks.get(opts.fromTaskId);
+    if (!from) throw new Error(`Task not found: ${opts.fromTaskId}`);
+    const to = this.tasks.get(opts.toTaskId);
+    if (!to) throw new Error(`Task not found: ${opts.toTaskId}`);
+    if (from.id === to.id)
+      throw new Error('relay_to_task: source and target must be different tasks');
+    // Both ends must hang off the same coordinator. An unparented task is not a
+    // valid relay endpoint in either direction: it sits outside the ownership
+    // graph, so nothing authorises writing into it or reading out of it.
+    if (!from.coordinatorTaskId || !to.coordinatorTaskId)
+      throw new Error(
+        'relay_to_task: both tasks must be coordinated sub-tasks of the same coordinator',
+      );
+    if (from.coordinatorTaskId !== to.coordinatorTaskId)
+      throw new Error(
+        'relay_to_task: source and target belong to different coordinators; relay is only allowed between sub-tasks of the same coordinator',
+      );
+
+    const raw =
+      opts.source === 'diff'
+        ? formatDiffForTool(await this.getTaskDiff(from.id))
+        : this.getTaskOutput(from.id);
+    const body = sanitisePromptBody(raw);
+    if (!body)
+      throw new Error(
+        `relay_to_task: task ${from.id} has no ${opts.source} content to relay right now`,
+      );
+
+    const relay = buildRelayPrompt({
+      sourceTaskId: from.id,
+      sourceTaskName: from.name,
+      kind: opts.source,
+      body,
+      note: opts.note,
+    });
+    const deliveredBytes = Buffer.byteLength(relay.text, 'utf8');
+    // Should be unreachable: the relay budget is sized so the composed payload
+    // always fits. Fail loudly rather than write an oversized paste if the
+    // arithmetic in relay-payload.ts is ever changed without re-checking it.
+    if (deliveredBytes > MAX_DELIVERED_PROMPT_BYTES)
+      throw new Error(`Relay payload exceeds ${MAX_DELIVERED_PROMPT_BYTES} byte limit`);
+
+    logInfo('coordinator.relay', 'relaying task content', {
+      fromTaskId: from.id,
+      toTaskId: to.id,
+      source: opts.source,
+      truncated: relay.truncated,
+      sourceBytes: relay.originalBodyBytes,
+      deliveredBytes,
+    });
+
+    const result = await this.deliverAutomatedPrompt(to, relay.text);
+    return {
+      queued: result.queued,
+      truncated: relay.truncated,
+      sourceBytes: relay.originalBodyBytes,
+      deliveredBytes,
+    };
   }
 
   private async flushNextQueuedPrompt(task: CoordinatedTask): Promise<void> {
