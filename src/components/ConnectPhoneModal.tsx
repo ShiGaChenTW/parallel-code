@@ -355,7 +355,7 @@ export function ConnectPhoneModal(props: ConnectPhoneModalProps) {
         </div>
 
         <Show when={copied()}>
-          <span style={{ 'font-size': '13px', color: theme.success }}>Copied!</span>
+          <span style={{ 'font-size': '13px', color: theme.success }}>{tr('Copied!')}</span>
         </Show>
 
         {/* Instructions */}
@@ -372,9 +372,9 @@ export function ConnectPhoneModal(props: ConnectPhoneModalProps) {
           your phone.
           <Show
             when={mode() === 'tailscale'}
-            fallback={<> Your phone and this computer must be on the same WiFi network.</>}
+            fallback={<> {tr('Your phone and this computer must be on the same WiFi network.')}</>}
           >
-            <> Your phone and this computer must be on the same Tailscale network.</>
+            <> {tr('Your phone and this computer must be on the same Tailscale network.')}</>
           </Show>
         </p>
 
@@ -399,7 +399,7 @@ export function ConnectPhoneModal(props: ConnectPhoneModalProps) {
                   background: theme.fgSubtle,
                 }}
               />
-              Waiting for connection...
+              {tr('Waiting for connection...')}
             </div>
           }
         >
@@ -446,7 +446,7 @@ export function ConnectPhoneModal(props: ConnectPhoneModalProps) {
             onChange={(e) => setAutoStartRemoteAccess(e.currentTarget.checked)}
             style={{ 'accent-color': theme.accent, cursor: 'pointer' }}
           />
-          Start automatically on launch
+          {tr('Start automatically on launch')}
         </label>
 
         {/* Pair a device to create tasks */}
@@ -478,7 +478,7 @@ export function ConnectPhoneModal(props: ConnectPhoneModalProps) {
                     'font-weight': '500',
                   }}
                 >
-                  Pair a device to create tasks
+                  {tr('Pair a device to create tasks')}
                 </button>
                 <Show when={pairingError()}>
                   <span style={{ 'font-size': '12px', color: theme.error }}>{pairingError()}</span>
@@ -489,7 +489,7 @@ export function ConnectPhoneModal(props: ConnectPhoneModalProps) {
             {(pin) => (
               <>
                 <span style={{ 'font-size': '12px', color: theme.fgMuted }}>
-                  Enter this code on your phone (valid 5 min):
+                  {tr('Enter this code on your phone (valid 5 min):')}
                 </span>
                 <span
                   style={{
@@ -513,7 +513,7 @@ export function ConnectPhoneModal(props: ConnectPhoneModalProps) {
                     'font-size': '12px',
                   }}
                 >
-                  Generate a new code
+                  {tr('Generate a new code')}
                 </button>
               </>
             )}
@@ -548,7 +548,7 @@ export function ConnectPhoneModal(props: ConnectPhoneModalProps) {
             >
               ▶
             </span>
-            Risks
+            {tr('Risks')}
           </button>
           <Show when={showRisks()}>
             <ul
@@ -599,7 +599,7 @@ export function ConnectPhoneModal(props: ConnectPhoneModalProps) {
             'font-weight': '400',
           }}
         >
-          Disconnect
+          {tr('Disconnect')}
         </button>
       </Show>
     </Dialog>

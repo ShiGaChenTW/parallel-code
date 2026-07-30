@@ -288,7 +288,7 @@ function DiffViewerContent(props: DiffViewerDialogProps) {
               'flex-shrink': '0',
             }}
           >
-            Changes
+            {tr('Changes')}
           </span>
           <span
             style={{
@@ -459,7 +459,7 @@ function DiffViewerContent(props: DiffViewerDialogProps) {
                 'font-size': sf(14),
               }}
             >
-              Loading diffs...
+              {tr('Loading diffs...')}
             </div>
           </Show>
 

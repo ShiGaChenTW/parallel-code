@@ -1,4 +1,5 @@
 import { Show, createSignal, createEffect, onMount, onCleanup, batch } from 'solid-js';
+import { tr } from '../store/i18n';
 import {
   store,
   retryCloseTask,
@@ -502,7 +503,9 @@ export function TaskPanel(props: TaskPanelProps) {
               color: theme.warning,
             }}
           >
-            MCP server bound to all interfaces (macOS + Docker) — port reachable on local network
+            {tr(
+              'MCP server bound to all interfaces (macOS + Docker) — port reachable on local network',
+            )}
           </div>
         </Show>
       </Show>

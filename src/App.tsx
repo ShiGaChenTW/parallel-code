@@ -11,6 +11,9 @@ import '@fontsource/space-grotesk/700.css';
 import '@fontsource/jetbrains-mono/400.css';
 import '@fontsource/jetbrains-mono/500.css';
 import './styles.css';
+// Imported after the CSS block: these imports establish the cascade order and a
+// JS import wedged between them would be a silent styling change.
+import { tr } from './store/i18n';
 import { onMount, onCleanup, createEffect, Show, ErrorBoundary, createSignal } from 'solid-js';
 import { invoke } from './lib/ipc';
 import { IPC } from '../electron/ipc/channels';
@@ -124,7 +127,7 @@ function DropOverlay() {
           'font-family': 'var(--font-ui)',
         }}
       >
-        Drop GitHub link to create task
+        {tr('Drop GitHub link to create task')}
       </span>
       <span
         style={{
@@ -133,7 +136,7 @@ function DropOverlay() {
           'font-family': 'var(--font-ui)',
         }}
       >
-        A new task will be created with the link in the prompt
+        {tr('A new task will be created with the link in the prompt')}
       </span>
     </div>
   );
@@ -753,7 +756,7 @@ function App() {
           }}
         >
           <div style={{ 'font-size': '19px', 'font-weight': '600', color: theme.error }}>
-            Something went wrong
+            {tr('Something went wrong')}
           </div>
           <div
             style={{
@@ -777,7 +780,7 @@ function App() {
               'font-size': '15px',
             }}
           >
-            Reload
+            {tr('Reload')}
           </button>
         </div>
       )}
@@ -819,7 +822,7 @@ function App() {
           <div
             class="keybinding-migration-notice"
             role="region"
-            aria-label="Keyboard shortcuts update"
+            aria-label={tr('Keyboard shortcuts update')}
           >
             <span>
               Keyboard shortcuts are now configurable.{' '}
@@ -831,7 +834,7 @@ function App() {
                   dismissMigrationBanner();
                 }}
               >
-                Pick a preset for your coding agent
+                {tr('Pick a preset for your coding agent')}
               </button>{' '}
               or{' '}
               <button
@@ -846,7 +849,7 @@ function App() {
             <button
               type="button"
               class="keybinding-migration-notice-close"
-              aria-label="Dismiss keyboard shortcuts update"
+              aria-label={tr('Dismiss keyboard shortcuts update')}
               onClick={() => dismissMigrationBanner()}
             >
               &times;

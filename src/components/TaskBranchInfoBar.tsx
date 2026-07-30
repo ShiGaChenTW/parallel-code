@@ -267,7 +267,7 @@ export function TaskBranchInfoBar(props: TaskBranchInfoBarProps) {
             color: theme.accent,
           }}
         >
-          Existing worktree
+          {tr('Existing worktree')}
         </span>
       </Show>
     </InfoBar>

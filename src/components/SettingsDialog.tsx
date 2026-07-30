@@ -142,7 +142,7 @@ export function PresetThemeCard(props: {
         }}
         class="preset-clone-btn"
       >
-        Clone
+        {tr('Clone')}
       </button>
     </div>
   );
@@ -187,7 +187,7 @@ function CustomThemeCard(props: {
         }}
         class="preset-clone-btn"
       >
-        Edit
+        {tr('Edit')}
       </button>
     </div>
   );
@@ -369,7 +369,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
 
       <div
         role="tablist"
-        aria-label="Settings tabs"
+        aria-label={tr('Settings tabs')}
         style={{
           display: 'flex',
           gap: '2px',
@@ -434,7 +434,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
               description={tr('Automatically accept trust and permission dialogs from agents')}
             />
             <SettingsCheckboxRow
-              label="Show plans"
+              label={tr('Show plans')}
               checked={store.showPlans}
               onChange={setShowPlans}
               description={tr('Display Claude Code plan files in a tab next to Notes')}
@@ -446,7 +446,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
               description={tr('Show native notifications when tasks finish or need attention')}
             />
             <SettingsCheckboxRow
-              label="Show prompt input box below terminal"
+              label={tr('Show prompt input box below terminal')}
               checked={store.showPromptInput}
               onChange={setShowPromptInput}
               description={tr(
@@ -454,7 +454,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
               )}
             />
             <SettingsCheckboxRow
-              label="Show progress section in sidebar"
+              label={tr('Show progress section in sidebar')}
               checked={store.showSidebarProgress}
               onChange={setShowSidebarProgress}
               description={tr(
@@ -462,7 +462,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
               )}
             />
             <SettingsCheckboxRow
-              label="Show tips section in sidebar"
+              label={tr('Show tips section in sidebar')}
               checked={store.showSidebarTips}
               onChange={setShowSidebarTips}
               description={tr('Keyboard shortcut hints at the bottom of the sidebar')}
@@ -487,14 +487,18 @@ export function SettingsDialog(props: SettingsDialogProps) {
               label={tr('Dangerously skip all confirms by default')}
               checked={store.defaultSkipPermissions}
               onChange={setDefaultSkipPermissions}
-              description="Pre-tick skip-permissions for every new task. The agent will run without asking for confirmation. Only honoured when the selected agent supports it."
+              description={tr(
+                'Pre-tick skip-permissions for every new task. The agent will run without asking for confirmation. Only honoured when the selected agent supports it.',
+              )}
             />
             <Show when={store.coordinatorModeEnabled}>
               <SettingsCheckboxRow
                 label={tr('Propagate skip-permissions to sub-tasks')}
                 checked={store.defaultPropagateSkipPermissions}
                 onChange={setDefaultPropagateSkipPermissions}
-                description="Pre-tick Propagate to sub-tasks when both coordinator mode and skip-permissions are enabled for a task"
+                description={tr(
+                  'Pre-tick Propagate to sub-tasks when both coordinator mode and skip-permissions are enabled for a task',
+                )}
               />
             </Show>
           </SettingsSection>
@@ -506,7 +510,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
                 'font-weight': '600',
               }}
             >
-              Editor
+              {tr('Editor')}
             </div>
             <div
               style={{
@@ -527,7 +531,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
                 }}
               >
                 <span style={{ 'font-size': '14px', color: theme.fg, 'white-space': 'nowrap' }}>
-                  Editor command
+                  {tr('Editor command')}
                 </span>
                 <input
                   type="text"
@@ -548,7 +552,9 @@ export function SettingsDialog(props: SettingsDialogProps) {
                 />
               </label>
               <span style={{ 'font-size': '12px', color: theme.fgSubtle }}>
-                CLI command to open worktree folders. Click the path bar in a task to open it.
+                {tr(
+                  'CLI command to open worktree folders. Click the path bar in a task to open it.',
+                )}
               </span>
             </div>
           </div>
@@ -560,7 +566,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
                 'font-weight': '600',
               }}
             >
-              Ask about Code
+              {tr('Ask about Code')}
             </div>
             <div
               style={{
@@ -581,7 +587,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
                 }}
               >
                 <span style={{ 'font-size': '13px', color: theme.fg, 'white-space': 'nowrap' }}>
-                  LLM provider
+                  {tr('LLM provider')}
                 </span>
                 <select
                   value={store.askCodeProvider}
@@ -614,7 +620,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
                   }}
                 >
                   <span style={{ 'font-size': '13px', color: theme.fg, 'white-space': 'nowrap' }}>
-                    MiniMax API key
+                    {tr('MiniMax API key')}
                   </span>
                   <input
                     type="password"
@@ -653,7 +659,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
                   'font-weight': '600',
                 }}
               >
-                Docker Isolation
+                {tr('Docker Isolation')}
               </div>
               <div
                 style={{
@@ -674,7 +680,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
                   }}
                 >
                   <span style={{ 'font-size': '14px', color: theme.fg, 'white-space': 'nowrap' }}>
-                    Default image
+                    {tr('Default image')}
                   </span>
                   <input
                     type="text"
@@ -709,10 +715,12 @@ export function SettingsDialog(props: SettingsDialogProps) {
                 </div>
               </div>
               <SettingsCheckboxRow
-                label="Share agent auth across Linux containers"
+                label={tr('Share agent auth across Linux containers')}
                 checked={store.shareDockerAgentAuth}
                 onChange={setShareDockerAgentAuth}
-                description="Persist agent credentials in a user-owned host directory so you only need to sign in once per agent type. Auth on first run is saved automatically for future containers."
+                description={tr(
+                  'Persist agent credentials in a user-owned host directory so you only need to sign in once per agent type. Auth on first run is saved automatically for future containers.',
+                )}
               />
             </div>
           </Show>
@@ -724,7 +732,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
                 'font-weight': '600',
               }}
             >
-              Focus Dimming
+              {tr('Focus Dimming')}
             </div>
             <div
               style={{
@@ -745,7 +753,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
                 }}
               >
                 <span style={{ 'font-size': '14px', color: theme.fg }}>
-                  Inactive column opacity
+                  {tr('Inactive column opacity')}
                 </span>
                 <span
                   style={{
@@ -793,7 +801,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
                 'font-weight': '600',
               }}
             >
-              Custom Agents
+              {tr('Custom Agents')}
             </div>
             <CustomAgentEditor />
           </div>
@@ -805,7 +813,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
                 'font-weight': '600',
               }}
             >
-              Terminal Font
+              {tr('Terminal Font')}
             </div>
             <div class="settings-font-grid">
               <For each={fonts()}>
@@ -828,7 +836,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
             </div>
             <Show when={LIGATURE_FONTS.has(store.terminalFont)}>
               <span style={{ 'font-size': '12px', color: theme.fgSubtle }}>
-                This font includes ligatures which may impact rendering performance.
+                {tr('This font includes ligatures which may impact rendering performance.')}
               </span>
             </Show>
           </div>
@@ -861,7 +869,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
             >
               <div style={updateRowStyle}>
                 <span style={{ 'font-size': '14px', color: theme.fg }}>
-                  Current version
+                  {tr('Current version')}
                   <Show when={updateStatus().currentVersion}>
                     {' '}
                     <span style={{ color: theme.fgMuted }}>v{updateStatus().currentVersion}</span>
@@ -889,7 +897,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
 
                 <Match when={updateStatus().phase === 'up-to-date'}>
                   <span style={updateMessageStyle(theme.fgSubtle)}>
-                    You are on the latest version.
+                    {tr('You are on the latest version.')}
                   </span>
                 </Match>
 
@@ -1136,7 +1144,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
                 }}
               >
                 <span style={{ 'font-size': '14px', color: theme.fg, 'white-space': 'nowrap' }}>
-                  Coordinator notification delay (seconds)
+                  {tr('Coordinator notification delay (seconds)')}
                 </span>
                 <input
                   type="number"

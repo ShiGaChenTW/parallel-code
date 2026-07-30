@@ -239,7 +239,7 @@ export function BranchCombobox(props: BranchComboboxProps) {
             when={matches().length > 0}
             fallback={
               <li style={{ padding: '8px 12px', color: theme.fgMuted, 'font-size': '13px' }}>
-                No matching branches
+                {tr('No matching branches')}
               </li>
             }
           >

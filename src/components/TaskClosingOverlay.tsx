@@ -31,7 +31,7 @@ export function TaskClosingOverlay(props: TaskClosingOverlayProps) {
         </Show>
         <Show when={props.closingStatus === 'error'}>
           <div style={{ 'font-size': '14px', color: theme.error, 'font-weight': '600' }}>
-            Close failed
+            {tr('Close failed')}
           </div>
           <div
             style={{

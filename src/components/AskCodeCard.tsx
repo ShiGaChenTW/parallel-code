@@ -156,7 +156,7 @@ export function AskCodeCard(props: AskCodeCardProps) {
               animation: 'askcode-pulse 1.5s ease-in-out infinite',
             }}
           >
-            Thinking...
+            {tr('Thinking...')}
           </span>
         </Show>
         <Show when={response()}>{response()}</Show>

@@ -1,4 +1,5 @@
 import { For } from 'solid-js';
+import { tr } from '../store/i18n';
 import { theme } from '../lib/theme';
 
 interface SymlinkDirPickerProps {
@@ -21,7 +22,7 @@ export function SymlinkDirPicker(props: SymlinkDirPickerProps) {
           'letter-spacing': '0.05em',
         }}
       >
-        Symlink into worktree
+        {tr('Symlink into worktree')}
       </label>
       <div
         style={{

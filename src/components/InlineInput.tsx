@@ -83,7 +83,7 @@ export function InlineInput(props: InlineInputProps) {
             cursor: 'pointer',
           }}
         >
-          Comment
+          {tr('Comment')}
         </button>
         <button
           onClick={() => setMode('ask')}
@@ -96,7 +96,7 @@ export function InlineInput(props: InlineInputProps) {
             cursor: 'pointer',
           }}
         >
-          Ask
+          {tr('Ask')}
         </button>
       </div>
 

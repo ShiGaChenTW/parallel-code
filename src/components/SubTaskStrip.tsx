@@ -48,7 +48,7 @@ function MCPLogModal(props: { onClose: () => void }) {
     >
       <div style={{ display: 'flex', 'justify-content': 'space-between', 'align-items': 'center' }}>
         <span id={titleId} style={{ 'font-size': sf(12), 'font-weight': '600', color: theme.fg }}>
-          MCP Logs
+          {tr('MCP Logs')}
         </span>
         <button
           style={{
@@ -75,7 +75,10 @@ function MCPLogModal(props: { onClose: () => void }) {
           'min-height': '0',
         }}
       >
-        <Show when={!loading()} fallback={<span style={{ color: theme.fgSubtle }}>Loading…</span>}>
+        <Show
+          when={!loading()}
+          fallback={<span style={{ color: theme.fgSubtle }}>{tr('Loading…')}</span>}
+        >
           <Show
             when={logs().length > 0}
             fallback={
@@ -104,7 +107,7 @@ function MCPLogModal(props: { onClose: () => void }) {
         </Show>
       </div>
       <div style={{ 'font-size': sf(10), color: theme.fgSubtle }}>
-        Showing last 200 entries. Refresh to reload.
+        {tr('Showing last 200 entries. Refresh to reload.')}
         <button
           style={{
             'margin-left': '8px',
@@ -182,7 +185,7 @@ export function SubTaskStrip(props: SubTaskStripProps) {
               'flex-shrink': '0',
             }}
           >
-            Sub-tasks:
+            {tr('Sub-tasks:')}
           </span>
           <For each={subTasks()}>
             {(task) => (
@@ -247,7 +250,7 @@ export function SubTaskStrip(props: SubTaskStripProps) {
                 'white-space': 'nowrap',
               }}
             >
-              MCP logs
+              {tr('MCP logs')}
             </button>
           </Show>
         </div>
@@ -277,7 +280,7 @@ export function SubTaskStrip(props: SubTaskStripProps) {
               'white-space': 'nowrap',
             }}
           >
-            MCP logs
+            {tr('MCP logs')}
           </button>
         </div>
       </Show>

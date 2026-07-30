@@ -103,7 +103,7 @@ export function EditProjectDialog(props: EditProjectDialogProps) {
                 'font-weight': '600',
               }}
             >
-              Edit Project
+              {tr('Edit Project')}
             </h2>
 
             {/* Path */}
@@ -142,7 +142,7 @@ export function EditProjectDialog(props: EditProjectDialogProps) {
                   'flex-shrink': '0',
                 }}
               >
-                Import Worktrees
+                {tr('Import Worktrees')}
               </button>
               <button
                 type="button"
@@ -158,7 +158,7 @@ export function EditProjectDialog(props: EditProjectDialogProps) {
                   'flex-shrink': '0',
                 }}
               >
-                Change
+                {tr('Change')}
               </button>
             </div>
 
@@ -194,7 +194,7 @@ export function EditProjectDialog(props: EditProjectDialogProps) {
                     'flex-shrink': '0',
                   }}
                 >
-                  Re-link
+                  {tr('Re-link')}
                 </button>
                 <button
                   type="button"
@@ -341,7 +341,7 @@ export function EditProjectDialog(props: EditProjectDialogProps) {
                   onChange={(e) => setDeleteBranchOnClose(e.currentTarget.checked)}
                   style={{ cursor: 'pointer' }}
                 />
-                Always delete branch and worktree on close
+                {tr('Always delete branch and worktree on close')}
               </label>
 
               {/* Default isolation mode */}
@@ -415,7 +415,7 @@ export function EditProjectDialog(props: EditProjectDialogProps) {
                   padding: '2px 2px 0',
                 }}
               >
-                Leave blank to try <code>coverage/coverage-summary.json</code>, then{' '}
+                {tr('Leave blank to try')} <code>coverage/coverage-summary.json</code>, then{' '}
                 <code>coverage/lcov.info</code>.
               </div>
             </div>

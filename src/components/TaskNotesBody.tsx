@@ -279,7 +279,7 @@ export function TaskNotesBody(props: TaskNotesBodyProps) {
             }}
             onClick={() => props.onPlanFullscreen()}
           >
-            Review Plan
+            {tr('Review Plan')}
           </button>
         </div>
       </Show>

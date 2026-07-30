@@ -1,4 +1,5 @@
 import { For, Show, createMemo, createSignal } from 'solid-js';
+import { tr } from '../store/i18n';
 import { createStore } from 'solid-js/store';
 import { theme } from '../lib/theme';
 import { sf } from '../lib/fontScale';
@@ -78,7 +79,7 @@ export function CommitTreeView(props: CommitTreeViewProps) {
         when={props.commits.length > 0}
         fallback={
           <div style={{ padding: '8px', 'font-size': sf(11), color: theme.fgMuted }}>
-            No commits on this branch yet.
+            {tr('No commits on this branch yet.')}
           </div>
         }
       >

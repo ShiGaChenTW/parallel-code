@@ -191,7 +191,7 @@ export function MergeDialog(props: MergeDialogProps) {
                 'font-weight': '600',
               }}
             >
-              Warning: You have uncommitted changes that will NOT be included in this merge.
+              {tr('Warning: You have uncommitted changes that will NOT be included in this merge.')}
             </div>
           </Show>
           <Show when={!worktreeStatus.loading && !hasCommittedChangesToMerge()}>
@@ -334,12 +334,12 @@ export function MergeDialog(props: MergeDialogProps) {
                         'font-weight': hasConflicts() ? '600' : 'normal',
                       }}
                     >
-                      Rebase with AI
+                      {tr('Rebase with AI')}
                     </button>
                   </Show>
                   <Show when={rebaseSuccess()}>
                     <span style={{ 'font-size': '13px', color: theme.success }}>
-                      Rebase successful
+                      {tr('Rebase successful')}
                     </span>
                   </Show>
                   <Show when={rebaseError()}>
@@ -350,7 +350,8 @@ export function MergeDialog(props: MergeDialogProps) {
             )}
           </Show>
           <p style={{ margin: '0 0 12px' }}>
-            Merge <strong>{props.task.branchName}</strong> into <strong>{baseBranchName()}</strong>:
+            {tr('Merge')} <strong>{props.task.branchName}</strong> into{' '}
+            <strong>{baseBranchName()}</strong>:
           </p>
           <Show when={!branchLog.loading && branchLog()}>
             {(log) => {
@@ -470,7 +471,7 @@ export function MergeDialog(props: MergeDialogProps) {
                 onChange={(e) => setCleanupAfterMerge(e.currentTarget.checked)}
                 style={{ cursor: 'pointer' }}
               />
-              Delete branch and worktree after merge
+              {tr('Delete branch and worktree after merge')}
             </label>
           </Show>
           <label
@@ -501,7 +502,7 @@ export function MergeDialog(props: MergeDialogProps) {
               }}
               style={{ cursor: 'pointer' }}
             />
-            Squash commits
+            {tr('Squash commits')}
           </label>
           <Show when={squash()}>
             <textarea

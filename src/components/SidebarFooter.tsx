@@ -83,7 +83,7 @@ export function SidebarFooter() {
               'letter-spacing': '0.05em',
             }}
           >
-            Progress
+            {tr('Progress')}
           </span>
           <div
             style={{
@@ -205,7 +205,7 @@ export function SidebarFooter() {
               'letter-spacing': '0.05em',
             }}
           >
-            Tips
+            {tr('Tips')}
           </span>
           <span
             style={{

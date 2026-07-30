@@ -20,7 +20,9 @@ describe('keybinding migration notice', () => {
 
   it('keeps the notice and dismiss control accessible', () => {
     expect(app).toContain('role="region"');
-    expect(app).toContain('aria-label="Keyboard shortcuts update"');
-    expect(app).toContain('aria-label="Dismiss keyboard shortcuts update"');
+    // Asserted in their translated form: these labels go through tr() now, and
+    // the point of the check is that the accessible name is still supplied.
+    expect(app).toContain("aria-label={tr('Keyboard shortcuts update')}");
+    expect(app).toContain("aria-label={tr('Dismiss keyboard shortcuts update')}");
   });
 });

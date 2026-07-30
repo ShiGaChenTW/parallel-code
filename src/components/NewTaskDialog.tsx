@@ -184,7 +184,7 @@ function DockerTaskOptions(props: {
           <Show when={!props.projectDockerfile}>
             <div style={{ display: 'flex', 'align-items': 'center', gap: '8px' }}>
               <label style={{ 'font-size': '12px', color: theme.fgMuted, 'white-space': 'nowrap' }}>
-                Image:
+                {tr('Image:')}
               </label>
               <input
                 type="text"
@@ -236,7 +236,7 @@ function DockerTaskOptions(props: {
                     cursor: 'pointer',
                   }}
                 >
-                  Build Image
+                  {tr('Build Image')}
                 </button>
               </Show>
             </div>
@@ -252,7 +252,7 @@ function DockerTaskOptions(props: {
               }}
             >
               <span class="inline-spinner" aria-hidden="true" />
-              Building image... this may take a few minutes.
+              {tr('Building image... this may take a few minutes.')}
             </div>
             <Show when={props.dockerBuildOutput}>
               <pre
@@ -333,7 +333,7 @@ function CoordinatorTaskOptions(props: {
               'padding-left': '4px',
             }}
           >
-            Max concurrent sub-tasks:
+            {tr('Max concurrent sub-tasks:')}
             <input
               type="number"
               min={MIN_COORDINATOR_CONCURRENT_TASKS}
@@ -1225,12 +1225,12 @@ export function NewTaskDialog(props: NewTaskDialogProps) {
               />
               <Show when={directDisabled()}>
                 <span style={{ 'font-size': '12px', color: theme.fgSubtle }}>
-                  This project already has a task on the current branch
+                  {tr('This project already has a task on the current branch')}
                 </span>
               </Show>
               <Show when={gitIsolation() === 'direct'}>
                 <div style={{ ...bannerStyle(theme.warning), 'font-size': '13px' }}>
-                  Changes will be made on the selected branch without worktree isolation.
+                  {tr('Changes will be made on the selected branch without worktree isolation.')}
                 </div>
               </Show>
             </div>
@@ -1308,7 +1308,9 @@ export function NewTaskDialog(props: NewTaskDialogProps) {
           <div style={{ display: 'flex', 'flex-direction': 'column', gap: '10px' }}>
             <div data-nav-field="steps-enabled">
               <CheckboxOption
-                title="Instructs the agent to append progress entries to .claude/steps.json. Each entry is shown live in the Steps panel as the agent works."
+                title={tr(
+                  'Instructs the agent to append progress entries to .claude/steps.json. Each entry is shown live in the Steps panel as the agent works.',
+                )}
                 label={tr('Steps tracking')}
                 checked={stepsEnabled()}
                 onChange={setStepsEnabled}
@@ -1338,7 +1340,9 @@ export function NewTaskDialog(props: NewTaskDialogProps) {
                   </Show>
                   <Show when={!store.dockerAvailable}>
                     <div style={{ 'font-size': '12px', color: theme.fgMuted }}>
-                      Install Docker to enable container isolation for safer skip-permissions mode.
+                      {tr(
+                        'Install Docker to enable container isolation for safer skip-permissions mode.',
+                      )}
                     </div>
                   </Show>
                 </Show>

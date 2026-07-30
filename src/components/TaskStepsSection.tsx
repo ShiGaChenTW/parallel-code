@@ -278,7 +278,7 @@ function WaitingIndicator(props: { fontSize: string }) {
         }}
       />
       <span style={{ 'font-size': props.fontSize, color: theme.fgSubtle }}>
-        Waiting for next step
+        {tr('Waiting for next step')}
       </span>
     </>
   );

@@ -139,7 +139,7 @@ export function ImportWorktreesDialog(props: ImportWorktreesDialogProps) {
               'font-weight': '600',
             }}
           >
-            Import Existing Worktrees
+            {tr('Import Existing Worktrees')}
           </h2>
           <p
             style={{ margin: '0', 'font-size': '12px', color: theme.fgMuted, 'line-height': '1.5' }}
@@ -165,7 +165,7 @@ export function ImportWorktreesDialog(props: ImportWorktreesDialogProps) {
               'letter-spacing': '0.05em',
             }}
           >
-            Worktrees
+            {tr('Worktrees')}
           </label>
 
           <Show when={loading()}>
@@ -179,7 +179,7 @@ export function ImportWorktreesDialog(props: ImportWorktreesDialogProps) {
                 'border-radius': '8px',
               }}
             >
-              Scanning for existing worktrees...
+              {tr('Scanning for existing worktrees...')}
             </div>
           </Show>
 
@@ -194,7 +194,7 @@ export function ImportWorktreesDialog(props: ImportWorktreesDialogProps) {
                 'border-radius': '8px',
               }}
             >
-              No importable worktrees were found for this project.
+              {tr('No importable worktrees were found for this project.')}
             </div>
           </Show>
 

@@ -601,7 +601,7 @@ function FileSection(props: {
               'font-size': sf(13),
             }}
           >
-            Binary file — cannot display diff
+            {tr('Binary file — cannot display diff')}
           </div>
         </Show>
 
@@ -921,7 +921,7 @@ export function ScrollingDiffView(props: ScrollingDiffViewProps) {
             'font-size': sf(13),
           }}
         >
-          No changes to display
+          {tr('No changes to display')}
         </div>
       </Show>
     </div>

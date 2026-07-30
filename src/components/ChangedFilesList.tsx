@@ -132,7 +132,9 @@ function FileCoverageBadge(props: {
       </Show>
       <Show when={props.hasCoverageArtifact && isEligible() && !props.summary}>
         <span
-          title="No recent coverage data for this source file. Run npm run test:coverage to populate the radar."
+          title={tr(
+            'No recent coverage data for this source file. Run npm run test:coverage to populate the radar.',
+          )}
           style={{
             color: theme.error,
             'font-size': sf(10),

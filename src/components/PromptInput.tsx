@@ -856,7 +856,7 @@ export function PromptInput(props: PromptInputProps) {
               'z-index': '1',
             }}
           >
-            Staged for auto-send
+            {tr('Staged for auto-send')}
           </div>
         </Show>
         <textarea

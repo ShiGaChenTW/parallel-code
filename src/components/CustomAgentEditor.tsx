@@ -125,28 +125,28 @@ export function CustomAgentEditor() {
         >
           <input
             type="text"
-            placeholder="Name (e.g. OpenCode)"
+            placeholder={tr('Name (e.g. OpenCode)')}
             value={name()}
             onInput={(e) => setName(e.currentTarget.value)}
             style={inputStyle()}
           />
           <input
             type="text"
-            placeholder="Command (e.g. opencode)"
+            placeholder={tr('Command (e.g. opencode)')}
             value={command()}
             onInput={(e) => setCommand(e.currentTarget.value)}
             style={inputStyle()}
           />
           <input
             type="text"
-            placeholder="Resume args (optional, space-separated)"
+            placeholder={tr('Resume args (optional, space-separated)')}
             value={resumeArgs()}
             onInput={(e) => setResumeArgs(e.currentTarget.value)}
             style={inputStyle()}
           />
           <input
             type="text"
-            placeholder="Skip permissions args (optional, space-separated)"
+            placeholder={tr('Skip permissions args (optional, space-separated)')}
             value={skipArgs()}
             onInput={(e) => setSkipArgs(e.currentTarget.value)}
             style={inputStyle()}
@@ -181,7 +181,7 @@ export function CustomAgentEditor() {
                 opacity: name().trim() && command().trim() ? 1 : 0.5,
               }}
             >
-              Add Agent
+              {tr('Add Agent')}
             </button>
           </div>
         </div>

@@ -1,4 +1,5 @@
 import { Show, createEffect, createSignal, onCleanup } from 'solid-js';
+import { tr } from '../store/i18n';
 import { pushTask } from '../store/store';
 import { Channel } from '../lib/ipc';
 import { Dialog } from './Dialog';
@@ -82,7 +83,7 @@ export function PushDialog(props: PushDialogProps) {
           'font-weight': '600',
         }}
       >
-        Push to Remote
+        {tr('Push to Remote')}
       </h2>
 
       <div style={{ 'font-size': '14px', color: theme.fgMuted, 'line-height': '1.5' }}>

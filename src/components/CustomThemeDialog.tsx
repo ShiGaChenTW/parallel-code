@@ -306,7 +306,7 @@ export function CustomThemeDialog(props: CustomThemeDialogProps) {
             }}
           >
             <span style={{ 'font-size': '11px', 'font-weight': '600', color: theme.warning }}>
-              Contrast warnings (theme will still save)
+              {tr('Contrast warnings (theme will still save)')}
             </span>
             <For each={warnings()}>
               {(w) => (
@@ -361,7 +361,7 @@ export function CustomThemeDialog(props: CustomThemeDialogProps) {
                 padding: '7px 0',
               }}
             >
-              Delete Theme
+              {tr('Delete Theme')}
             </button>
           )}
         </Show>

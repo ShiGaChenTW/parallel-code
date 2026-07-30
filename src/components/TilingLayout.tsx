@@ -435,10 +435,10 @@ export function TilingLayout() {
                         'margin-bottom': '6px',
                       }}
                     >
-                      All tasks are collapsed
+                      {tr('All tasks are collapsed')}
                     </div>
                     <div style={{ 'font-size': '13px', color: theme.fgSubtle }}>
-                      Click a task in the sidebar to restore it
+                      {tr('Click a task in the sidebar to restore it')}
                     </div>
                   </div>
                 }
@@ -479,10 +479,10 @@ export function TilingLayout() {
                             'margin-bottom': '6px',
                           }}
                         >
-                          Link your first project to get started
+                          {tr('Link your first project to get started')}
                         </div>
                         <div style={{ 'font-size': '13px', color: theme.fgSubtle }}>
-                          A project is a local folder with your code
+                          {tr('A project is a local folder with your code')}
                         </div>
                       </div>
                       <button
@@ -510,7 +510,7 @@ export function TilingLayout() {
                         >
                           <path d="M1.75 1A1.75 1.75 0 0 0 0 2.75v10.5C0 14.22.78 15 1.75 15h12.5A1.75 1.75 0 0 0 16 13.25v-8.5A1.75 1.75 0 0 0 14.25 3H7.5a.25.25 0 0 1-.2-.1l-.9-1.2A1.75 1.75 0 0 0 5 1H1.75Z" />
                         </svg>
-                        Link Project
+                        {tr('Link Project')}
                       </button>
                     </>
                   }
@@ -540,7 +540,7 @@ export function TilingLayout() {
                         'margin-bottom': '6px',
                       }}
                     >
-                      No tasks yet
+                      {tr('No tasks yet')}
                     </div>
                     <div style={{ 'font-size': '13px', color: theme.fgSubtle }}>
                       Press{' '}

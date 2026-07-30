@@ -519,7 +519,7 @@ function AddAgentMenu(props: { taskId: string }) {
           }}
         >
           <div style={{ padding: '4px 10px', 'font-size': sf(10), color: theme.fgMuted }}>
-            Add agent
+            {tr('Add agent')}
           </div>
           <For each={availableAgents()}>
             {(agentDef) => (
@@ -676,7 +676,7 @@ function AgentTerminalPane(props: {
                       'font-size': sf(11),
                     }}
                   >
-                    Resume
+                    {tr('Resume')}
                   </button>
                 </Show>
               </div>
@@ -873,7 +873,7 @@ function AgentRestartMenu(props: { agentId: string; agentDefId: string }) {
           'font-size': sf(11),
         }}
       >
-        Restart
+        {tr('Restart')}
       </button>
       <button
         onClick={(e) => {
@@ -915,7 +915,7 @@ function AgentRestartMenu(props: { agentId: string; agentDefId: string }) {
               color: theme.fgMuted,
             }}
           >
-            Restart with…
+            {tr('Restart with…')}
           </div>
           <For each={store.availableAgents.filter((ag) => ag.available !== false)}>
             {(agentDef) => (

@@ -86,7 +86,7 @@ export function CloseTaskDialog(props: CloseTaskDialogProps) {
                       'font-weight': '600',
                     }}
                   >
-                    Warning: There are uncommitted changes that will be permanently lost.
+                    {tr('Warning: There are uncommitted changes that will be permanently lost.')}
                   </div>
                 </Show>
                 <Show when={worktreeStatus()?.has_committed_changes}>
@@ -97,7 +97,7 @@ export function CloseTaskDialog(props: CloseTaskDialogProps) {
                       'font-weight': '600',
                     }}
                   >
-                    Warning: This branch has commits that have not been merged into main.
+                    {tr('Warning: This branch has commits that have not been merged into main.')}
                   </div>
                 </Show>
               </div>
@@ -128,11 +128,11 @@ export function CloseTaskDialog(props: CloseTaskDialogProps) {
                     >
                       <Show when={willDeleteBranch}>
                         <li>
-                          Local feature branch <strong>{props.task.branchName}</strong>
+                          {tr('Local feature branch')} <strong>{props.task.branchName}</strong>
                         </li>
                       </Show>
                       <li>
-                        Worktree at <strong>{props.task.worktreePath}</strong>
+                        {tr('Worktree at')} <strong>{props.task.worktreePath}</strong>
                       </li>
                       <Show when={!willDeleteBranch}>
                         <li style={{ color: theme.fgMuted }}>

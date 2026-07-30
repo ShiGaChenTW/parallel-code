@@ -44,7 +44,10 @@ export function CommitFilesPopover(props: CommitFilesPopoverProps) {
           gap: '2px',
         }}
       >
-        <Show when={props.files} fallback={<div style={{ color: theme.fgMuted }}>Loading…</div>}>
+        <Show
+          when={props.files}
+          fallback={<div style={{ color: theme.fgMuted }}>{tr('Loading…')}</div>}
+        >
           {(files) => (
             <Show
               when={files().length > 0}

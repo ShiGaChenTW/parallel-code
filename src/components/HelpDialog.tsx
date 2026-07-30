@@ -221,7 +221,7 @@ export function HelpDialog(props: HelpDialogProps) {
           id={titleId}
           style={{ margin: '0', 'font-size': '17px', color: theme.fg, 'font-weight': '600' }}
         >
-          Keyboard Shortcuts
+          {tr('Keyboard Shortcuts')}
         </h2>
         <button
           onClick={() => props.onClose()}
@@ -285,7 +285,7 @@ export function HelpDialog(props: HelpDialogProps) {
             'white-space': 'nowrap',
           }}
         >
-          Reset All
+          {tr('Reset All')}
         </button>
       </div>
 
@@ -463,7 +463,7 @@ export function HelpDialog(props: HelpDialogProps) {
                                 cursor: 'pointer',
                               }}
                             >
-                              Override
+                              {tr('Override')}
                             </button>
                             <button
                               onClick={handleSwap}
@@ -477,7 +477,7 @@ export function HelpDialog(props: HelpDialogProps) {
                                 cursor: 'pointer',
                               }}
                             >
-                              Swap
+                              {tr('Swap')}
                             </button>
                             <button
                               onClick={handleConflictCancel}
