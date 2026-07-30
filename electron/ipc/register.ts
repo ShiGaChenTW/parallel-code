@@ -104,6 +104,7 @@ import { spawn } from 'child_process';
 import { askAboutCode, cancelAskAboutCode } from './ask-code.js';
 import { setMinimaxApiKey } from './ask-code-minimax.js';
 import { getSystemMonospaceFonts } from './system-fonts.js';
+import { installCjkFont, listInstalledCjkFontFamilies } from './font-install.js';
 import path from 'path';
 import {
   assertString,
@@ -1059,6 +1060,14 @@ export function registerAllHandlers(win: BrowserWindow): void {
 
   // --- System ---
   ipcMain.handle(IPC.GetSystemFonts, () => getSystemMonospaceFonts());
+  ipcMain.handle(IPC.ListInstalledCjkFonts, () => listInstalledCjkFontFamilies());
+  // Takes a family name, never a URL: main resolves the download from its own
+  // table, so this handler cannot be aimed at an arbitrary host by the renderer.
+  ipcMain.handle(IPC.InstallCjkFont, (_e, args) => {
+    const family = (args as { family?: unknown } | undefined)?.family;
+    if (typeof family !== 'string') throw new Error('family must be a string');
+    return installCjkFont(family);
+  });
 
   // --- Auto-update ---
   initAutoUpdater(win);

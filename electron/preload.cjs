@@ -112,6 +112,8 @@ const ALLOWED_CHANNELS = new Set([
   'build_docker_image',
   'resolve_project_dockerfile',
   'get_system_fonts',
+  'list_installed_cjk_fonts',
+  'install_cjk_font',
   'open_path',
   'read_file_text',
   'resolve_clipboard_paste',

@@ -152,5 +152,7 @@
   "SetOfflineMode": "set_offline_mode",
   "StartTokenUsageWatcher": "start_token_usage_watcher",
   "StopTokenUsageWatcher": "stop_token_usage_watcher",
-  "TokenUsageUpdate": "token_usage_update"
+  "TokenUsageUpdate": "token_usage_update",
+  "ListInstalledCjkFonts": "list_installed_cjk_fonts",
+  "InstallCjkFont": "install_cjk_font"
 }
