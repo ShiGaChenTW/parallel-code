@@ -255,6 +255,14 @@ export interface PersistedState {
   completedTaskCount?: number;
   mergedLinesAdded?: number;
   mergedLinesRemoved?: number;
+  /** Lifetime merge count. Absent for state written before onboarding stages;
+   *  `hasMergedEver` falls back to the merged-line totals for that data. */
+  mergedTaskTotal?: number;
+  /** High-water mark of tasks open at the same time. Absent for older state;
+   *  the live task count stands in until it is first written. */
+  peakConcurrentTasks?: number;
+  /** The user has opened the diff viewer at least once. Absent for older state. */
+  diffReviewed?: boolean;
   terminalFont?: string;
   themePreset?: LookPreset;
   showPromptInput?: boolean;
@@ -356,6 +364,9 @@ export interface AppStore {
   completedTaskCount: number;
   mergedLinesAdded: number;
   mergedLinesRemoved: number;
+  mergedTaskTotal: number;
+  peakConcurrentTasks: number;
+  diffReviewed: boolean;
   terminalFont: string;
   themePreset: LookPreset;
   showPromptInput: boolean;

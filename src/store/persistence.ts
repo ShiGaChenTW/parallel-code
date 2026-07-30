@@ -7,6 +7,7 @@ import { effectiveAgentId } from './agent-select';
 import { randomPastelColor } from './projects';
 import { markAgentSpawned } from './taskStatus';
 import { getLocalDateKey } from '../lib/date';
+import { nextPeakConcurrentTasks } from '../lib/onboarding';
 import type {
   Agent,
   Task,
@@ -25,6 +26,12 @@ import type { CustomTheme } from '../lib/custom-theme';
 import { syncTerminalCounter } from './terminals';
 
 const RESTORED_AGENT_SPAWN_STAGGER_MS = 1_000;
+
+/** Persisted counters are untrusted input: anything that is not a finite,
+ *  non-negative number reads as "no evidence" rather than corrupting a count. */
+function nonNegativeInt(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
+}
 
 export async function loadCustomThemes(): Promise<boolean> {
   let files: { id: string; css: string }[];
@@ -185,6 +192,9 @@ export async function saveState(): Promise<void> {
     completedTaskCount: store.completedTaskCount,
     mergedLinesAdded: store.mergedLinesAdded,
     mergedLinesRemoved: store.mergedLinesRemoved,
+    mergedTaskTotal: store.mergedTaskTotal || undefined,
+    peakConcurrentTasks: store.peakConcurrentTasks || undefined,
+    diffReviewed: store.diffReviewed || undefined,
     terminalFont: store.terminalFont,
     themePreset: store.themePreset,
     showPromptInput: store.showPromptInput,
@@ -359,6 +369,9 @@ interface LegacyPersistedState {
   completedTaskCount?: unknown;
   mergedLinesAdded?: unknown;
   mergedLinesRemoved?: unknown;
+  mergedTaskTotal?: unknown;
+  peakConcurrentTasks?: unknown;
+  diffReviewed?: unknown;
   terminalFont?: unknown;
   themePreset?: unknown;
   showPromptInput?: unknown;
@@ -506,6 +519,13 @@ export async function loadState(): Promise<void> {
         typeof mergedLinesRemovedRaw === 'number' && Number.isFinite(mergedLinesRemovedRaw)
           ? Math.max(0, Math.floor(mergedLinesRemovedRaw))
           : 0;
+      // Onboarding progress. All three are absent in state written before this
+      // feature; the zero/false defaults are safe because `deriveOnboardingStage`
+      // falls back to the merged-line totals and the live task count, so an
+      // existing user is read off their real history rather than these defaults.
+      s.mergedTaskTotal = nonNegativeInt(raw.mergedTaskTotal);
+      s.peakConcurrentTasks = nonNegativeInt(raw.peakConcurrentTasks);
+      s.diffReviewed = raw.diffReviewed === true;
       s.terminalFont =
         typeof raw.terminalFont === 'string' && raw.terminalFont.trim()
           ? raw.terminalFont
@@ -848,6 +868,14 @@ export async function loadState(): Promise<void> {
           if (s.activeTaskId === null) s.focusMode = false;
         }
       }
+
+      // Restored tasks are themselves proof of concurrency: a user upgrading
+      // with three tasks on screen has demonstrably run three at once, even
+      // though `peakConcurrentTasks` has never been written for them.
+      s.peakConcurrentTasks = nextPeakConcurrentTasks(
+        s.peakConcurrentTasks,
+        Object.keys(s.tasks).length,
+      );
 
       // Set activeAgentId from the active task
       if (s.activeTaskId && s.tasks[s.activeTaskId]) {

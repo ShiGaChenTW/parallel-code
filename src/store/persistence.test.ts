@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { produce } from 'solid-js/store';
 import type { AgentDef } from '../ipc/types';
 import type { PersistedTask } from './types';
 
@@ -11,6 +12,7 @@ vi.mock('../lib/ipc', () => ({
 }));
 
 import { loadState, resolveIncomingPanelUserSize, saveState } from './persistence';
+import { onboardingStage } from './onboarding';
 import { setStore, store } from './core';
 import { IPC } from '../../electron/ipc/channels';
 
@@ -80,6 +82,12 @@ beforeEach(() => {
   setStore('customAgents', []);
   setStore('coordinatorControlHintDismissed', false);
   setStore('autoStartRemoteAccess', false);
+  setStore('mergedLinesAdded', 0);
+  setStore('mergedLinesRemoved', 0);
+  setStore('completedTaskCount', 0);
+  setStore('mergedTaskTotal', 0);
+  setStore('peakConcurrentTasks', 0);
+  setStore('diffReviewed', false);
 });
 
 describe('resolveIncomingPanelUserSize', () => {
@@ -877,5 +885,125 @@ describe('showSteps → defaultStepsEnabled migration', () => {
     const saved = JSON.parse(mockInvoke.mock.calls[0][1].json);
     expect(saved.showSteps).toBeUndefined();
     expect(saved.defaultStepsEnabled).toBe(true);
+  });
+});
+
+describe('onboarding progress persistence', () => {
+  // The file-level `beforeEach` uses `setStore('tasks', {})`, which merges an
+  // empty object rather than replacing the map, so task records survive between
+  // tests. Stage derivation counts live tasks, so clear them for real here.
+  beforeEach(() => {
+    setStore(
+      produce((s) => {
+        s.tasks = {};
+        s.agents = {};
+      }),
+    );
+  });
+
+  /** A `state.json` exactly as an older build wrote it: real usage history, but
+   *  none of the three fields the onboarding stages added. */
+  function legacyStateJson(taskIds: string[]): string {
+    const tasks: Record<string, PersistedTask> = {};
+    for (const id of taskIds) {
+      tasks[id] = { ...persistedTask(agentDef()), id, branchName: `task/${id}` };
+    }
+    return JSON.stringify({
+      projects: [
+        { id: 'project-1', name: 'Repo', path: '/repo', color: 'hsl(0, 70%, 75%)' },
+        { id: 'project-2', name: 'Other', path: '/other', color: 'hsl(40, 70%, 75%)' },
+      ],
+      lastProjectId: 'project-1',
+      lastAgentId: null,
+      taskOrder: taskIds,
+      collapsedTaskOrder: [],
+      tasks,
+      activeTaskId: taskIds[0] ?? null,
+      sidebarVisible: true,
+      // Merge history an older build did record.
+      mergedLinesAdded: 1_842,
+      mergedLinesRemoved: 507,
+      // Deliberately absent: mergedTaskTotal, peakConcurrentTasks, diffReviewed.
+    });
+  }
+
+  it('reads the new fields as their absent defaults for state written by an older build', async () => {
+    mockInvoke.mockResolvedValueOnce(legacyStateJson(['task-1']));
+
+    await loadState();
+
+    expect(store.mergedTaskTotal).toBe(0);
+    expect(store.diffReviewed).toBe(false);
+  });
+
+  it('does not classify an existing user with projects and merge history as stage 1', async () => {
+    mockInvoke.mockResolvedValueOnce(legacyStateJson(['task-1']));
+
+    await loadState();
+
+    // The three fields this feature added are all at their absent-field
+    // defaults, so the stage has to come from the pre-existing merge history.
+    expect(store.mergedTaskTotal).toBe(0);
+    expect(store.diffReviewed).toBe(false);
+    expect(store.mergedLinesAdded).toBeGreaterThan(0);
+
+    expect(onboardingStage()).not.toBe(1);
+    expect(onboardingStage()).toBe(2);
+  });
+
+  it('seeds the concurrency mark from restored tasks, so an existing user reaches stage 3', async () => {
+    mockInvoke.mockResolvedValueOnce(legacyStateJson(['task-1', 'task-2', 'task-3']));
+
+    await loadState();
+
+    expect(store.peakConcurrentTasks).toBe(3);
+    expect(onboardingStage()).toBe(3);
+  });
+
+  it('keeps a persisted concurrency mark that is higher than the restored task count', async () => {
+    const raw = JSON.parse(legacyStateJson(['task-1']));
+    raw.peakConcurrentTasks = 4;
+    mockInvoke.mockResolvedValueOnce(JSON.stringify(raw));
+
+    await loadState();
+
+    expect(store.peakConcurrentTasks).toBe(4);
+    expect(onboardingStage()).toBe(3);
+  });
+
+  it('rejects a corrupt concurrency mark rather than trusting it', async () => {
+    const raw = JSON.parse(legacyStateJson([]));
+    raw.peakConcurrentTasks = -7;
+    mockInvoke.mockResolvedValueOnce(JSON.stringify(raw));
+
+    await loadState();
+
+    expect(store.peakConcurrentTasks).toBe(0);
+  });
+
+  it('round-trips onboarding progress through save', async () => {
+    setStore('mergedTaskTotal', 6);
+    setStore('peakConcurrentTasks', 3);
+    setStore('diffReviewed', true);
+
+    await saveState();
+
+    const saved = JSON.parse(mockInvoke.mock.calls[0][1].json);
+    expect(saved.mergedTaskTotal).toBe(6);
+    expect(saved.peakConcurrentTasks).toBe(3);
+    expect(saved.diffReviewed).toBe(true);
+  });
+
+  it('omits onboarding progress that is still at zero, keeping state.json unchanged for new installs', async () => {
+    setStore('mergedTaskTotal', 0);
+    setStore('peakConcurrentTasks', 0);
+    setStore('diffReviewed', false);
+
+    await saveState();
+
+    const saved = JSON.parse(mockInvoke.mock.calls[0][1].json);
+    expect(saved.mergedTaskTotal).toBeUndefined();
+    expect(saved.peakConcurrentTasks).toBeUndefined();
+    expect(saved.diffReviewed).toBeUndefined();
   });
 });
