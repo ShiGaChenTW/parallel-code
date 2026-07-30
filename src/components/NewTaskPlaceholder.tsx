@@ -57,7 +57,7 @@ export function NewTaskPlaceholder() {
           'font-size': '21px',
           'user-select': 'none',
         }}
-        title={`New task (${mod}+N)`}
+        title={tr('New task ({shortcut})', { shortcut: `${mod}+N` })}
       >
         +
       </div>
@@ -91,7 +91,7 @@ export function NewTaskPlaceholder() {
           'user-select': 'none',
           'flex-shrink': '0',
         }}
-        title={`New terminal (${mod}+Shift+D)`}
+        title={tr('New terminal ({shortcut})', { shortcut: `${mod}+Shift+D` })}
       >
         &gt;_
       </div>

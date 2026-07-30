@@ -314,7 +314,7 @@ export function EditProjectDialog(props: EditProjectDialogProps) {
                           padding: '0',
                           'flex-shrink': '0',
                         }}
-                        title={`Hue ${hue}`}
+                        title={tr('Hue {hue}', { hue })}
                       />
                     );
                   }}

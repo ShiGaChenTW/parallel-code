@@ -166,7 +166,7 @@ export function TaskShellSection(props: TaskShellSectionProps) {
             spawnShellForTask(props.task.id);
           }}
           tabIndex={-1}
-          title={`Open terminal (${mod}+Shift+T)`}
+          title={tr('Open terminal ({shortcut})', { shortcut: `${mod}+Shift+T` })}
           style={toolbarBtnStyle(shellToolbarIdx() === 0 && shellToolbarFocused())}
         >
           <span style={{ 'font-family': 'monospace', 'font-size': sf(14) }}>&gt;_</span>

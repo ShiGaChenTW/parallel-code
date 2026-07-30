@@ -1,5 +1,6 @@
-import { Show, createResource } from 'solid-js';
-import { tr } from '../store/i18n';
+import { For, Show, createResource } from 'solid-js';
+import type { JSX } from 'solid-js';
+import { tr, trParts } from '../store/i18n';
 import { invoke } from '../lib/ipc';
 import { IPC } from '../../electron/ipc/channels';
 import { closeTask, getProject, getCoordinatorCloseWarning } from '../store/store';
@@ -12,6 +13,21 @@ interface CloseTaskDialogProps {
   open: boolean;
   task: Task;
   onDone: () => void;
+}
+
+/**
+ * Renders a one-slot translated sentence with its value in `<strong>`.
+ *
+ * A dumb renderer: `trParts` does the translating and the splitting, this only
+ * decides what a slot looks like. That keeps the sentence a single catalogue
+ * entry, so the translation controls whether the value comes first or last.
+ */
+function Emphasised(props: { template: string; value: string | undefined }): JSX.Element {
+  return (
+    <For each={trParts(props.template)}>
+      {(segment) => (segment.kind === 'text' ? segment.value : <strong>{props.value}</strong>)}
+    </For>
+  );
 }
 
 export function shouldDisableCloseTaskConfirm(
@@ -110,11 +126,13 @@ export function CloseTaskDialog(props: CloseTaskDialogProps) {
               return (
                 <>
                   <p style={{ margin: '0 0 8px' }}>
-                    {props.task.externalWorktree
-                      ? 'This will stop all running agents and shells and remove the imported task from Parallel Code. The existing git worktree will be left untouched.'
-                      : willDeleteBranch
-                        ? 'This action cannot be undone. The following will be permanently deleted:'
-                        : 'The worktree will be removed but the branch will be kept:'}
+                    {tr(
+                      props.task.externalWorktree
+                        ? 'This will stop all running agents and shells and remove the imported task from Parallel Code. The existing git worktree will be left untouched.'
+                        : willDeleteBranch
+                          ? 'This action cannot be undone. The following will be permanently deleted:'
+                          : 'The worktree will be removed but the branch will be kept:',
+                    )}
                   </p>
                   <Show when={!props.task.externalWorktree}>
                     <ul
@@ -126,17 +144,26 @@ export function CloseTaskDialog(props: CloseTaskDialogProps) {
                         gap: '4px',
                       }}
                     >
+                      {/* Each value is a <strong>, not a string, so these render
+                          from segments — zh-TW is free to put the branch name
+                          first, which label-plus-concatenation prevented. */}
                       <Show when={willDeleteBranch}>
                         <li>
-                          {tr('Local feature branch')} <strong>{props.task.branchName}</strong>
+                          <Emphasised
+                            template="Local feature branch {branch}"
+                            value={props.task.branchName}
+                          />
                         </li>
                       </Show>
                       <li>
-                        {tr('Worktree at')} <strong>{props.task.worktreePath}</strong>
+                        <Emphasised template="Worktree at {path}" value={props.task.worktreePath} />
                       </li>
                       <Show when={!willDeleteBranch}>
                         <li style={{ color: theme.fgMuted }}>
-                          Branch <strong>{props.task.branchName}</strong> will be kept
+                          <Emphasised
+                            template="Branch {branch} will be kept"
+                            value={props.task.branchName}
+                          />
                         </li>
                       </Show>
                     </ul>

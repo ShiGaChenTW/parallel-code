@@ -498,7 +498,7 @@ export function Sidebar() {
                 </svg>
               }
               onClick={() => toggleSettingsDialog(true)}
-              title={`Settings (${mod}+,)`}
+              title={tr('Settings ({shortcut})', { shortcut: `${mod}+,` })}
             />
             <IconButton
               icon={
@@ -507,7 +507,7 @@ export function Sidebar() {
                 </svg>
               }
               onClick={() => toggleSidebar()}
-              title={`Collapse sidebar (${mod}+B)`}
+              title={tr('Collapse sidebar ({shortcut})', { shortcut: `${mod}+B` })}
             />
           </div>
         </div>
