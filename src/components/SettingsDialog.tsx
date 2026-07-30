@@ -8,6 +8,15 @@ import {
   getTerminalFontFamily,
   LIGATURE_FONTS,
 } from '../lib/fonts';
+import { CJK_TERMINAL_FONTS, formatFontSize, isCjkFontInstalled } from '../lib/cjk-fonts';
+import {
+  chooseCjkFont,
+  cjkFontStatus,
+  dismissCjkFontStatus,
+  installedFamilies,
+  refreshInstalledCjkFonts,
+  retryCjkFontInstall,
+} from '../store/cjkFont';
 import { presetsForTone } from '../lib/look';
 import type { AppearanceMode } from '../lib/look';
 import { LOCALES, LOCALE_LABELS } from '../lib/i18n';
@@ -56,6 +65,84 @@ interface SettingsDialogProps {
 function ensureSelectedFont(available: string[]): string[] {
   if (available.includes(store.terminalFont)) return available;
   return [store.terminalFont, ...available];
+}
+
+/**
+ * Traditional-Chinese terminal fonts.
+ *
+ * A dumb view: every decision — installed or not, ask or refuse, what the
+ * sentence says — comes from `planCjkFontSelection` and `cjkFontStatus()`.
+ * vitest runs without a DOM, so anything decided here would be untestable.
+ */
+function CjkFontSection() {
+  const status = cjkFontStatus;
+  const installed = (family: string) => isCjkFontInstalled(family, installedFamilies());
+
+  return (
+    <div style={{ display: 'flex', 'flex-direction': 'column', gap: '10px' }}>
+      <div style={{ ...sectionLabelStyle, 'font-weight': '600' }}>
+        {tr('Chinese Terminal Font')}
+      </div>
+      <span style={{ 'font-size': '12px', color: theme.fgSubtle }}>
+        {tr(
+          'Fonts are never bundled or downloaded automatically. Picking one that is not installed asks first.',
+        )}
+      </span>
+      <div class="settings-font-grid">
+        <For each={CJK_TERMINAL_FONTS}>
+          {(font) => (
+            <button
+              type="button"
+              class={`settings-font-card${store.terminalFont === font.family ? ' active' : ''}`}
+              disabled={status().phase === 'downloading'}
+              onClick={() => void chooseCjkFont(font.family)}
+            >
+              <span class="settings-font-name">{font.family}</span>
+              <span style={{ 'font-size': '11px', color: theme.fgSubtle }}>{tr(font.note)}</span>
+              <span style={{ 'font-size': '11px', color: theme.fgSubtle }}>
+                {installed(font.family)
+                  ? tr('Installed')
+                  : tr('Not installed — {size}', {
+                      size: formatFontSize(font.delivery.bytes),
+                    })}
+                {' · '}
+                {font.licence.name}
+              </span>
+            </button>
+          )}
+        </For>
+      </div>
+      <Show when={status().phase === 'downloading'}>
+        <span style={{ 'font-size': '12px', color: theme.fgSubtle }}>
+          {tr('Downloading {font}…', { font: status().family })}
+        </span>
+      </Show>
+      <Show when={status().message}>
+        {(message) => (
+          <div
+            style={{ display: 'flex', 'align-items': 'center', gap: '8px', 'flex-wrap': 'wrap' }}
+          >
+            <span
+              style={{
+                'font-size': '12px',
+                color: status().phase === 'error' ? theme.error : theme.fgSubtle,
+              }}
+            >
+              {tr(message().text, message().params)}
+            </span>
+            <Show when={status().retryFamily}>
+              <button type="button" onClick={() => void retryCjkFontInstall()}>
+                {tr('Retry')}
+              </button>
+            </Show>
+            <button type="button" onClick={dismissCjkFontStatus}>
+              {tr('Dismiss')}
+            </button>
+          </div>
+        )}
+      </Show>
+    </div>
+  );
 }
 
 type SettingsTab = 'general' | 'themes' | 'experimental';
@@ -306,6 +393,10 @@ export function SettingsDialog(props: SettingsDialogProps) {
           fetchAvailableTerminalFonts().then((available) =>
             setFonts(ensureSelectedFont(available)),
           );
+          // Re-checked on every open rather than cached for the session: a user
+          // can install a font outside the app, and a stale "not installed"
+          // would offer a download they do not need.
+          void refreshInstalledCjkFonts();
         }
       },
     ),
@@ -867,6 +958,8 @@ export function SettingsDialog(props: SettingsDialogProps) {
               </span>
             </Show>
           </div>
+
+          <CjkFontSection />
 
           <SettingsSection title="Huly">
             <HulySettings />

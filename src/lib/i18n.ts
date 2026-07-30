@@ -677,6 +677,35 @@ const ZH_TW: Record<string, string> = {
     'Coordinator —— 由一個 agent 規劃工作，並替你驅動其他 task。',
   'Arena — run one task on several agents at once and compare the results.':
     'Arena —— 同一個 task 交給多個 agent 同時跑，再比較結果。',
+
+  // Traditional Chinese terminal fonts. The audience for this feature reads
+  // zh-TW, so leaving these to fall back to English would miss the point.
+  'Chinese Terminal Font': '終端中文字體',
+  'Fonts are never bundled or downloaded automatically. Picking one that is not installed asks first.':
+    '字體不會內建於安裝檔，也不會自動下載。選到未安裝的字體時會先詢問你。',
+  Installed: '已安裝',
+  'Not installed — {size}': '未安裝 —— {size}',
+  'Downloading {font}…': '正在下載 {font}…',
+  '{font} installed.': '{font} 已安裝完成。',
+  '{font} was not downloaded, so your terminal font is still {previous}.':
+    '{font} 沒有下載，終端字體維持 {previous}。',
+  'Could not install {font}: {reason} Your terminal font is still {previous}.':
+    '無法安裝 {font}：{reason} 終端字體維持 {previous}。',
+  'Offline mode is on, so {font} was not downloaded. Turn it off in Settings to allow this.':
+    '離線模式開啟中，因此沒有下載 {font}。要下載請到設定中關閉離線模式。',
+  '{font} is not installed. Download {size} from {source} and install it for your user account? Licence: {licence}.':
+    '{font} 尚未安裝。要從 {source} 下載 {size} 並安裝到你的使用者帳號嗎？授權：{licence}。',
+  '{font} is not installed. Its project publishes it only as {archive} ({size}), which Parallel Code cannot unpack. Open the release page to install it yourself. Licence: {licence}.':
+    '{font} 尚未安裝。該專案只發布 {archive}（{size}）這種壓縮檔，Parallel Code 無法解開。' +
+    '請開啟 release 頁面自行安裝。授權：{licence}。',
+  'Built for terminals; CJK sits at exactly twice the Latin width':
+    '專為終端設計，中文寬度正好是英文的兩倍',
+  'Stricter monospacing than Sarasa Term, same CJK coverage':
+    '比 Sarasa Term 更嚴格的等寬，中文涵蓋範圍相同',
+  'Rounded, with ligatures and Nerd Font icons': '圓角字形，含連字與 Nerd Font 圖示',
+  'Conservative and broadly compatible': '保守通用，相容性最廣',
+  'Calligraphic; easiest on the eyes over long sessions': '楷體風格，長時間閱讀最舒適',
+  // 'Retry' and 'Dismiss' are already in this catalogue above.
 };
 
 const CATALOGUES: Record<Locale, Record<string, string>> = {

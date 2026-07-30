@@ -149,5 +149,7 @@
   "HulyClearCredentials": "huly_clear_credentials",
   "HulyTestConnection": "huly_test_connection",
   "HulyListIssues": "huly_list_issues",
-  "SetOfflineMode": "set_offline_mode"
+  "SetOfflineMode": "set_offline_mode",
+  "ListInstalledCjkFonts": "list_installed_cjk_fonts",
+  "InstallCjkFont": "install_cjk_font"
 }

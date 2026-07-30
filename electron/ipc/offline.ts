@@ -26,6 +26,7 @@ export const OUTBOUND_SURFACES = [
   'git-push',
   'git-remote-head',
   'docker-build',
+  'font-download',
 ] as const;
 
 export type OutboundSurface = (typeof OUTBOUND_SURFACES)[number];
@@ -41,6 +42,7 @@ const SURFACE_MESSAGES: Record<OutboundSurface, string> = {
   'git-push': 'Offline mode is on, so the branch was not pushed to origin.',
   'git-remote-head': 'Offline mode is on, so the default branch was resolved from local refs only.',
   'docker-build': 'Offline mode is on, so the Docker image was not built.',
+  'font-download': 'Offline mode is on, so the terminal font was not downloaded.',
 };
 
 /** The sentence a blocked surface reports. Suffixed so the fix is obvious. */
