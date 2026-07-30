@@ -18,6 +18,7 @@ docs/*
 !docs/PRD.md
 !docs/research-*.md
 !docs/HANDOFF-*.md
+!docs/ROADMAP.md
 
 # Sandbox bind-mount artifacts from user home (not project files).
 # Root-anchored so legitimate nested files with these names are still tracked.
