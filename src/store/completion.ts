@@ -1,8 +1,18 @@
 import { produce } from 'solid-js/store';
 import { getLocalDateKey } from '../lib/date';
 import { store, setStore } from './core';
+import { recordTranscriptEvent } from './transcript';
+import { mergeEvent } from '../lib/transcript-events';
+import type { MergeResult } from '../ipc/types';
 
-export function recordTaskMerged(): void {
+/**
+ * `merged` is optional so the counter semantics are unchanged for callers that
+ * only want the tally. When it is supplied — which the real merge path always
+ * does — the merge also lands in the task's transcript. Keeping the emission
+ * here rather than at the call site keeps one event kind to one detection
+ * module, which is what makes the six kinds auditable.
+ */
+export function recordTaskMerged(merged?: { taskId: string; result: MergeResult }): void {
   const today = getLocalDateKey();
   setStore(
     produce((s) => {
@@ -18,6 +28,7 @@ export function recordTaskMerged(): void {
       s.completedTaskCount += 1;
     }),
   );
+  if (merged) recordTranscriptEvent(mergeEvent(merged.taskId, merged.result));
 }
 
 export function getMergedTasksTodayCount(): number {

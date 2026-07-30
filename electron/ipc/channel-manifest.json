@@ -154,5 +154,9 @@
   "StopTokenUsageWatcher": "stop_token_usage_watcher",
   "TokenUsageUpdate": "token_usage_update",
   "ListInstalledCjkFonts": "list_installed_cjk_fonts",
-  "InstallCjkFont": "install_cjk_font"
+  "InstallCjkFont": "install_cjk_font",
+  "SetTranscriptEnabled": "set_transcript_enabled",
+  "AppendTranscriptEvent": "append_transcript_event",
+  "ReadTranscript": "read_transcript",
+  "ClearTranscripts": "clear_transcripts"
 }

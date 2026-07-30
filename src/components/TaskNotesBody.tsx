@@ -1,4 +1,4 @@
-import { For, Show, createSignal, createEffect, onMount } from 'solid-js';
+import { For, Show, createSignal, createEffect, onCleanup, onMount } from 'solid-js';
 import { tr } from '../store/i18n';
 import {
   store,
@@ -7,6 +7,7 @@ import {
   sendPrompt,
   isAgentAskingQuestion,
   isPanelFocused,
+  readTranscript,
 } from '../store/store';
 import { theme } from '../lib/theme';
 import { sf } from '../lib/fontScale';
@@ -18,6 +19,12 @@ import {
   type NotesTab,
   type NotesTabAvailability,
 } from './task-notes-tabs';
+import {
+  toTimelineRows,
+  transcriptEmptyMessage,
+  transcriptSummaryLine,
+} from '../lib/transcript-timeline';
+import type { TranscriptEvent } from '../ipc/types';
 import type { Task } from '../store/types';
 
 interface TaskNotesBodyProps {
@@ -31,7 +38,11 @@ const TAB_LABELS: Record<NotesTab, string> = {
   notes: 'Notes',
   plan: 'Plan',
   handoff: 'Handoff',
+  timeline: 'Timeline',
 };
+
+/** How often the visible Timeline pane re-reads the task's transcript file. */
+const TIMELINE_REFRESH_MS = 4_000;
 
 /** Keyboard scrolling shared by the read-only markdown panes (plan, handoff). */
 function scrollByKey(el: HTMLDivElement | undefined, e: KeyboardEvent): void {
@@ -99,6 +110,7 @@ export function TaskNotesBody(props: TaskNotesBodyProps) {
   const availability = (): NotesTabAvailability => ({
     plan: store.showPlans && !!props.task.planContent,
     handoff: !!props.task.handoffContent,
+    timeline: store.transcriptEnabled,
   });
 
   const tabs = () => visibleNotesTabs(availability());
@@ -111,16 +123,42 @@ export function TaskNotesBody(props: TaskNotesBodyProps) {
 
   // Auto-switch when content appears or disappears. All of the decision-making
   // lives in nextNotesTab so it can be unit tested; this effect only feeds it.
-  let previousAvailability: NotesTabAvailability = { plan: false, handoff: false };
+  let previousAvailability: NotesTabAvailability = { plan: false, handoff: false, timeline: false };
   createEffect(() => {
     const next = availability();
     setNotesTab((current) => nextNotesTab({ current, previous: previousAvailability, next }));
     previousAvailability = next;
   });
 
+  // The transcript lives on disk in the main process, so the pane polls rather
+  // than subscribes. Only while it is the visible tab: a background poll of
+  // every open task's file would be a filesystem read per task per tick, to
+  // render something nobody is looking at.
+  const [transcript, setTranscript] = createSignal<TranscriptEvent[]>([]);
+  createEffect(() => {
+    if (activeTab() !== 'timeline' || !store.transcriptEnabled) return;
+    const taskId = props.task.id;
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const events = await readTranscript(taskId);
+        if (!cancelled) setTranscript(events);
+      } catch {
+        /* a transcript that cannot be read is an empty one, not an error dialog */
+      }
+    };
+    void load();
+    const timer = setInterval(() => void load(), TIMELINE_REFRESH_MS);
+    onCleanup(() => {
+      cancelled = true;
+      clearInterval(timer);
+    });
+  });
+
   let notesRef: HTMLTextAreaElement | undefined;
   let planScrollRef: HTMLDivElement | undefined;
   let handoffScrollRef: HTMLDivElement | undefined;
+  let timelineScrollRef: HTMLDivElement | undefined;
 
   onMount(() => {
     const id = props.task.id;
@@ -130,6 +168,8 @@ export function TaskNotesBody(props: TaskNotesBodyProps) {
         planScrollRef?.focus();
       } else if (tab === 'handoff') {
         handoffScrollRef?.focus();
+      } else if (tab === 'timeline') {
+        timelineScrollRef?.focus();
       } else {
         notesRef?.focus();
       }
@@ -332,6 +372,79 @@ export function TaskNotesBody(props: TaskNotesBodyProps) {
           // eslint-disable-next-line solid/no-innerhtml -- sanitised by DOMPurify in createHighlightedMarkdown (FR-CONTEXT-03)
           innerHTML={handoffHtml()}
         />
+      </Show>
+
+      {/* Timeline — the persisted lifecycle sequence for this task, read back
+          from `transcripts/<taskId>.jsonl`. Read-only by definition: it is a
+          record, and the row list is produced entirely by toTimelineRows so
+          this stays a renderer. */}
+      <Show when={activeTab() === 'timeline'}>
+        <div
+          ref={(el) => (timelineScrollRef = el)}
+          tabIndex={0}
+          style={{
+            flex: '1',
+            overflow: 'auto',
+            padding: '6px 8px',
+            background: theme.taskPanelBg,
+            color: theme.fg,
+            'font-size': sf(12),
+            'font-family': "'JetBrains Mono', monospace",
+            outline: 'none',
+          }}
+          onKeyDown={(e) => scrollByKey(timelineScrollRef, e)}
+        >
+          <Show
+            when={transcript().length > 0}
+            fallback={
+              <div style={{ color: theme.fgSubtle, padding: '4px 0' }}>
+                {tr(transcriptEmptyMessage(store.transcriptEnabled))}
+              </div>
+            }
+          >
+            <div style={{ color: theme.fgSubtle, 'padding-bottom': '4px' }}>
+              {transcriptSummaryLine(transcript())}
+            </div>
+            <For each={toTimelineRows(transcript())}>
+              {(row) => (
+                <>
+                  <Show when={row.dateHeading}>
+                    <div
+                      style={{
+                        color: theme.fgSubtle,
+                        'border-bottom': `1px solid ${theme.border}`,
+                        margin: '6px 0 2px',
+                      }}
+                    >
+                      {row.dateHeading}
+                    </div>
+                  </Show>
+                  <div style={{ display: 'flex', gap: '8px', padding: '1px 0' }}>
+                    <span style={{ color: theme.fgSubtle, 'flex-shrink': '0' }}>{row.time}</span>
+                    <span style={{ color: theme.accent, 'flex-shrink': '0' }}>{row.label}</span>
+                    <span style={{ 'min-width': '0', 'word-break': 'break-word' }}>
+                      {row.summary}
+                      <Show when={row.detail}>
+                        <span style={{ color: theme.fgSubtle }}> — {row.detail}</span>
+                      </Show>
+                      <Show when={row.redacted}>
+                        <span
+                          title={tr(
+                            'Content matching a known secret shape was masked before this was written',
+                          )}
+                          style={{ color: theme.fgMuted }}
+                        >
+                          {' '}
+                          [redacted]
+                        </span>
+                      </Show>
+                    </span>
+                  </div>
+                </>
+              )}
+            </For>
+          </Show>
+        </div>
       </Show>
     </div>
   );

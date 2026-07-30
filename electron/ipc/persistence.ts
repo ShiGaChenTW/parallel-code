@@ -2,7 +2,12 @@ import { app } from 'electron';
 import fs from 'fs';
 import path from 'path';
 
-function getStateDir(): string {
+/**
+ * The application data directory every local file lives under. Exported so the
+ * transcript store can be rooted in the same place — including the `-dev`
+ * suffix, so a dev session never writes transcripts into your real profile.
+ */
+export function getStateDir(): string {
   let dir = app.getPath('userData');
   // Use separate dir for dev mode
   if (!app.isPackaged) {

@@ -23,6 +23,9 @@ export type {
   TokenUsagePathRow,
   TokenUsageProviderStatus,
   TokenUsageSnapshot,
+  TranscriptEvent,
+  TranscriptEventInput,
+  TranscriptEventKind,
   WorktreeStatus,
 } from '../../electron/ipc/shared-types';
 

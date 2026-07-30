@@ -283,6 +283,10 @@ export interface PersistedState {
   /** Master privacy switch: when true the app makes no outbound request of
    *  its own. Does not cover third-party CLI traffic — see PRIVACY.md. */
   offlineMode?: boolean;
+  /** Opt-in session transcript: when true, task lifecycle events are written
+   *  to `transcripts/<taskId>.jsonl` in the app data directory. Off by
+   *  default — see PRIVACY.md. */
+  transcriptEnabled?: boolean;
   inactiveColumnOpacity?: number;
   editorCommand?: string;
   dockerImage?: string;
@@ -390,6 +394,10 @@ export interface AppStore {
   /** Master privacy switch: when true the app makes no outbound request of
    *  its own. Does not cover third-party CLI traffic — see PRIVACY.md. */
   offlineMode: boolean;
+  /** Opt-in session transcript: when true, task lifecycle events are written
+   *  to `transcripts/<taskId>.jsonl` in the app data directory. Off by
+   *  default — see PRIVACY.md. */
+  transcriptEnabled: boolean;
   inactiveColumnOpacity: number;
   editorCommand: string;
   dockerImage: string;

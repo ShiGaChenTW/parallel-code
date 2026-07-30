@@ -34,6 +34,8 @@ import {
   setFontSmoothing,
   setDesktopNotificationsEnabled,
   setOfflineMode,
+  setTranscriptEnabled,
+  clearTranscripts,
   setVerboseLogging,
   setInactiveColumnOpacity,
   setEditorCommand,
@@ -189,6 +191,75 @@ export function SettingsCheckboxRow(props: {
         <span style={{ 'font-size': '12px', color: theme.fgSubtle }}>{props.description}</span>
       </div>
     </label>
+  );
+}
+
+/**
+ * "Clear transcripts" — the delete half of the opt-in.
+ *
+ * A recording feature the user cannot undo is not really opt-in, so this sits
+ * directly beneath the switch rather than in a submenu. It reports how many
+ * files went, because "Cleared" with no number leaves you wondering whether it
+ * found anything. The button stays enabled while the switch is off: turning
+ * recording off does not delete what was already recorded, and that is exactly
+ * when someone wants this.
+ */
+function TranscriptClearRow() {
+  const [busy, setBusy] = createSignal(false);
+  const [result, setResult] = createSignal<string | null>(null);
+
+  const clear = async () => {
+    if (busy()) return;
+    setBusy(true);
+    setResult(null);
+    try {
+      const removed = await clearTranscripts();
+      setResult(
+        removed === 1
+          ? tr('Deleted 1 transcript')
+          : `${tr('Deleted')} ${removed} ${tr('transcripts')}`,
+      );
+    } catch {
+      setResult(tr('Could not delete transcripts'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div
+      style={{
+        display: 'flex',
+        'align-items': 'center',
+        gap: '10px',
+        padding: '8px 12px',
+        'border-radius': '8px',
+        background: theme.bgInput,
+        border: `1px solid ${theme.border}`,
+      }}
+    >
+      <button
+        class="btn-secondary"
+        type="button"
+        disabled={busy()}
+        onClick={() => void clear()}
+        style={{
+          padding: '4px 12px',
+          'font-size': '13px',
+          background: theme.bgInput,
+          color: theme.fg,
+          border: `1px solid ${theme.border}`,
+          'border-radius': '6px',
+          cursor: busy() ? 'default' : 'pointer',
+          opacity: busy() ? '0.6' : '1',
+        }}
+      >
+        {tr('Clear transcripts')}
+      </button>
+      <span style={{ 'font-size': '12px', color: theme.fgSubtle }}>
+        {result() ?? tr('Deletes every recorded transcript from disk. Cannot be undone.')}
+      </span>
+    </div>
   );
 }
 
@@ -593,6 +664,16 @@ export function SettingsDialog(props: SettingsDialogProps) {
               )}
               align="flex-start"
             />
+            <SettingsCheckboxRow
+              label={tr('Record session transcripts')}
+              checked={store.transcriptEnabled}
+              onChange={setTranscriptEnabled}
+              description={tr(
+                'Write a timestamped record of each task — agent starts and exits, step updates, attention changes, merges, PR check results and commits — to transcripts/<taskId>.jsonl in the application data directory, so a task can be reviewed after a restart. Nothing leaves your machine. Known secret shapes (API keys, tokens, private key headers) are masked before anything is written, but a transcript quotes your source code and instructions, so treat it as sensitive: masking catches shapes, not meaning. Kept for 30 days or 5000 events per task, whichever comes first.',
+              )}
+              align="flex-start"
+            />
+            <TranscriptClearRow />
           </SettingsSection>
 
           <SettingsSection title={tr('AI Usage')}>

@@ -4,6 +4,8 @@ import { getTaskAttentionState, type TaskAttentionState } from './taskStatus';
 import { setActiveTask } from './navigation';
 import { fireAndForget } from '../lib/ipc';
 import { IPC } from '../../electron/ipc/channels';
+import { recordTranscriptEvent } from './transcript';
+import { attentionTransitionEvent } from '../lib/transcript-events';
 import type { Agent, Task } from './types';
 
 const DEBOUNCE_MS = 3_000;
@@ -190,6 +192,13 @@ export function startDesktopNotificationWatcher(windowFocused: Accessor<boolean>
       const current = getTaskAttentionState(taskId);
       const prev = previousAttention.get(taskId);
       previousAttention.set(taskId, current);
+
+      // The transcript records every transition, including the ones that never
+      // become a notification: `scheduleBatch` bails when notifications are
+      // switched off or already shown, but "task went from working to ready at
+      // 14:02" is exactly what a timeline exists to answer.
+      const transition = attentionTransitionEvent(taskId, prev, current);
+      if (transition) recordTranscriptEvent(transition);
 
       // Skip initial population
       const notificationType = reconcilePendingNotification(pending, taskId, prev, current);

@@ -43,6 +43,8 @@ import type { Task } from '../store/types';
 import type { CommitInfo } from '../ipc/types';
 import { isLandedTaskState } from '../store/landing';
 import { shouldPollTaskCommits } from './task-commit-polling';
+import { recordTranscriptEvent } from '../store/transcript';
+import { newCommitEvents } from '../lib/transcript-events';
 
 interface TaskPanelProps {
   task: Task;
@@ -217,6 +219,10 @@ export function TaskPanel(props: TaskPanelProps) {
       return;
     }
     let cancelled = false;
+    // Baseline for the transcript's commit events. `undefined` means "not
+    // observed yet": the first poll seeds it and emits nothing, so scrolling a
+    // panel into view does not replay the branch's whole history.
+    let transcribedCommitHashes: string[] | undefined;
 
     async function fetchCommits() {
       try {
@@ -226,6 +232,9 @@ export function TaskPanel(props: TaskPanelProps) {
           ...(isolation === 'direct' ? { recentFallback: 50 } : {}),
         });
         if (cancelled) return;
+        const commitDelta = newCommitEvents(props.task.id, transcribedCommitHashes, result);
+        transcribedCommitHashes = commitDelta.hashes;
+        for (const event of commitDelta.events) recordTranscriptEvent(event);
         batch(() => {
           setCommitList(result);
           // Reset selection if the selected commit no longer exists. The

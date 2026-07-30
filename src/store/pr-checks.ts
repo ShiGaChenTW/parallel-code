@@ -5,6 +5,8 @@ import { fireAndForget, invoke } from '../lib/ipc';
 import { IPC } from '../../electron/ipc/channels';
 import { parseGitHubUrl } from '../lib/github-url';
 import { saveState } from './persistence';
+import { recordTranscriptEvent } from './transcript';
+import { prChecksEvent } from '../lib/transcript-events';
 import type {
   BranchPrDetectionResult,
   PrChecksOverall,
@@ -171,14 +173,22 @@ export function startPrChecksSubscription(): () => void {
       removePrChecks(msg.taskId);
       return;
     }
-    setPrChecks(msg.taskId, {
+    const next: PrChecksState = {
       overall: msg.overall as PrChecksOverall,
       passing: typeof msg.passing === 'number' ? msg.passing : 0,
       pending: typeof msg.pending === 'number' ? msg.pending : 0,
       failing: typeof msg.failing === 'number' ? msg.failing : 0,
       checks: Array.isArray(msg.checks) ? (msg.checks as PrCheckRun[]) : [],
       checkedAt: typeof msg.checkedAt === 'string' ? msg.checkedAt : new Date().toISOString(),
-    });
+    };
+    // Compare against the previous snapshot before storing it: pending PRs are
+    // polled every 30 seconds, and an unchanged poll is not an event. Read
+    // through `unwrap` — this is an IPC callback, not a tracked scope, and
+    // subscribing a transport listener to the store it writes to is how you get
+    // a reactivity warning today and a loop tomorrow.
+    const transition = prChecksEvent(msg.taskId, unwrap(prChecks)[msg.taskId], next);
+    if (transition) recordTranscriptEvent(transition);
+    setPrChecks(msg.taskId, next);
   });
 
   createEffect(() => {

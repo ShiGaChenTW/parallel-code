@@ -90,9 +90,18 @@ import {
   loadCustomThemeFiles,
   saveCustomThemeFile,
   deleteCustomThemeFile,
+  getStateDir,
 } from './persistence.js';
 import { loadKeybindings, saveKeybindings } from './keybindings.js';
 import { parsePersistedOfflineMode, setOfflineMode } from './offline.js';
+import {
+  appendTranscriptEvent,
+  getTranscriptStore,
+  initTranscriptStore,
+  parsePersistedTranscriptEnabled,
+  sanitiseTranscriptTaskId,
+  setTranscriptEnabled,
+} from './transcript.js';
 import {
   initAutoUpdater,
   getUpdateStatus,
@@ -421,6 +430,25 @@ export function registerAllHandlers(win: BrowserWindow): void {
   // value: the updater's silent startup check is on a ten-second timer, and an
   // offline promise that depends on winning a race is not a promise.
   setOfflineMode(parsePersistedOfflineMode(loadAppState()));
+
+  // --- Session transcript ---
+  // Same reasoning as offline mode, pointing the other way: main seeds the
+  // switch from the state file before any handler can append, so there is no
+  // window in which the app records because a renderer message was in flight.
+  // Off unless the file says a literal `true`.
+  initTranscriptStore(path.join(getStateDir(), 'transcripts'));
+  setTranscriptEnabled(parsePersistedTranscriptEnabled(loadAppState()));
+  // Enforce the 30-day window across every file, including tasks that will
+  // never be written to again. Without this the per-task event cap alone would
+  // keep a dead task's transcript forever and "30 days" would be a claim the
+  // code does not honour. Best-effort and off the critical path.
+  setImmediate(() => {
+    try {
+      getTranscriptStore()?.sweep();
+    } catch (err) {
+      logWarn('transcript', 'retention sweep failed', { err: errMessage(err) });
+    }
+  });
 
   // --- Remote access state ---
   let remoteServer: Awaited<ReturnType<typeof startRemoteServer>> | null = null;
@@ -779,6 +807,27 @@ export function registerAllHandlers(win: BrowserWindow): void {
     // be told: stop the tick now, or re-arm it now. Everything else consults
     // `isOfflineMode()` at call time and needs no notification.
     applyPrChecksOfflineMode(enabled);
+  });
+
+  // --- Session transcript ---
+  ipcMain.handle(IPC.SetTranscriptEnabled, (_e, args) => {
+    setTranscriptEnabled(args.enabled === true);
+  });
+  // Deliberately returns nothing: the renderer fires and forgets, and a
+  // transcript write must never be able to fail a merge or a spawn. Validation,
+  // redaction and the off-switch all live behind `appendTranscriptEvent`.
+  ipcMain.handle(IPC.AppendTranscriptEvent, (_e, args) => {
+    appendTranscriptEvent(args?.event);
+  });
+  ipcMain.handle(IPC.ReadTranscript, (_e, args) => {
+    const taskId = sanitiseTranscriptTaskId(args?.taskId);
+    if (taskId === null) return [];
+    return getTranscriptStore()?.read(taskId) ?? [];
+  });
+  ipcMain.handle(IPC.ClearTranscripts, () => {
+    const removed = getTranscriptStore()?.clear() ?? 0;
+    logDebug('transcript', 'cleared', { removed });
+    return { removed };
   });
 
   ipcMain.handle(IPC.LoadCustomThemes, () => loadCustomThemeFiles());

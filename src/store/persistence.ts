@@ -23,6 +23,7 @@ import { isLookPreset } from '../lib/look';
 import { isLocale } from '../lib/i18n';
 import { readPersistedOfflineMode } from '../lib/offline-mode';
 import { syncOfflineModeToMain } from './offline';
+import { syncTranscriptEnabledToMain } from './transcript';
 import { validateCustomTheme, parseThemeCss, themeToCss } from '../lib/custom-theme';
 import type { CustomTheme } from '../lib/custom-theme';
 import { syncTerminalCounter } from './terminals';
@@ -209,6 +210,7 @@ export async function saveState(): Promise<void> {
     projectsCollapsed: store.projectsCollapsed,
     desktopNotificationsEnabled: store.desktopNotificationsEnabled,
     offlineMode: store.offlineMode || undefined,
+    transcriptEnabled: store.transcriptEnabled || undefined,
     inactiveColumnOpacity: store.inactiveColumnOpacity,
     editorCommand: store.editorCommand || undefined,
     dockerImage: store.dockerImage !== 'parallel-code-agent:latest' ? store.dockerImage : undefined,
@@ -388,6 +390,7 @@ interface LegacyPersistedState {
   projectsCollapsed?: unknown;
   desktopNotificationsEnabled?: unknown;
   offlineMode?: unknown;
+  transcriptEnabled?: unknown;
   inactiveColumnOpacity?: unknown;
   editorCommand?: unknown;
   dockerImage?: unknown;
@@ -550,6 +553,9 @@ export async function loadState(): Promise<void> {
           ? raw.desktopNotificationsEnabled
           : false;
       s.offlineMode = readPersistedOfflineMode(raw.offlineMode);
+      // A literal `true` or nothing. Consent to record must be explicit,
+      // so a corrupt or half-written state file cannot turn it on.
+      s.transcriptEnabled = raw.transcriptEnabled === true;
       const rawOpacity = raw.inactiveColumnOpacity;
       s.inactiveColumnOpacity =
         typeof rawOpacity === 'number' &&
@@ -897,6 +903,7 @@ export async function loadState(): Promise<void> {
 
   syncTerminalCounter();
   syncOfflineModeToMain();
+  syncTranscriptEnabledToMain();
 
   // Await migration of any customThemes found in state.json to individual CSS files.
   // Runs after the produce block so it can be properly awaited. loadCustomThemes() in
