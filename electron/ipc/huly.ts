@@ -14,11 +14,21 @@ import type { HulyIssue } from './shared-types.js';
  * Confined to the main process. dependency-cruiser forbids the renderer from
  * importing this, and the client needs a Node WebSocket anyway.
  *
- * Version note: this app pins @hcengineering/* 0.7.423 because that is the
- * newest published client, while a server may run newer (0.7.426 was observed).
- * The client connects and reads correctly across that gap but logs a burst of
- * "failed to apply model transaction" lines for model transactions it cannot
- * apply. They are suppressed during connect so they do not drown the app log.
+ * Version note: this app pins @hcengineering/* 0.7.423 — the newest version
+ * published to npm — while a server may run newer (0.7.426 observed). 0.7.426
+ * is not published under any dist-tag, so the gap cannot be closed from the
+ * client side.
+ *
+ * Measured effect of the gap: none on behaviour. findAll, findOne, createDoc,
+ * addCollection and updateDoc all work against 0.7.426. The only visible symptom
+ * is 15 `failed to apply model transaction` warnings per connect, suppressed
+ * below. Treat the gap as noise unless something concrete fails.
+ *
+ * One genuine limitation, unrelated to versions: `uploadMarkup` does not
+ * overwrite an existing markup blob. Its ref is derived from
+ * (object, field, revision) and storage is write-once, so a new document can be
+ * created with a description but an existing one cannot have its description
+ * replaced this way. Append a comment instead of rewriting a description.
  */
 
 export type { HulyIssue };
@@ -148,19 +158,36 @@ type HulyClient = {
 let client: HulyClient | null = null;
 let connecting: Promise<HulyClient> | null = null;
 
+/** True for the client's own model-transaction noise, and nothing else. */
+export function isModelTransactionWarning(first: unknown): boolean {
+  return typeof first === 'string' && first.includes('failed to apply model transaction');
+}
+
+/** The console surface this suppression touches. Narrow so a test can pass a fake. */
+export interface WarnSink {
+  warn: (...args: unknown[]) => void;
+}
+
 /**
  * Silence the client's model-transaction warnings for the duration of `fn`.
- * They are a symptom of the pinned-client/newer-server gap, not of anything the
- * user can act on, and there are dozens per connect.
+ *
+ * The client writes them itself, so there is no logger to configure. Measured
+ * at 15 per connect against a 0.7.426 server. They report model transactions
+ * referencing documents this client's model does not contain — nothing the user
+ * can act on.
+ *
+ * Takes the sink as a parameter because the first version of this hooked
+ * `console.log` and silently did nothing: the client uses `console.warn`. A
+ * parameter makes the choice explicit and lets a test assert it.
  */
-async function withSuppressedModelWarnings<T>(fn: () => Promise<T>): Promise<T> {
-  /* eslint-disable no-console -- intercepting console.log IS the mechanism here:
-     the Huly client writes these warnings itself, so there is no logger to
-     configure and no option to pass. Scoped to one call and always restored. */
-  const original = console.log;
+export async function withSuppressedModelWarnings<T>(
+  fn: () => Promise<T>,
+  sink: WarnSink = console,
+): Promise<T> {
+  const original = sink.warn;
   let suppressed = 0;
-  console.log = (...args: unknown[]) => {
-    if (typeof args[0] === 'string' && args[0].includes('failed to apply model transaction')) {
+  sink.warn = (...args: unknown[]) => {
+    if (isModelTransactionWarning(args[0])) {
       suppressed++;
       return;
     }
@@ -169,8 +196,7 @@ async function withSuppressedModelWarnings<T>(fn: () => Promise<T>): Promise<T> 
   try {
     return await fn();
   } finally {
-    console.log = original;
-    /* eslint-enable no-console */
+    sink.warn = original;
     if (suppressed > 0) {
       debug('huly', 'suppressed client model-version warnings', { count: suppressed });
     }

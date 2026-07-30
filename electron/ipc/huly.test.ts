@@ -9,7 +9,8 @@ vi.mock('electron', () => ({
   },
 }));
 
-const { mapIssue, parseCredentials } = await import('./huly.js');
+const { isModelTransactionWarning, mapIssue, parseCredentials, withSuppressedModelWarnings } =
+  await import('./huly.js');
 
 describe('parseCredentials', () => {
   const valid = { url: 'https://huly.example.com', workspace: 'ws', token: 'tok' };
@@ -99,5 +100,47 @@ describe('mapIssue', () => {
       status: '',
       modifiedOn: 0,
     });
+  });
+});
+
+describe('withSuppressedModelWarnings', () => {
+  it('filters the client noise from warn — the stream the client actually uses', async () => {
+    const kept: unknown[][] = [];
+    const sink = { warn: (...args: unknown[]) => kept.push(args) };
+    await withSuppressedModelWarnings(async () => {
+      sink.warn('no document found, failed to apply model transaction, skipping _id="x"');
+      sink.warn('something a user should see');
+    }, sink);
+    expect(kept).toEqual([['something a user should see']]);
+  });
+
+  it('restores the original warn even when the body throws', async () => {
+    const original = () => undefined;
+    const sink = { warn: original };
+    await expect(
+      withSuppressedModelWarnings(async () => {
+        throw new Error('connect failed');
+      }, sink),
+    ).rejects.toThrow('connect failed');
+    expect(sink.warn).toBe(original);
+  });
+
+  it('returns the body result', async () => {
+    const sink = { warn: () => undefined };
+    await expect(withSuppressedModelWarnings(async () => 42, sink)).resolves.toBe(42);
+  });
+});
+
+describe('isModelTransactionWarning', () => {
+  it('matches the client noise', () => {
+    expect(
+      isModelTransactionWarning('no document found, failed to apply model transaction, skipping'),
+    ).toBe(true);
+  });
+
+  it('does not match unrelated warnings, which must stay visible', () => {
+    expect(isModelTransactionWarning('websocket closed unexpectedly')).toBe(false);
+    expect(isModelTransactionWarning(undefined)).toBe(false);
+    expect(isModelTransactionWarning(42)).toBe(false);
   });
 });
