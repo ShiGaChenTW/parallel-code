@@ -19,6 +19,7 @@ import type { AgentDef } from '../ipc/types';
 import { inferDockerSource } from '../lib/docker';
 import { DEFAULT_TERMINAL_FONT } from '../lib/fonts';
 import { isLookPreset } from '../lib/look';
+import { isLocale } from '../lib/i18n';
 import { validateCustomTheme, parseThemeCss, themeToCss } from '../lib/custom-theme';
 import type { CustomTheme } from '../lib/custom-theme';
 import { syncTerminalCounter } from './terminals';
@@ -208,6 +209,7 @@ export async function saveState(): Promise<void> {
     shareDockerAgentAuth: store.shareDockerAgentAuth || undefined,
     activeCustomThemeId: store.activeCustomThemeId ?? undefined,
     appearanceMode: store.appearanceMode !== 'dark' ? store.appearanceMode : undefined,
+    locale: store.locale !== 'en' ? store.locale : undefined,
     lightThemePreset:
       store.lightThemePreset !== 'islands-light' ? store.lightThemePreset : undefined,
     lightThemeCustomId: store.lightThemeCustomId ?? undefined,
@@ -377,6 +379,7 @@ interface LegacyPersistedState {
   customThemes?: unknown;
   activeCustomThemeId?: unknown;
   appearanceMode?: unknown;
+  locale?: unknown;
   lightThemePreset?: unknown;
   lightThemeCustomId?: unknown;
   darkThemePreset?: unknown;
@@ -542,6 +545,10 @@ export async function loadState(): Promise<void> {
       if (typeof raw.activeCustomThemeId === 'string') {
         s.activeCustomThemeId = raw.activeCustomThemeId;
       }
+
+      // Anything that is not a known locale falls back to English rather than
+      // becoming the locale — persisted state is not trusted input.
+      s.locale = isLocale(raw.locale) ? raw.locale : 'en';
 
       // Restore appearance mode and per-mode theme preferences
       const savedMode = raw.appearanceMode;

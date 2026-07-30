@@ -1,6 +1,7 @@
 import type { AgentDef, StepEntry, WorktreeStatus } from '../ipc/types';
 import type { DockerSource } from '../lib/docker';
 import type { LookPreset, AppearanceMode } from '../lib/look';
+import type { Locale } from '../lib/i18n';
 import type { KeyBinding } from '../lib/keybindings';
 import type { CustomTheme } from '../lib/custom-theme';
 
@@ -270,6 +271,7 @@ export interface PersistedState {
   verboseLogging?: boolean;
   activeCustomThemeId?: string | null;
   appearanceMode?: AppearanceMode;
+  locale?: Locale;
   lightThemePreset?: LookPreset;
   lightThemeCustomId?: string | null;
   darkThemePreset?: LookPreset;
@@ -380,6 +382,7 @@ export interface AppStore {
   customThemes: Record<string, CustomTheme>;
   activeCustomThemeId: string | null;
   appearanceMode: AppearanceMode;
+  locale: Locale;
   lightThemePreset: LookPreset;
   lightThemeCustomId: string | null;
   darkThemePreset: LookPreset;

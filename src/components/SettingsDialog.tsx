@@ -10,6 +10,8 @@ import {
 } from '../lib/fonts';
 import { presetsForTone } from '../lib/look';
 import type { AppearanceMode } from '../lib/look';
+import { LOCALES, LOCALE_LABELS } from '../lib/i18n';
+import { t, setLocale } from '../store/i18n';
 import { theme, sectionLabelStyle, readCssVarsForPreset } from '../lib/theme';
 import { themeToCss, detectThemeTone } from '../lib/custom-theme';
 import {
@@ -935,9 +937,49 @@ export function SettingsDialog(props: SettingsDialogProps) {
           aria-labelledby="settings-tabbutton-themes"
           style={{ display: 'flex', 'flex-direction': 'column', gap: '18px' }}
         >
+          {/* Language selector */}
+          <div style={{ display: 'flex', 'flex-direction': 'column', gap: '10px' }}>
+            <div style={{ ...sectionLabelStyle, 'font-weight': '600' }}>{t('Language')}</div>
+            <div
+              style={{
+                display: 'flex',
+                gap: '4px',
+                background: theme.bgInput,
+                border: `1px solid ${theme.border}`,
+                'border-radius': '8px',
+                padding: '4px',
+              }}
+            >
+              <For each={LOCALES}>
+                {(locale) => (
+                  <button
+                    type="button"
+                    style={{
+                      flex: '1',
+                      padding: '6px',
+                      'border-radius': '6px',
+                      border: 'none',
+                      background: store.locale === locale ? theme.bgElevated : 'transparent',
+                      color: store.locale === locale ? theme.fg : theme.fgMuted,
+                      cursor: 'pointer',
+                      'font-size': '13px',
+                      'font-weight': store.locale === locale ? '600' : '400',
+                      transition: 'background 0.15s, color 0.15s',
+                    }}
+                    onClick={() => setLocale(locale)}
+                  >
+                    {/* Each language names itself — a reader who cannot read the
+                        current UI language still recognises their own. */}
+                    {LOCALE_LABELS[locale]}
+                  </button>
+                )}
+              </For>
+            </div>
+          </div>
+
           {/* Appearance mode selector */}
           <div style={{ display: 'flex', 'flex-direction': 'column', gap: '10px' }}>
-            <div style={{ ...sectionLabelStyle, 'font-weight': '600' }}>Appearance</div>
+            <div style={{ ...sectionLabelStyle, 'font-weight': '600' }}>{t('Appearance')}</div>
             <div
               style={{
                 display: 'flex',
@@ -966,7 +1008,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
                     }}
                     onClick={() => setAppearanceMode(mode)}
                   >
-                    {mode === 'light' ? 'Light' : mode === 'dark' ? 'Dark' : 'System'}
+                    {t(mode)}
                   </button>
                 )}
               </For>

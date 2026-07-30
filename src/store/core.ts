@@ -39,6 +39,7 @@ export const [store, setStore] = createStore<AppStore>({
   terminalFont: DEFAULT_TERMINAL_FONT,
   themePreset: 'islands-dark',
   appearanceMode: 'dark',
+  locale: 'en',
   lightThemePreset: 'islands-light',
   lightThemeCustomId: null,
   darkThemePreset: 'islands-dark',
