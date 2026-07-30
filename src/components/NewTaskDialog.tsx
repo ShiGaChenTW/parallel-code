@@ -3,6 +3,7 @@ import {
   createEffect,
   createMemo,
   createUniqueId,
+  For,
   Show,
   onCleanup,
   on,
@@ -50,6 +51,7 @@ import { isMac } from '../lib/platform';
 import { AgentSelector } from './AgentSelector';
 import { BranchPrefixField } from './BranchPrefixField';
 import { BranchCombobox } from './BranchCombobox';
+import { listDependencyCandidates } from '../lib/task-dependency';
 import { ProjectSelect } from './ProjectSelect';
 import { SymlinkDirPicker } from './SymlinkDirPicker';
 import { scrollCoordinatorIntoView } from './scrollCoordinatorIntoView';
@@ -429,9 +431,32 @@ export function NewTaskDialog(props: NewTaskDialogProps) {
     }
   });
   const [branchPrefix, setBranchPrefix] = createSignal('');
+
+  // The one task this one depends on. Empty string is "none" — a select's value
+  // is a string, and modelling absence as '' keeps the option list honest
+  // instead of smuggling a sentinel id through.
+  const [dependsOnTaskId, setDependsOnTaskId] = createSignal('');
+  const dependencyCandidates = createMemo(() => {
+    const projectId = selectedProjectId();
+    if (!projectId) return [];
+    return listDependencyCandidates({ projectId, taskOrder: store.taskOrder, tasks: store.tasks });
+  });
+  // Drop a pick that stops being offerable — switching project, or the task
+  // being closed while the dialog is open. Leaving it set would fork from a
+  // branch the user can no longer see named anywhere.
+  createEffect(() => {
+    const chosen = dependsOnTaskId();
+    if (chosen && !dependencyCandidates().includes(chosen)) setDependsOnTaskId('');
+  });
+  const dependencyBranch = () => {
+    const chosen = dependsOnTaskId();
+    return chosen ? (store.tasks[chosen]?.branchName ?? '') : '';
+  };
+
   let promptRef!: HTMLTextAreaElement;
   const titleId = createUniqueId();
   const branchInputId = createUniqueId();
+  const dependsOnInputId = createUniqueId();
   let formRef!: HTMLFormElement;
   let buildOutputRef!: HTMLPreElement;
   let scrollContainerRef!: HTMLDivElement;
@@ -981,6 +1006,7 @@ export function NewTaskDialog(props: NewTaskDialogProps) {
         projectId,
         gitIsolation: gitIsolation(),
         baseBranch: baseBranch(),
+        dependsOnTaskId: gitIsolation() === 'worktree' ? dependsOnTaskId() || undefined : undefined,
         symlinkDirs: gitIsolation() === 'worktree' ? [...selectedDirs()] : undefined,
         branchPrefixOverride: gitIsolation() === 'worktree' ? prefix : undefined,
         initialPrompt: isFromDrop ? undefined : p,
@@ -1300,6 +1326,51 @@ export function NewTaskDialog(props: NewTaskDialogProps) {
                   onChange={setBaseBranch}
                   loading={branchesLoading()}
                 />
+              </Show>
+            </div>
+          </Show>
+
+          {/* Dependency picker — worktree only. A 'direct' task works *on* the
+              chosen branch, and the dependency's branch is checked out in the
+              dependency's own worktree, so there is nothing to fork from. */}
+          <Show when={gitIsolation() === 'worktree' && dependencyCandidates().length > 0}>
+            <div
+              data-nav-field="depends-on"
+              style={{ display: 'flex', 'flex-direction': 'column', gap: '8px' }}
+            >
+              <label
+                for={dependsOnInputId}
+                style={{ ...sectionLabelStyle, 'align-self': 'flex-start' }}
+              >
+                {tr('Depends on')}
+              </label>
+              <select
+                id={dependsOnInputId}
+                value={dependsOnTaskId()}
+                onChange={(e) => setDependsOnTaskId(e.currentTarget.value)}
+                style={{
+                  background: theme.bgInput,
+                  border: `1px solid ${theme.border}`,
+                  'border-radius': '6px',
+                  padding: '6px 8px',
+                  color: theme.fg,
+                  'font-size': '13px',
+                }}
+              >
+                <option value="">{tr('Nothing — start from the base branch')}</option>
+                <For each={dependencyCandidates()}>
+                  {(id) => <option value={id}>{store.tasks[id]?.name}</option>}
+                </For>
+              </select>
+              <Show when={dependencyBranch()}>
+                {(branch) => (
+                  <span style={{ 'font-size': '12px', color: theme.fgSubtle }}>
+                    {tr(
+                      'Branches from {branch} instead, and waits for that task to land before starting.',
+                      { branch: branch() },
+                    )}
+                  </span>
+                )}
               </Show>
             </div>
           </Show>

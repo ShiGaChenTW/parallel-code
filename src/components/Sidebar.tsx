@@ -42,6 +42,7 @@ import { IconButton } from './IconButton';
 import { UpdateButton } from './UpdateButton';
 import { StatusDot, getDotTooltip } from './StatusDot';
 import { TaskCurrentStateLine } from './TaskCurrentStateLine';
+import { dependencyBlockMessage, getDependencyBlock } from '../lib/task-dependency';
 import { theme } from '../lib/theme';
 import { sf } from '../lib/fontScale';
 import { mod } from '../lib/platform';
@@ -1211,6 +1212,38 @@ function CollapsedTaskEntry(props: {
 
 // --- Individual task row ---
 
+/**
+ * "blocked" pill for a task whose dependency has not landed (or has been
+ * removed). Shaped after the landing-state badge in `SubTaskStrip`, and
+ * deliberately flat: a dependency is a peer edge, not containment, so it gets a
+ * badge on the existing row rather than a second kind of tree nesting.
+ *
+ * The full sentence rides on `title` — the row has no space for it, and the
+ * blocked terminal itself carries the reason plus the way out.
+ */
+function DependencyBlockedBadge(props: { taskId: string }) {
+  const block = () => getDependencyBlock(props.taskId, store.tasks);
+  return (
+    <Show when={block()}>
+      {(b) => (
+        <span
+          title={tr(dependencyBlockMessage(b()).text, dependencyBlockMessage(b()).params)}
+          style={{
+            'font-size': sf(10),
+            color: theme.warning,
+            background: `color-mix(in srgb, ${theme.warning} 12%, transparent)`,
+            padding: '1px 5px',
+            'border-radius': '3px',
+            'flex-shrink': '0',
+          }}
+        >
+          {tr('blocked')}
+        </span>
+      )}
+    </Show>
+  );
+}
+
 interface TaskRowProps {
   taskId: string;
   nowMs: number;
@@ -1261,6 +1294,7 @@ function TaskRow(props: TaskRowProps) {
                 <DirectBranchBadge branchName={t().branchName} />
               </Show>
               <span style={{ overflow: 'hidden', 'text-overflow': 'ellipsis' }}>{t().name}</span>
+              <DependencyBlockedBadge taskId={props.taskId} />
               <Show when={offscreenAttention.label()}>
                 {(label) => (
                   <span

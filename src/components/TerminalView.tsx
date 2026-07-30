@@ -27,8 +27,13 @@ import {
   markTaskUserActivity,
   setTaskTerminalInputPending,
 } from '../store/store';
-import { clearTerminalInputPendingFromQuestion } from '../store/tasks';
+import { clearTerminalInputPendingFromQuestion, clearTaskDependency } from '../store/tasks';
 import { isLandedTaskState } from '../store/landing';
+import {
+  dependencyBlockMessage,
+  getDependencyBlock,
+  shouldHoldAgentSpawn,
+} from '../lib/task-dependency';
 import { warn as logWarn } from '../lib/log';
 import {
   registerTerminal,
@@ -186,6 +191,13 @@ export function TerminalView(props: TerminalViewProps) {
   const [searchResult, setSearchResult] = createSignal({ index: -1, count: 0 });
 
   const resetSearchResults = () => setSearchResult({ index: -1, count: 0 });
+
+  // Why this task's agent is not allowed to start, or null. Derived on read from
+  // `dependsOnTaskId` plus the dependency's `landingState`, so it re-evaluates
+  // the moment the dependency lands and the held spawn goes through by itself.
+  const dependencyBlock = () => getDependencyBlock(props.taskId, store.tasks);
+  const spawnHeldForDependency = () =>
+    shouldHoldAgentSpawn({ isShell: props.isShell, block: dependencyBlock() });
 
   // Scroll bookmarks — the user selects terminal text and pins it; each pin is an
   // xterm marker anchored to that line. Its icon sits next to the line and scrolls
@@ -1003,6 +1015,7 @@ export function TerminalView(props: TerminalViewProps) {
       if (!term || spawnStarted) return;
       const landingState = store.tasks[taskId]?.landingState;
       if (isLandedTaskState(landingState)) return;
+      if (spawnHeldForDependency()) return;
       spawnStarted = true;
       invoke(IPC.SpawnAgent, {
         taskId,
@@ -1040,26 +1053,35 @@ export function TerminalView(props: TerminalViewProps) {
         });
     }
 
-    // For coordinator and coordinated sub-tasks, defer spawn until MCP is ready.
-    // Coordinator tasks wait for StartMCPServer to complete; sub-tasks wait for hydrateTask.
-    // Always install the watcher when MCP lifecycle is present so that Retry (error → ready)
-    // works even when the component mounts in 'error' state.
+    // Two independent reasons to defer a spawn, resolved by one effect.
+    //
+    // MCP — coordinator and coordinated sub-tasks wait until MCP is ready:
+    // coordinators for StartMCPServer, sub-tasks for hydrateTask. The watcher is
+    // installed whenever MCP lifecycle is present so Retry (error → ready) works
+    // even when the component mounts in 'error' state.
+    //
+    // Dependency — an agent terminal whose task depends on one that has not
+    // landed holds, then spawns by itself the moment the dependency lands.
+    //
+    // Both are "not yet" rather than "never", so both are handled here rather
+    // than by declining to mount the terminal: TerminalView also owns
+    // kill-on-unmount, and a task that is merely waiting must not look dead.
     const spawnDelayMsVal = props.spawnDelayMs ?? 0;
     const task = store.tasks[taskId];
-    if (task?.mcpStartupStatus !== undefined) {
+    if (task?.mcpStartupStatus !== undefined || spawnHeldForDependency()) {
       let spawned = false;
       createEffect(() => {
         if (spawned) return;
         const status = store.tasks[taskId]?.mcpStartupStatus;
-        if (status === 'ready') {
-          spawned = true;
-          if (spawnDelayMsVal > 0) {
-            spawnTimer = window.setTimeout(startSpawn, spawnDelayMsVal);
-          } else {
-            startSpawn();
-          }
-        }
         // 'error' is handled by the overlay rendered outside onMount
+        if (status !== undefined && status !== 'ready') return;
+        if (spawnHeldForDependency()) return;
+        spawned = true;
+        if (spawnDelayMsVal > 0) {
+          spawnTimer = window.setTimeout(startSpawn, spawnDelayMsVal);
+        } else {
+          startSpawn();
+        }
       });
     } else if (spawnDelayMsVal > 0) {
       spawnTimer = window.setTimeout(startSpawn, spawnDelayMsVal);
@@ -1214,6 +1236,66 @@ export function TerminalView(props: TerminalViewProps) {
             {tr('Retry')}
           </button>
         </div>
+      </Show>
+      {/* A held agent terminal is an empty black rectangle, which is exactly the
+          silent-blocked failure this feature exists to avoid. The reason and the
+          way out belong on the thing the user is staring at, not in a menu. */}
+      <Show when={spawnHeldForDependency() ? dependencyBlock() : null}>
+        {(block) => (
+          <div
+            style={{
+              position: 'absolute',
+              inset: '0',
+              display: 'flex',
+              'flex-direction': 'column',
+              'align-items': 'center',
+              'justify-content': 'center',
+              gap: '12px',
+              background: 'color-mix(in srgb, var(--bg-elevated) 92%, transparent)',
+              'font-family': 'var(--font-ui)',
+              'z-index': '10',
+            }}
+          >
+            <span
+              style={{
+                color: 'var(--warning)',
+                'font-size': '13px',
+                'text-align': 'center',
+                padding: '0 16px',
+              }}
+            >
+              {tr(dependencyBlockMessage(block()).text, dependencyBlockMessage(block()).params)}
+            </span>
+            {/* Only the unlanded case resolves by waiting. A removed dependency
+                or a looped chain never will, so promising it would be a lie. */}
+            <Show when={block().reason === 'unlanded'}>
+              <span
+                style={{
+                  color: 'var(--fg-muted)',
+                  'font-size': '12px',
+                  'text-align': 'center',
+                  padding: '0 16px',
+                }}
+              >
+                {tr('The agent starts on its own once it lands.')}
+              </span>
+            </Show>
+            <button
+              style={{
+                padding: '6px 16px',
+                background: '#3b82f6',
+                color: '#fff',
+                border: 'none',
+                'border-radius': '4px',
+                'font-size': '13px',
+                cursor: 'pointer',
+              }}
+              onClick={() => clearTaskDependency(props.taskId)}
+            >
+              {tr('Clear dependency and start now')}
+            </button>
+          </div>
+        )}
       </Show>
     </div>
   );
