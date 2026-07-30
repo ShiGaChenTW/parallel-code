@@ -5,6 +5,11 @@ release/
 node_modules/
 .worktrees/
 .claude/
+# Agent tooling scaffolding, generated and rewritten by the openspec CLI —
+# same class as .claude/ above. Formatting it only creates churn on regeneration.
+.agent/
+.codex/
+openspec/
 .remember/
 .parallel-code/
 .enzyme/
