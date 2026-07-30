@@ -1,4 +1,4 @@
-import { Show, createSignal, createEffect, onMount, onCleanup, batch } from 'solid-js';
+import { Show, createSignal, createEffect, onMount, onCleanup, batch, lazy } from 'solid-js';
 import { tr } from '../store/i18n';
 import {
   store,
@@ -21,7 +21,6 @@ import { PromptInput, type PromptInputHandle } from './PromptInput';
 import { CloseTaskDialog } from './CloseTaskDialog';
 import { MergeDialog } from './MergeDialog';
 import { PushDialog } from './PushDialog';
-import { DiffViewerDialog } from './DiffViewerDialog';
 import { PlanViewerDialog } from './PlanViewerDialog';
 import { EditProjectDialog } from './EditProjectDialog';
 import { TaskTitleBar } from './TaskTitleBar';
@@ -45,6 +44,16 @@ import { isLandedTaskState } from '../store/landing';
 import { shouldPollTaskCommits } from './task-commit-polling';
 import { recordTranscriptEvent } from '../store/transcript';
 import { newCommitEvents } from '../lib/transcript-events';
+
+// The diff viewer drags in ScrollingDiffView, which nothing else uses, plus the
+// review sidebar and the unified-diff renderer. Every one of those is dead
+// weight until the user actually opens a diff, and the dialog already rendered
+// its whole body inside `<Show when={scrollToFile !== null}>` — so gating the
+// component on the same predicate keeps the mount/unmount timing it already
+// had, and only defers the download. Cost is paid on the first diff opened.
+const DiffViewerDialog = lazy(async () => ({
+  default: (await import('./DiffViewerDialog')).DiffViewerDialog,
+}));
 
 interface TaskPanelProps {
   task: Task;
@@ -653,22 +662,24 @@ export function TaskPanel(props: TaskPanelProps) {
             }
           }}
         />
-        <DiffViewerDialog
-          scrollToFile={diffScrollTarget()}
-          taskName={props.task.name}
-          worktreePath={props.task.worktreePath}
-          coverageReportPath={getProject(props.task.projectId)?.coverageReportPath}
-          projectRoot={getProject(props.task.projectId)?.path}
-          branchName={props.task.branchName}
-          baseBranch={props.task.baseBranch}
-          onClose={() => setDiffScrollTarget(null)}
-          taskId={props.task.id}
-          agentId={props.task.agentIds[0]}
-          commitList={commitList()}
-          selectedCommit={selectedCommit()}
-          onCommitNavigate={setSelectedCommit}
-          gitIsolation={props.task.gitIsolation}
-        />
+        <Show when={diffScrollTarget() !== null}>
+          <DiffViewerDialog
+            scrollToFile={diffScrollTarget()}
+            taskName={props.task.name}
+            worktreePath={props.task.worktreePath}
+            coverageReportPath={getProject(props.task.projectId)?.coverageReportPath}
+            projectRoot={getProject(props.task.projectId)?.path}
+            branchName={props.task.branchName}
+            baseBranch={props.task.baseBranch}
+            onClose={() => setDiffScrollTarget(null)}
+            taskId={props.task.id}
+            agentId={props.task.agentIds[0]}
+            commitList={commitList()}
+            selectedCommit={selectedCommit()}
+            onCommitNavigate={setSelectedCommit}
+            gitIsolation={props.task.gitIsolation}
+          />
+        </Show>
       </Show>
       <EditProjectDialog project={editingProject()} onClose={() => setEditingProjectId(null)} />
       <PlanViewerDialog

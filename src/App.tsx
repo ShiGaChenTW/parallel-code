@@ -14,7 +14,15 @@ import './styles.css';
 // Imported after the CSS block: these imports establish the cascade order and a
 // JS import wedged between them would be a silent styling change.
 import { tr } from './store/i18n';
-import { onMount, onCleanup, createEffect, Show, ErrorBoundary, createSignal } from 'solid-js';
+import {
+  onMount,
+  onCleanup,
+  createEffect,
+  Show,
+  ErrorBoundary,
+  createSignal,
+  lazy,
+} from 'solid-js';
 import { invoke } from './lib/ipc';
 import { IPC } from '../electron/ipc/channels';
 import { appWindow } from './lib/window';
@@ -23,8 +31,6 @@ import { CLOSE_DIALOG_BUTTONS, resolveCloseChoice } from './lib/close-decision';
 import { Sidebar } from './components/Sidebar';
 import { TilingLayout } from './components/TilingLayout';
 import { NewTaskDialog } from './components/NewTaskDialog';
-import { HelpDialog } from './components/HelpDialog';
-import { SettingsDialog } from './components/SettingsDialog';
 import { WindowTitleBar } from './components/WindowTitleBar';
 import { FocusModeTaskIndicators } from './components/FocusModeTaskIndicators';
 import { theme } from './lib/theme';
@@ -84,7 +90,6 @@ import { applyAppearanceMode, markCustomThemesReady, loadCustomThemes } from './
 import { isMac, mod } from './lib/platform';
 import { createCtrlWheelZoomHandler } from './lib/wheelZoom';
 import { redrawAllTerminals } from './lib/terminalFitManager';
-import { ArenaOverlay } from './arena/ArenaOverlay';
 import { resetForNewMatch } from './arena/store';
 import { startDesktopNotificationWatcher } from './store/desktopNotifications';
 import { startPrChecksSubscription } from './store/pr-checks';
@@ -92,6 +97,33 @@ import { startUpdateSubscription } from './store/updates';
 import { startTokenUsageSubscription } from './store/tokenUsage';
 import { startRemoteTaskHandlers } from './store/remoteTaskHandler';
 import { startRemoteStatusSync } from './store/remoteStatusSync';
+
+// Arena is a self-contained sub-application (config/countdown/battle/results/
+// history screens plus its own six stylesheets) that only exists behind
+// `store.showArena`. It was already `<Show>`-gated at the single call site, so
+// deferring the import moves the whole feature out of the entry chunk without
+// changing when it mounts: the chunk is fetched the first time the user opens
+// the Arena, not at app start.
+const ArenaOverlay = lazy(async () => ({
+  default: (await import('./arena/ArenaOverlay')).ArenaOverlay,
+}));
+
+// HelpDialog holds no state across a close: its only two signals are cleared by
+// an effect whenever `open` goes false. Unmounting it on close is therefore the
+// same end state, so a plain `<Show>` is enough. Cost is paid the first time the
+// user opens Help (`?` / the sidebar-footer button).
+const HelpDialog = lazy(async () => ({
+  default: (await import('./components/HelpDialog')).HelpDialog,
+}));
+
+// SettingsDialog does keep state across a close — the selected tab, most
+// visibly — so it must not be torn down by a `<Show>` on `open`. It is gated on
+// a one-way latch instead: nothing is fetched until the first open, and from
+// then on the component stays mounted exactly as the eager import left it.
+// It brings CustomThemeDialog along with it. Cost is paid on first open.
+const SettingsDialog = lazy(async () => ({
+  default: (await import('./components/SettingsDialog')).SettingsDialog,
+}));
 
 const MIN_WINDOW_DIMENSION = 100;
 
@@ -149,6 +181,13 @@ function App() {
   const [windowFocused, setWindowFocused] = createSignal(true);
   const [windowMaximized, setWindowMaximized] = createSignal(false);
   const [showDropOverlay, setShowDropOverlay] = createSignal(false);
+  // One-way latch for the lazily-imported SettingsDialog: false until the user
+  // opens Settings for the first time, true from then on. See the lazy() call
+  // above for why Settings cannot use a plain `<Show when={open}>`.
+  const [settingsEverOpened, setSettingsEverOpened] = createSignal(false);
+  createEffect(() => {
+    if (store.showSettingsDialog) setSettingsEverOpened(true);
+  });
   let dragCounter = 0;
 
   function closeArena() {
@@ -932,11 +971,15 @@ function App() {
             onClose={() => toggleNewTaskDialog(false)}
           />
         </main>
-        <HelpDialog open={store.showHelpDialog} onClose={() => toggleHelpDialog(false)} />
-        <SettingsDialog
-          open={store.showSettingsDialog}
-          onClose={() => toggleSettingsDialog(false)}
-        />
+        <Show when={store.showHelpDialog}>
+          <HelpDialog open={store.showHelpDialog} onClose={() => toggleHelpDialog(false)} />
+        </Show>
+        <Show when={settingsEverOpened()}>
+          <SettingsDialog
+            open={store.showSettingsDialog}
+            onClose={() => toggleSettingsDialog(false)}
+          />
+        </Show>
         <Show when={store.showArena}>
           <ArenaOverlay onClose={closeArena} />
         </Show>
