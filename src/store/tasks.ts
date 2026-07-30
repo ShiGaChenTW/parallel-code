@@ -17,6 +17,7 @@ import {
   rescheduleTaskStatusPolling,
 } from './taskStatus';
 import { recordMergedLines, recordTaskMerged } from './completion';
+import { nextPeakConcurrentTasks } from '../lib/onboarding';
 import { warn as logWarn } from '../lib/log';
 import { cleanTaskName } from '../lib/clean-task-name';
 import type {
@@ -134,6 +135,12 @@ function initTaskInStore(
     produce((s) => {
       s.tasks[taskId] = task;
       s.agents[agent.id] = agent;
+      // Single choke point for every task entering the store, so the
+      // onboarding high-water mark cannot miss a creation path.
+      s.peakConcurrentTasks = nextPeakConcurrentTasks(
+        s.peakConcurrentTasks,
+        Object.keys(s.tasks).length,
+      );
       s.taskOrder.push(taskId);
       s.activeTaskId = taskId;
       s.activeAgentId = agent.id;

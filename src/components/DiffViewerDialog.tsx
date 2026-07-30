@@ -1,5 +1,6 @@
 import { Show, createSignal, createEffect, createUniqueId, onCleanup } from 'solid-js';
 import { tr } from '../store/i18n';
+import { recordDiffReviewed } from '../store/onboarding';
 import { Dialog } from './Dialog';
 import { errMessage } from '../lib/log';
 import { invoke } from '../lib/ipc';
@@ -69,6 +70,12 @@ export function compileDiffReview(annotations: ReviewAnnotation[]): string {
 
 export function DiffViewerDialog(props: DiffViewerDialogProps) {
   const titleId = createUniqueId();
+  // Reviewing a diff is step three of onboarding. Recorded here rather than at
+  // the call sites so every route into the viewer — changed-files list, commit
+  // view, Arena — counts once and identically.
+  createEffect(() => {
+    if (props.scrollToFile !== null) recordDiffReviewed();
+  });
   return (
     <Dialog
       open={props.scrollToFile !== null}

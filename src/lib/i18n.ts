@@ -655,6 +655,21 @@ const ZH_TW: Record<string, string> = {
   '{count} changed files.': '{count} 個變更檔案。',
   '{count} changed files, {uncommitted} uncommitted.':
     '{count} 個變更檔案，{uncommitted} 個未 commit。',
+
+  // Onboarding — progressive disclosure. "worktree", "Coordinator" and "Arena"
+  // stay in English: the first is git vocabulary this audience reads
+  // untranslated, the other two are feature names shown as-is in the UI.
+  'First run': '第一次使用',
+  'Link a project': '連結一個專案',
+  'Create a task': '建立一個 task',
+  'Review the diff': '看過 diff',
+  'Merge it back': 'Merge 回主線',
+  'Tasks run in parallel — start another while the first one is still working. Each gets its own worktree, so they never collide.':
+    'Task 可以平行進行 —— 第一個還在跑的時候就能開下一個。每個都有自己的 worktree，不會互相干擾。',
+  'Coordinator — one agent plans the work and drives the other tasks for you.':
+    'Coordinator —— 由一個 agent 規劃工作，並替你驅動其他 task。',
+  'Arena — run one task on several agents at once and compare the results.':
+    'Arena —— 同一個 task 交給多個 agent 同時跑，再比較結果。',
 };
 
 const CATALOGUES: Record<Locale, Record<string, string>> = {

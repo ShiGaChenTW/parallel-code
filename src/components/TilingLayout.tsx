@@ -23,6 +23,8 @@ import {
   scrollTaskElementIntoView,
 } from '../store/store';
 import { closeTask } from '../store/tasks';
+import { currentOnboardingSteps, onboardingStage } from '../store/onboarding';
+import { OnboardingChecklist } from './OnboardingChecklist';
 import { TaskPanel } from './TaskPanel';
 import { TerminalPanel } from './TerminalPanel';
 import { NewTaskPlaceholder } from './NewTaskPlaceholder';
@@ -512,6 +514,9 @@ export function TilingLayout() {
                         </svg>
                         {tr('Link Project')}
                       </button>
+                      <Show when={onboardingStage() === 1}>
+                        <OnboardingChecklist steps={currentOnboardingSteps()} />
+                      </Show>
                     </>
                   }
                 >
@@ -559,6 +564,30 @@ export function TilingLayout() {
                       to create a new task
                     </div>
                   </div>
+                  {/* Stage 1 still owes the user a first merge, so the
+                      checklist stays. Stage 2 has just finished one — and a
+                      merge with cleanup removes the task, which is how they
+                      landed back on this empty screen — so this is the moment
+                      to say that tasks do not have to be taken one at a time.
+                      Stage 3 already knows; it gets nothing here. */}
+                  <Show when={onboardingStage() === 1}>
+                    <OnboardingChecklist steps={currentOnboardingSteps()} />
+                  </Show>
+                  <Show when={onboardingStage() === 2}>
+                    <div
+                      style={{
+                        'max-width': '360px',
+                        'text-align': 'center',
+                        'font-size': '13px',
+                        color: theme.fgSubtle,
+                        'line-height': '1.5',
+                      }}
+                    >
+                      {tr(
+                        'Tasks run in parallel — start another while the first one is still working. Each gets its own worktree, so they never collide.',
+                      )}
+                    </div>
+                  </Show>
                 </Show>
               </Show>
             </div>

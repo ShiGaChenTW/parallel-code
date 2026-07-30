@@ -10,6 +10,7 @@ import {
   startMCPStatusPolling,
   stopMCPStatusPolling,
 } from '../store/store';
+import { onboardingStage } from '../store/onboarding';
 import { theme } from '../lib/theme';
 import { sf } from '../lib/fontScale';
 import { alt, mod } from '../lib/platform';
@@ -135,6 +136,38 @@ export function SidebarFooter() {
             >
               <span style={{ color: theme.success }}>+{mergedLines().added.toLocaleString()}</span>
               <span style={{ color: theme.error }}>-{mergedLines().removed.toLocaleString()}</span>
+            </span>
+          </div>
+        </Show>
+        {/* Stage 3 only. Coordinator and Arena are reachable at every stage —
+            the Arena button below never moves, and the coordinator checkbox in
+            the new-task dialog is untouched. What stage 3 adds is the first
+            time either is explained and recommended, once the user has shown
+            they can run two tasks at once. */}
+        <Show when={onboardingStage() === 3}>
+          <div
+            style={{
+              display: 'flex',
+              'flex-direction': 'column',
+              gap: '4px',
+              'margin-top': '6px',
+            }}
+          >
+            <span
+              style={{
+                'font-size': sf(11),
+                color: theme.fgSubtle,
+                'text-transform': 'uppercase',
+                'letter-spacing': '0.05em',
+              }}
+            >
+              {tr('Advanced')}
+            </span>
+            <span style={{ 'font-size': sf(12), color: theme.fgMuted, 'line-height': '1.4' }}>
+              {tr('Coordinator — one agent plans the work and drives the other tasks for you.')}
+            </span>
+            <span style={{ 'font-size': sf(12), color: theme.fgMuted, 'line-height': '1.4' }}>
+              {tr('Arena — run one task on several agents at once and compare the results.')}
             </span>
           </div>
         </Show>

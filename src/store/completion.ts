@@ -6,6 +6,10 @@ export function recordTaskMerged(): void {
   const today = getLocalDateKey();
   setStore(
     produce((s) => {
+      // Lifetime total, kept alongside the daily counter rather than derived
+      // from it: `completedTaskCount` rolls over at midnight, so it cannot
+      // answer "has this user ever merged" the morning after their first merge.
+      s.mergedTaskTotal += 1;
       if (s.completedTaskDate !== today) {
         s.completedTaskDate = today;
         s.completedTaskCount = 1;
