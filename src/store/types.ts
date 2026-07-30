@@ -130,6 +130,12 @@ export interface Task {
   savedPromptedAgentIndexes?: number[];
   planContent?: string;
   planFileName?: string;
+  /** Contents of `.claude/handoff.md` in the worktree — one agent's handover to
+   *  the next. A sibling of `planContent`, deliberately not folded into `notes`:
+   *  GET/PUT /api/mobile/notes/:taskId must keep seeing a plain string. Never
+   *  persisted — the worktree file is the source of truth and is re-read on
+   *  startup, so there is no second copy to go stale. */
+  handoffContent?: string;
   stepsEnabled?: boolean;
   stepsContent?: StepEntry[];
   lastInputAt?: string;

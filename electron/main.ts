@@ -9,6 +9,7 @@ import { installIpcTracing } from './ipc/trace.js';
 import { killAllAgents } from './ipc/pty.js';
 import { stopAllPlanWatchers } from './ipc/plans.js';
 import { stopAllStepsWatchers } from './ipc/steps.js';
+import { stopAllHandoffWatchers } from './ipc/handoff.js';
 import { IPC } from './ipc/channels.js';
 import { markStartup } from './startup-timing.js';
 import { resolveUserShell } from './user-shell.js';
@@ -227,6 +228,7 @@ app.on('before-quit', () => {
   killAllAgents();
   stopAllPlanWatchers();
   stopAllStepsWatchers();
+  stopAllHandoffWatchers();
 });
 
 app.on('window-all-closed', () => {

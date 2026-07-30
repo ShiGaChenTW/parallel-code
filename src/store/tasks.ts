@@ -581,6 +581,7 @@ function removeTaskFromStore(taskId: string, agentIds: string[]): void {
   // regardless of which path removed the task.  Idempotent if already stopped.
   invoke(IPC.StopPlanWatcher, { taskId }).catch(console.error);
   invoke(IPC.StopStepsWatcher, { taskId }).catch(console.error);
+  invoke(IPC.StopHandoffWatcher, { taskId }).catch(console.error);
 
   // Clean up agent activity tracking (timers, buffers, decoders) before
   // the store entries are deleted — otherwise markAgentExited can't find
@@ -941,6 +942,7 @@ export async function collapseTask(taskId: string): Promise<void> {
   // Stop file watchers to prevent FSWatcher leak
   invoke(IPC.StopPlanWatcher, { taskId }).catch(console.error);
   invoke(IPC.StopStepsWatcher, { taskId }).catch(console.error);
+  invoke(IPC.StopHandoffWatcher, { taskId }).catch(console.error);
 
   // Save agent def before killing so uncollapse can restart cleanly.
   // Collapsing unmounts the TaskPanel which destroys the TerminalView,
@@ -1535,6 +1537,15 @@ export function setPlanContent(
 ): void {
   setStore('tasks', taskId, 'planContent', content ?? undefined);
   setStore('tasks', taskId, 'planFileName', fileName ?? undefined);
+}
+
+/**
+ * Stores handoff content pushed by the backend watcher. Writes only
+ * `handoffContent` — `notes` is a separate field with its own remote contract
+ * and is never touched from here.
+ */
+export function setHandoffContent(taskId: string, content: string | null): void {
+  setStore('tasks', taskId, 'handoffContent', content ?? undefined);
 }
 
 export function setStepsContent(taskId: string, steps: unknown[] | null): void {

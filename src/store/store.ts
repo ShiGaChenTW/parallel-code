@@ -55,6 +55,7 @@ export {
   setNewTaskPrefillPrompt,
   setPlanContent,
   setStepsContent,
+  setHandoffContent,
   toggleAITerminalLayout,
   setTaskLastInputAt,
   markTaskUserActivity,
