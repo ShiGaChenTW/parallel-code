@@ -1,4 +1,5 @@
 import { ConfirmDialog } from './ConfirmDialog';
+import { tr } from '../store/i18n';
 import { store, removeProject, removeProjectWithTasks } from '../store/store';
 import { getProjectTaskCount } from './project-remove-confirmation';
 
@@ -21,7 +22,7 @@ export function RemoveProjectConfirm(props: RemoveProjectConfirmProps) {
   return (
     <ConfirmDialog
       open={props.projectId !== null}
-      title="Remove project?"
+      title={tr('Remove project?')}
       message={
         taskCount() > 0
           ? `This project has ${taskCount()} open task(s). Removing it will also close all tasks, delete their worktrees and branches.`

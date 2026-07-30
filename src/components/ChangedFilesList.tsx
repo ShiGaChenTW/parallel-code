@@ -1,4 +1,5 @@
 import { createSignal, createMemo, createEffect, onCleanup, batch, Index, Show } from 'solid-js';
+import { tr } from '../store/i18n';
 import { invoke } from '../lib/ipc';
 import { IPC } from '../../electron/ipc/channels';
 import { theme } from '../lib/theme';
@@ -176,7 +177,7 @@ function OpenInEditorButton(props: {
         'justify-content': 'center',
         'border-radius': '4px',
       }}
-      title="Open in editor"
+      title={tr('Open in editor')}
       aria-label={`Open ${props.filePath} in editor`}
     >
       <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">

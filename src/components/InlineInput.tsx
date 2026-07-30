@@ -1,4 +1,5 @@
 import { createSignal, onCleanup, onMount } from 'solid-js';
+import { tr } from '../store/i18n';
 import { theme } from '../lib/theme';
 import { sf } from '../lib/fontScale';
 import type { DiffInteractionMode } from './review-types';
@@ -141,8 +142,8 @@ export function InlineInput(props: InlineInputProps) {
       {/* Cancel button */}
       <button
         onClick={() => props.onDismiss()}
-        title="Cancel (Esc)"
-        aria-label="Cancel"
+        title={tr('Cancel (Esc)')}
+        aria-label={tr('Cancel')}
         style={{
           background: 'transparent',
           border: `1px solid ${theme.borderSubtle}`,

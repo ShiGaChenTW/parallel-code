@@ -1,4 +1,5 @@
 import { For, Show, createMemo, createSignal, createUniqueId, onMount } from 'solid-js';
+import { tr } from '../store/i18n';
 import { store, setActiveTask, getTaskDotStatus, uncollapseTask } from '../store/store';
 import { getCoordinatorChildren } from '../store/sidebar-order';
 import { invoke } from '../lib/ipc';
@@ -230,7 +231,7 @@ export function SubTaskStrip(props: SubTaskStripProps) {
           <Show when={store.verboseLogging}>
             <button
               onClick={() => setShowLogs(true)}
-              title="View MCP logs"
+              title={tr('View MCP logs')}
               style={{
                 'margin-left': 'auto',
                 'flex-shrink': '0',
@@ -262,7 +263,7 @@ export function SubTaskStrip(props: SubTaskStripProps) {
         >
           <button
             onClick={() => setShowLogs(true)}
-            title="View MCP logs"
+            title={tr('View MCP logs')}
             style={{
               background: 'none',
               border: `1px solid ${theme.border}`,

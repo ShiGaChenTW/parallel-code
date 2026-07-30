@@ -1,4 +1,5 @@
 import { For, Show, type JSX } from 'solid-js';
+import { tr } from '../store/i18n';
 import { theme } from '../lib/theme';
 
 /** Minimal bookmark shape the gutter needs to draw. Position is supplied
@@ -115,8 +116,8 @@ export function TerminalBookmarkGutter(props: TerminalBookmarkGutterProps): JSX.
       <Show when={props.createVisible}>
         <button
           type="button"
-          title="Bookmark selection"
-          aria-label="Bookmark selection"
+          title={tr('Bookmark selection')}
+          aria-label={tr('Bookmark selection')}
           // Don't steal focus from the terminal selection when pressed.
           onMouseDown={(e) => e.preventDefault()}
           onClick={(e) => {

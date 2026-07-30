@@ -1,4 +1,5 @@
 import { Show, type JSX } from 'solid-js';
+import { tr } from '../store/i18n';
 import { errMessage } from '../lib/log';
 import { store, getProject, showNotification, getPrChecks } from '../store/store';
 import { revealItemInDir, openInEditor } from '../lib/shell';
@@ -81,7 +82,7 @@ export function TaskBranchInfoBar(props: TaskBranchInfoBarProps) {
               <button
                 type="button"
                 onClick={() => props.onEditProject(p().id)}
-                title="Project settings"
+                title={tr('Project settings')}
                 style={{ ...infoBarBtnStyle, margin: '0 8px 0 0' }}
               >
                 <div

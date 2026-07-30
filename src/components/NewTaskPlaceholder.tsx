@@ -1,4 +1,5 @@
 import { onMount, onCleanup } from 'solid-js';
+import { tr } from '../store/i18n';
 import { toggleNewTaskDialog, createTerminal, unfocusPlaceholder } from '../store/store';
 import { registerFocusFn, unregisterFocusFn } from '../store/focus';
 import { theme } from '../lib/theme';
@@ -36,7 +37,7 @@ export function NewTaskPlaceholder() {
         class="new-task-placeholder"
         role="button"
         tabIndex={0}
-        aria-label="New task"
+        aria-label={tr('New task')}
         onClick={() => toggleNewTaskDialog(true)}
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') {
@@ -67,7 +68,7 @@ export function NewTaskPlaceholder() {
         class="new-task-placeholder"
         role="button"
         tabIndex={0}
-        aria-label="New terminal"
+        aria-label={tr('New terminal')}
         onClick={() => createTerminal()}
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') {

@@ -1,4 +1,5 @@
 import { Show, For, createSignal, createEffect, onCleanup, type JSX } from 'solid-js';
+import { tr } from '../store/i18n';
 import { createStore } from 'solid-js/store';
 import {
   store,
@@ -238,7 +239,7 @@ export function TaskShellSection(props: TaskShellSectionProps) {
                       e.stopPropagation();
                       closeShell(props.task.id, shellId);
                     }}
-                    title="Close terminal (Ctrl+Shift+Q)"
+                    title={tr('Close terminal (Ctrl+Shift+Q)')}
                     style={{
                       background: 'color-mix(in srgb, var(--island-bg) 85%, transparent)',
                       border: `1px solid ${theme.border}`,

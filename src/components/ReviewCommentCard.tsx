@@ -1,4 +1,5 @@
 import { createSignal, Show } from 'solid-js';
+import { tr } from '../store/i18n';
 import { theme } from '../lib/theme';
 import { sf } from '../lib/fontScale';
 import type { ReviewAnnotation } from './review-types';
@@ -87,7 +88,7 @@ export function ReviewCommentCard(props: ReviewCommentCardProps) {
             'font-size': sf(15),
             'line-height': '1',
           }}
-          title="Dismiss"
+          title={tr('Dismiss')}
         >
           &times;
         </button>

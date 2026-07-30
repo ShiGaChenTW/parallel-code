@@ -1,4 +1,5 @@
 import { For, Show, createSignal, createUniqueId, onCleanup, createEffect } from 'solid-js';
+import { tr } from '../store/i18n';
 import { Dialog } from './Dialog';
 import { confirm as appConfirm } from '../lib/dialog';
 import { theme } from '../lib/theme';
@@ -224,7 +225,7 @@ export function HelpDialog(props: HelpDialogProps) {
         </h2>
         <button
           onClick={() => props.onClose()}
-          aria-label="Close help"
+          aria-label={tr('Close help')}
           style={{
             background: 'transparent',
             border: 'none',
@@ -349,7 +350,7 @@ export function HelpDialog(props: HelpDialogProps) {
                         <Show when={overridden()}>
                           <button
                             onClick={() => clearUserOverride(binding.id)}
-                            title="Reset to default"
+                            title={tr('Reset to default')}
                             style={{
                               background: 'transparent',
                               border: 'none',

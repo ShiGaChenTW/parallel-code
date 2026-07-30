@@ -1,4 +1,5 @@
 import { Show, createResource } from 'solid-js';
+import { tr } from '../store/i18n';
 import { invoke } from '../lib/ipc';
 import { IPC } from '../../electron/ipc/channels';
 import { closeTask, getProject, getCoordinatorCloseWarning } from '../store/store';
@@ -34,7 +35,7 @@ export function CloseTaskDialog(props: CloseTaskDialogProps) {
   return (
     <ConfirmDialog
       open={props.open}
-      title="Close Task"
+      title={tr('Close Task')}
       message={
         <div>
           <Show when={getCoordinatorCloseWarning(props.task.id)}>

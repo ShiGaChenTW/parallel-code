@@ -1,4 +1,5 @@
 import { createSignal, onCleanup, onMount } from 'solid-js';
+import { tr } from '../store/i18n';
 import { appWindow } from '../lib/window';
 import { FocusModeTaskIndicators } from './FocusModeTaskIndicators';
 
@@ -110,8 +111,8 @@ export function WindowTitleBar() {
               console.warn('Failed to minimize window', error);
             });
           }}
-          aria-label="Minimize window"
-          title="Minimize"
+          aria-label={tr('Minimize window')}
+          title={tr('Minimize')}
         >
           <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true">
             <path d="M1 5h8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" />
@@ -141,8 +142,8 @@ export function WindowTitleBar() {
               console.warn('Failed to close window', error);
             });
           }}
-          aria-label="Close window"
-          title="Close"
+          aria-label={tr('Close window')}
+          title={tr('Close')}
         >
           <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true">
             <path

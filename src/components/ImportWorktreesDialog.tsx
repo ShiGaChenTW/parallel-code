@@ -1,4 +1,5 @@
 import { For, Show, createEffect, createMemo, createSignal } from 'solid-js';
+import { tr } from '../store/i18n';
 import { Dialog } from './Dialog';
 import { AgentSelector } from './AgentSelector';
 import { invoke } from '../lib/ipc';
@@ -262,7 +263,7 @@ export function ImportWorktreesDialog(props: ImportWorktreesDialogProps) {
                             tone={candidate.has_uncommitted_changes ? 'warning' : 'muted'}
                           />
                           <Show when={candidate.has_committed_changes}>
-                            <StatusBadge label="Has commits" tone="accent" />
+                            <StatusBadge label={tr('Has commits')} tone="accent" />
                           </Show>
                         </div>
                         <div

@@ -1,4 +1,5 @@
 import { For } from 'solid-js';
+import { tr } from '../store/i18n';
 import { theme } from '../lib/theme';
 import { sf } from '../lib/fontScale';
 import type { MergeReadiness, MergeReadinessCheckStatus } from './merge-readiness';
@@ -47,7 +48,7 @@ export function MergeReadinessPanel(props: { readiness: MergeReadiness }) {
 
   return (
     <section
-      aria-label="Ready to merge summary"
+      aria-label={tr('Ready to merge summary')}
       style={{
         'margin-bottom': '12px',
         padding: '10px 12px',

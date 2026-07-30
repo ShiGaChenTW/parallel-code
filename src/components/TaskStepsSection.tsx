@@ -1,4 +1,5 @@
 import { Show, For, createSignal, createMemo, createEffect, onCleanup, onMount } from 'solid-js';
+import { tr } from '../store/i18n';
 import { theme } from '../lib/theme';
 import { sf } from '../lib/fontScale';
 import { useFocusRegistration } from '../lib/focus-registration';
@@ -238,8 +239,8 @@ function JumpButton(props: { onClick: () => void; visible: boolean }) {
   return (
     <button
       type="button"
-      title="Jump to terminal moment"
-      aria-label="Jump to terminal moment"
+      title={tr('Jump to terminal moment')}
+      aria-label={tr('Jump to terminal moment')}
       onClick={(e) => {
         e.stopPropagation();
         props.onClick();

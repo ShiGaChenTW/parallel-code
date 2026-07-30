@@ -1,4 +1,5 @@
 import { onMount, type JSX } from 'solid-js';
+import { tr } from '../store/i18n';
 import { CloseIcon } from './icons';
 
 export interface TerminalSearchOverlayProps {
@@ -90,7 +91,7 @@ export function TerminalSearchOverlay(props: TerminalSearchOverlayProps): JSX.El
           props.setInputRef(el);
         }}
         type="text"
-        placeholder="Find"
+        placeholder={tr('Find')}
         spellcheck={false}
         autocomplete="off"
         value={props.query}
@@ -122,8 +123,8 @@ export function TerminalSearchOverlay(props: TerminalSearchOverlayProps): JSX.El
       </span>
       <button
         type="button"
-        title="Previous match (Shift+Enter)"
-        aria-label="Previous match"
+        title={tr('Previous match (Shift+Enter)')}
+        aria-label={tr('Previous match')}
         onMouseDown={keepInputFocus}
         onClick={() => props.onPrev()}
         style={ICON_BUTTON_STYLE}
@@ -132,8 +133,8 @@ export function TerminalSearchOverlay(props: TerminalSearchOverlayProps): JSX.El
       </button>
       <button
         type="button"
-        title="Next match (Enter)"
-        aria-label="Next match"
+        title={tr('Next match (Enter)')}
+        aria-label={tr('Next match')}
         onMouseDown={keepInputFocus}
         onClick={() => props.onNext()}
         style={ICON_BUTTON_STYLE}
@@ -142,8 +143,8 @@ export function TerminalSearchOverlay(props: TerminalSearchOverlayProps): JSX.El
       </button>
       <button
         type="button"
-        title="Close (Esc)"
-        aria-label="Close search"
+        title={tr('Close (Esc)')}
+        aria-label={tr('Close search')}
         onMouseDown={keepInputFocus}
         onClick={() => props.onClose()}
         style={ICON_BUTTON_STYLE}

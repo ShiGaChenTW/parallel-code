@@ -1,4 +1,5 @@
 import { Show } from 'solid-js';
+import { tr } from '../store/i18n';
 import {
   store,
   reorderTask,
@@ -347,10 +348,10 @@ export function TaskTitleBar(props: TaskTitleBarProps) {
               </svg>
             }
             onClick={() => collapseTask(props.task.id)}
-            title="Collapse task"
+            title={tr('Collapse task')}
           />
         </Show>
-        <IconButton icon={<CloseIcon />} onClick={() => props.onClose()} title="Close task" />
+        <IconButton icon={<CloseIcon />} onClick={() => props.onClose()} title={tr('Close task')} />
       </div>
     </div>
   );

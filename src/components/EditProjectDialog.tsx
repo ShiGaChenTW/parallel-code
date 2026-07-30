@@ -1,4 +1,5 @@
 import { createSignal, createEffect, For, Show } from 'solid-js';
+import { tr } from '../store/i18n';
 import { Dialog } from './Dialog';
 import { updateProject, PASTEL_HUES, isProjectMissing, relinkProject } from '../store/store';
 import { sanitizeBranchPrefix, toBranchName } from '../lib/branch-name';
@@ -462,7 +463,7 @@ export function EditProjectDialog(props: EditProjectDialogProps) {
                             'line-height': '1',
                             'flex-shrink': '0',
                           }}
-                          title="Remove bookmark"
+                          title={tr('Remove bookmark')}
                         >
                           <CloseIcon size={12} />
                         </button>

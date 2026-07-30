@@ -1,4 +1,5 @@
 import { Show, createSignal, createEffect, createUniqueId, onCleanup } from 'solid-js';
+import { tr } from '../store/i18n';
 import { Dialog } from './Dialog';
 import { errMessage } from '../lib/log';
 import { invoke } from '../lib/ipc';
@@ -361,7 +362,7 @@ function DiffViewerContent(props: DiffViewerDialogProps) {
         <input
           ref={searchInputRef}
           type="text"
-          placeholder="Search..."
+          placeholder={tr('Search...')}
           value={searchQuery()}
           onInput={(e) => setSearchQuery(e.currentTarget.value)}
           style={{
@@ -394,7 +395,7 @@ function DiffViewerContent(props: DiffViewerDialogProps) {
             'align-items': 'center',
             'border-radius': '4px',
           }}
-          title="Close"
+          title={tr('Close')}
         >
           <CloseIcon />
         </button>

@@ -102,6 +102,79 @@ const ZH_TW: Record<string, string> = {
   'Discard draft?': '要捨棄草稿嗎？',
   "Couldn't load branches.": '無法載入 branch。',
   'Image not found locally.': '本機找不到此 image。',
+
+  // Window and dialog controls
+  Minimize: '最小化',
+  'Minimize window': '最小化視窗',
+  'Close window': '關閉視窗',
+  'Close dialog': '關閉對話框',
+  'Cancel (Esc)': '取消（Esc）',
+  'Close (Esc)': '關閉（Esc）',
+  'Close help': '關閉說明',
+  'Close search': '關閉搜尋',
+  'Close settings': '關閉設定',
+  Dismiss: '關閉',
+  Next: '下一個',
+  Previous: '上一個',
+  'Next match': '下一個相符',
+  'Previous match': '上一個相符',
+  'Next match (Enter)': '下一個相符（Enter）',
+  'Previous match (Shift+Enter)': '上一個相符（Shift+Enter）',
+
+  // Agents and terminals
+  'Add AI agent': '新增 AI agent',
+  'Close AI agent': '關閉 AI agent',
+  'New terminal': '新增終端機',
+  'Close terminal': '關閉終端機',
+  'Close terminal (Ctrl+Shift+Q)': '關閉終端機（Ctrl+Shift+Q）',
+  'New task': '新增任務',
+  'Close task': '關閉任務',
+  'Close Task': '關閉任務',
+  'Collapse task': '收合任務',
+  // 'Coordinator' is deliberately absent: it stays English, and translate()
+  // already falls back to the source text. A self-mapping entry would be a
+  // no-op that reads like a translation.
+  'View MCP logs': '檢視 MCP 記錄',
+  Diagnostics: '診斷',
+
+  // Changes and review
+  'All changes (including uncommitted)': '所有變更（含未 commit）',
+  'Uncommitted changes only': '僅未 commit 的變更',
+  'Commit tree': 'Commit 樹',
+  'Has commits': '有 commit',
+  'Ready to merge summary': '可合併摘要',
+  'Close dialog and ask the AI agent to rebase': '關閉對話框並請 AI agent 執行 rebase',
+  'Open in editor': '在編輯器中開啟',
+  'Click to copy': '點擊以複製',
+
+  // Bookmarks
+  'Bookmark selection': '將選取加入書籤',
+  'Remove bookmark': '移除書籤',
+  'Jump to terminal moment': '跳至該終端時刻',
+
+  // Prompt and notes
+  'Send prompt': '送出 prompt',
+  'Send notes as a prompt to the agent': '將筆記當作 prompt 送給 agent',
+
+  // Project and settings
+  'Project settings': '專案設定',
+  'Remove project?': '要移除專案嗎？',
+  'New Task Defaults': '新增任務預設值',
+  Behavior: '行為',
+  Branches: 'Branch',
+  'Reset to default': '重設為預設值',
+  'Clone as custom theme': '複製為自訂主題',
+  'Edit custom theme': '編輯自訂主題',
+  'Auto-trust folders': '自動信任資料夾',
+  'Desktop notifications': '桌面通知',
+  'Font smoothing': '字型平滑',
+  'Dangerously skip all confirms by default': '危險：預設略過所有確認',
+
+  // Placeholders
+  'Search...': '搜尋…',
+  Find: '尋找',
+  'Notes...': '筆記…',
+  'Commit message...': 'Commit 訊息…',
 };
 
 const CATALOGUES: Record<Locale, Record<string, string>> = {

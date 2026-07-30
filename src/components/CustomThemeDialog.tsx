@@ -1,4 +1,5 @@
 import { createSignal, createEffect, Show, For, createUniqueId, on, createMemo } from 'solid-js';
+import { tr } from '../store/i18n';
 import { Dialog } from './Dialog';
 import { errMessage } from '../lib/log';
 import { theme, sectionLabelStyle } from '../lib/theme';
@@ -165,7 +166,7 @@ export function CustomThemeDialog(props: CustomThemeDialogProps) {
         </h2>
         <button
           onClick={() => props.onClose()}
-          aria-label="Close"
+          aria-label={tr('Close')}
           style={{
             background: 'transparent',
             border: 'none',

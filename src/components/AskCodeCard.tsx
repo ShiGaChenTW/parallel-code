@@ -1,4 +1,5 @@
 import { createSignal, onCleanup, onMount, Show } from 'solid-js';
+import { tr } from '../store/i18n';
 import { theme } from '../lib/theme';
 import { sf } from '../lib/fontScale';
 import { Channel, invoke } from '../lib/ipc';
@@ -127,7 +128,7 @@ export function AskCodeCard(props: AskCodeCardProps) {
             'font-size': sf(15),
             'line-height': '1',
           }}
-          title="Dismiss"
+          title={tr('Dismiss')}
         >
           ×
         </button>

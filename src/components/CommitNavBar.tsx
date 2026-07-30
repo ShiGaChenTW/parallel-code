@@ -1,4 +1,5 @@
 import { Show, createMemo } from 'solid-js';
+import { tr } from '../store/i18n';
 import { theme } from '../lib/theme';
 import { sf } from '../lib/fontScale';
 import { accentControlColors } from '../lib/controlStyle';
@@ -121,7 +122,7 @@ export function CommitNavBar(props: CommitNavBarProps) {
           goLeft();
         }}
         disabled={!canGoLeft()}
-        title="Previous"
+        title={tr('Previous')}
         style={{
           background: 'transparent',
           border: `1px solid ${theme.border}`,
@@ -150,7 +151,7 @@ export function CommitNavBar(props: CommitNavBarProps) {
           goRight();
         }}
         disabled={!canGoRight()}
-        title="Next"
+        title={tr('Next')}
         style={{
           background: 'transparent',
           border: `1px solid ${theme.border}`,
@@ -178,7 +179,7 @@ export function CommitNavBar(props: CommitNavBarProps) {
           e.stopPropagation();
           props.onNavigate(UNCOMMITTED_SELECTION);
         }}
-        title="Uncommitted changes only"
+        title={tr('Uncommitted changes only')}
         style={pillStyle(isUncommittedOnly())}
       >
         U
@@ -190,7 +191,7 @@ export function CommitNavBar(props: CommitNavBarProps) {
           e.stopPropagation();
           props.onNavigate(null);
         }}
-        title="All changes (including uncommitted)"
+        title={tr('All changes (including uncommitted)')}
         style={pillStyle(isAllChanges())}
       >
         All

@@ -1,4 +1,5 @@
 import { createEffect, onMount, onCleanup } from 'solid-js';
+import { tr } from '../store/i18n';
 import {
   store,
   closeTerminal,
@@ -120,7 +121,7 @@ export function TerminalPanel(props: TerminalPanelProps) {
           <IconButton
             icon={<CloseIcon />}
             onClick={() => closeTerminal(props.terminal.id)}
-            title="Close terminal"
+            title={tr('Close terminal')}
           />
         </div>
       </div>

@@ -120,7 +120,7 @@ export function PresetThemeCard(props: {
       </button>
       <button
         type="button"
-        title="Clone as custom theme"
+        title={tr('Clone as custom theme')}
         onClick={(e) => {
           e.stopPropagation();
           props.onClone();
@@ -165,7 +165,7 @@ function CustomThemeCard(props: {
       </button>
       <button
         type="button"
-        title="Edit custom theme"
+        title={tr('Edit custom theme')}
         onClick={(e) => {
           e.stopPropagation();
           props.onEdit();
@@ -351,7 +351,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
         </div>
         <button
           onClick={() => props.onClose()}
-          aria-label="Close settings"
+          aria-label={tr('Close settings')}
           style={{
             background: 'transparent',
             border: 'none',
@@ -421,9 +421,9 @@ export function SettingsDialog(props: SettingsDialogProps) {
           aria-labelledby="settings-tabbutton-general"
           style={{ display: 'flex', 'flex-direction': 'column', gap: '18px' }}
         >
-          <SettingsSection title="Behavior">
+          <SettingsSection title={tr('Behavior')}>
             <SettingsCheckboxRow
-              label="Auto-trust folders"
+              label={tr('Auto-trust folders')}
               checked={store.autoTrustFolders}
               onChange={setAutoTrustFolders}
               description="Automatically accept trust and permission dialogs from agents"
@@ -435,7 +435,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
               description="Display Claude Code plan files in a tab next to Notes"
             />
             <SettingsCheckboxRow
-              label="Desktop notifications"
+              label={tr('Desktop notifications')}
               checked={store.desktopNotificationsEnabled}
               onChange={setDesktopNotificationsEnabled}
               description="Show native notifications when tasks finish or need attention"
@@ -459,7 +459,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
               description="Keyboard shortcut hints at the bottom of the sidebar"
             />
             <SettingsCheckboxRow
-              label="Font smoothing"
+              label={tr('Font smoothing')}
               checked={store.fontSmoothing}
               onChange={setFontSmoothing}
               description="Enable antialiasing and geometric text rendering"
@@ -467,22 +467,22 @@ export function SettingsDialog(props: SettingsDialogProps) {
             />
           </SettingsSection>
 
-          <SettingsSection title="New Task Defaults">
+          <SettingsSection title={tr('New Task Defaults')}>
             <SettingsCheckboxRow
-              label="Steps tracking"
+              label={tr('Steps tracking')}
               checked={store.defaultStepsEnabled}
               onChange={setDefaultStepsEnabled}
               description="Pre-tick Steps tracking in the New Task dialog"
             />
             <SettingsCheckboxRow
-              label="Dangerously skip all confirms by default"
+              label={tr('Dangerously skip all confirms by default')}
               checked={store.defaultSkipPermissions}
               onChange={setDefaultSkipPermissions}
               description="Pre-tick skip-permissions for every new task. The agent will run without asking for confirmation. Only honoured when the selected agent supports it."
             />
             <Show when={store.coordinatorModeEnabled}>
               <SettingsCheckboxRow
-                label="Propagate skip-permissions to sub-tasks"
+                label={tr('Propagate skip-permissions to sub-tasks')}
                 checked={store.defaultPropagateSkipPermissions}
                 onChange={setDefaultPropagateSkipPermissions}
                 description="Pre-tick Propagate to sub-tasks when both coordinator mode and skip-permissions are enabled for a task"
@@ -824,7 +824,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
             </Show>
           </div>
 
-          <SettingsSection title="Diagnostics">
+          <SettingsSection title={tr('Diagnostics')}>
             <SettingsCheckboxRow
               label="Verbose logging"
               checked={store.verboseLogging}
@@ -1097,9 +1097,9 @@ export function SettingsDialog(props: SettingsDialogProps) {
           aria-labelledby="settings-tabbutton-experimental"
           style={{ display: 'flex', 'flex-direction': 'column', gap: '18px' }}
         >
-          <SettingsSection title="Coordinator">
+          <SettingsSection title={tr('Coordinator')}>
             <SettingsCheckboxRow
-              label="Coordinator mode"
+              label={tr('Coordinator mode')}
               checked={store.coordinatorModeEnabled}
               onChange={setCoordinatorModeEnabled}
               description="Enable the Coordinator option when creating tasks. Coordinators can spawn sub-tasks, send prompts, and merge branches automatically via MCP tools. Requires app restart to fully disable."

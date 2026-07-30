@@ -1,4 +1,5 @@
 import { Show, createSignal, createEffect, onMount } from 'solid-js';
+import { tr } from '../store/i18n';
 import {
   store,
   updateTaskNotes,
@@ -144,7 +145,7 @@ export function TaskNotesBody(props: TaskNotesBodyProps) {
             ref={(el) => (notesRef = el)}
             value={props.task.notes}
             onInput={(e) => updateTaskNotes(props.task.id, e.currentTarget.value)}
-            placeholder="Notes..."
+            placeholder={tr('Notes...')}
             style={{
               width: '100%',
               flex: '1',
@@ -163,8 +164,8 @@ export function TaskNotesBody(props: TaskNotesBodyProps) {
             type="button"
             disabled={!canSendNotes()}
             onClick={() => void handleSendNotes()}
-            title="Send notes as a prompt to the agent"
-            aria-label="Send notes as a prompt to the agent"
+            title={tr('Send notes as a prompt to the agent')}
+            aria-label={tr('Send notes as a prompt to the agent')}
             style={{
               position: 'absolute',
               bottom: '6px',

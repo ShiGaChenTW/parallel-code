@@ -1,4 +1,5 @@
 import { Show, For, createSignal, createResource, createEffect } from 'solid-js';
+import { tr } from '../store/i18n';
 import { invoke } from '../lib/ipc';
 import { IPC } from '../../electron/ipc/channels';
 import {
@@ -321,7 +322,7 @@ export function MergeDialog(props: MergeDialogProps) {
                           },
                         );
                       }}
-                      title="Close dialog and ask the AI agent to rebase"
+                      title={tr('Close dialog and ask the AI agent to rebase')}
                       style={{
                         padding: '6px 14px',
                         background: hasConflicts() ? theme.accent : theme.bgInput,
@@ -506,7 +507,7 @@ export function MergeDialog(props: MergeDialogProps) {
             <textarea
               value={squashMessage()}
               onInput={(e) => setSquashMessage(e.currentTarget.value)}
-              placeholder="Commit message..."
+              placeholder={tr('Commit message...')}
               rows={6}
               style={{
                 'margin-top': '8px',

@@ -1,4 +1,5 @@
 import { Show, createEffect, createMemo, createSignal, onCleanup } from 'solid-js';
+import { tr } from '../store/i18n';
 import { Portal } from 'solid-js/web';
 import { theme } from '../lib/theme';
 import { sf } from '../lib/fontScale';
@@ -88,7 +89,7 @@ export function CommitTreeOverlay(props: CommitTreeOverlayProps) {
     <>
       <button
         ref={(el) => (btn = el)}
-        title="Commit tree"
+        title={tr('Commit tree')}
         aria-haspopup="true"
         aria-expanded={open()}
         onClick={toggle}
@@ -109,7 +110,7 @@ export function CommitTreeOverlay(props: CommitTreeOverlayProps) {
             />
             <div
               role="group"
-              aria-label="Commit tree"
+              aria-label={tr('Commit tree')}
               onClick={(e) => e.stopPropagation()}
               style={{
                 position: 'fixed',
@@ -144,7 +145,7 @@ export function CommitTreeOverlay(props: CommitTreeOverlayProps) {
                 }}
               >
                 <span style={{ flex: '1' }}>Commit Tree</span>
-                <button title="Close" onClick={() => setOpen(false)} style={closeStyle()}>
+                <button title={tr('Close')} onClick={() => setOpen(false)} style={closeStyle()}>
                   <CloseIcon size={12} />
                 </button>
               </div>

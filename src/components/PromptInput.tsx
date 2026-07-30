@@ -1,4 +1,5 @@
 import { createSignal, createEffect, on, Show, onMount, onCleanup, untrack, batch } from 'solid-js';
+import { tr } from '../store/i18n';
 import { fireAndForget, invoke } from '../lib/ipc';
 import { IPC } from '../../electron/ipc/channels';
 import {
@@ -931,7 +932,7 @@ export function PromptInput(props: PromptInputProps) {
             padding: '0',
             transition: 'background 0.15s, color 0.15s',
           }}
-          title="Send prompt"
+          title={tr('Send prompt')}
         >
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
             <path

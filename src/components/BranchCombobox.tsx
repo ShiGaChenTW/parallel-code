@@ -8,6 +8,7 @@ import {
   For,
   Show,
 } from 'solid-js';
+import { tr } from '../store/i18n';
 import { theme } from '../lib/theme';
 import { clampHighlight, filterBranches, resolveOnBlur } from '../lib/branch-filter';
 
@@ -214,7 +215,7 @@ export function BranchCombobox(props: BranchComboboxProps) {
           ref={listRef}
           id={listId}
           role="listbox"
-          aria-label="Branches"
+          aria-label={tr('Branches')}
           // Keep clicks on padding/scrollbar from blurring the input.
           onMouseDown={(e) => e.preventDefault()}
           style={{

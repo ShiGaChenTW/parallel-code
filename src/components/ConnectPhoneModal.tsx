@@ -1,6 +1,7 @@
 // src/components/ConnectPhoneModal.tsx
 
 import { Show, createSignal, createEffect, onCleanup, createMemo, untrack } from 'solid-js';
+import { tr } from '../store/i18n';
 import { Dialog } from './Dialog';
 import { store } from '../store/core';
 import {
@@ -344,7 +345,7 @@ export function ConnectPhoneModal(props: ConnectPhoneModalProps) {
             cursor: 'pointer',
           }}
           onClick={handleCopyUrl}
-          title="Click to copy"
+          title={tr('Click to copy')}
         >
           {activeUrl()}
         </div>
