@@ -101,6 +101,74 @@ describe('MCP server tool handling', () => {
     );
   });
 
+  it('passes create_task role and roleInstructions through to the backend', async () => {
+    const client = makeClient();
+
+    const result = await handleMCPToolCall(
+      { client, taskId: '', coordinatorId: 'coord-1' },
+      'create_task',
+      {
+        name: 'child',
+        prompt: 'do the work',
+        role: 'Reviewer — read-only, do not edit files',
+        roleInstructions: 'Report findings; never run git commit.',
+      },
+    );
+
+    expect(result).not.toHaveProperty('isError');
+    expect(client.createTask).toHaveBeenCalledWith(
+      expect.objectContaining({
+        role: 'Reviewer — read-only, do not edit files',
+        roleInstructions: 'Report findings; never run git commit.',
+      }),
+    );
+  });
+
+  it('omits role and roleInstructions entirely when they were not supplied', async () => {
+    const client = makeClient();
+
+    await handleMCPToolCall({ client, taskId: '', coordinatorId: 'coord-1' }, 'create_task', {
+      name: 'child',
+      prompt: 'do the work',
+    });
+
+    const arg = vi.mocked(client.createTask).mock.calls[0][0];
+    expect(arg.role).toBeUndefined();
+    expect(arg.roleInstructions).toBeUndefined();
+  });
+
+  it('rejects a non-string create_task role before calling the backend', async () => {
+    const client = makeClient();
+
+    const result = await handleMCPToolCall(
+      { client, taskId: '', coordinatorId: 'coord-1' },
+      'create_task',
+      { name: 'child', prompt: 'do the work', role: 42 },
+    );
+
+    expect(result).toMatchObject({
+      isError: true,
+      content: [{ text: 'Error: role must be a string' }],
+    });
+    expect(client.createTask).not.toHaveBeenCalled();
+  });
+
+  it('rejects non-string create_task roleInstructions before calling the backend', async () => {
+    const client = makeClient();
+
+    const result = await handleMCPToolCall(
+      { client, taskId: '', coordinatorId: 'coord-1' },
+      'create_task',
+      { name: 'child', prompt: 'do the work', roleInstructions: { text: 'no' } },
+    );
+
+    expect(result).toMatchObject({
+      isError: true,
+      content: [{ text: 'Error: roleInstructions must be a string' }],
+    });
+    expect(client.createTask).not.toHaveBeenCalled();
+  });
+
   it('rejects an invalid create_task baseBranch before calling the backend', async () => {
     const client = makeClient();
 

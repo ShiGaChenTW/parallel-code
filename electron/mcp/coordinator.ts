@@ -59,7 +59,7 @@ import {
   sanitisePromptBody,
   MAX_PROVENANCE_HEADER_BYTES,
 } from '../shared/prompt-sanitise.js';
-import { SUB_TASK_PREAMBLE } from './sub-task-preamble.js';
+import { SUB_TASK_PREAMBLE, buildRolePreamble } from './sub-task-preamble.js';
 import { info as logInfo, warn as logWarn } from '../log.js';
 import type {
   CoordinatedTask,
@@ -791,6 +791,14 @@ export class Coordinator {
     agentArgs?: string[];
     skipPermissions?: boolean;
     baseBranch?: string;
+    /**
+     * Free-text role for this sub-task, prepended to its initial prompt.
+     * Advisory: nothing maps it onto tool permissions, so the sub-task keeps
+     * every tool it would otherwise hold.
+     */
+    role?: string;
+    /** Free-text elaboration of `role`, carried in the same block. */
+    roleInstructions?: string;
   }): Promise<CoordinatedTask> {
     const coordinatorId =
       opts.coordinatorTaskId !== REST_COORDINATOR_SENTINEL
@@ -827,11 +835,23 @@ export class Coordinator {
     // SUB_TASK_PREAMBLE already tells the sub-agent a coordinator dispatched it,
     // which says more than the header would. Validate before the worktree is
     // created so a rejected prompt does not leave one behind.
+    //
+    // The role fields arrive the same way and are sanitised the same way. A
+    // role that sanitises away to nothing is treated as no role rather than as
+    // an error: unlike the prompt it is an adornment, and buildRolePreamble
+    // returns '' for it, which keeps the no-role composition byte-identical.
+    const rolePreamble = buildRolePreamble(
+      opts.role ? sanitisePromptBody(opts.role) : undefined,
+      opts.roleInstructions ? sanitisePromptBody(opts.roleInstructions) : undefined,
+    );
     let initialPromptBody = '';
     if (opts.prompt) {
       initialPromptBody = sanitisePromptBody(opts.prompt);
       if (!initialPromptBody) throw new Error('Prompt is empty after sanitisation');
-      if (Buffer.byteLength(SUB_TASK_PREAMBLE + initialPromptBody, 'utf8') > MAX_PROMPT_BYTES)
+      if (
+        Buffer.byteLength(rolePreamble + SUB_TASK_PREAMBLE + initialPromptBody, 'utf8') >
+        MAX_PROMPT_BYTES
+      )
         throw new Error(`Prompt exceeds ${MAX_PROMPT_BYTES} byte limit`);
     }
 
@@ -875,7 +895,9 @@ export class Coordinator {
       coordinatorTaskId: coordinatorId,
       status: 'creating',
       exitCode: null,
-      initialPrompt: opts.prompt ? SUB_TASK_PREAMBLE + initialPromptBody : undefined,
+      // rolePreamble is '' unless a role survived sanitisation, so a sub-task
+      // created without one is composed exactly as it was before roles existed.
+      initialPrompt: opts.prompt ? rolePreamble + SUB_TASK_PREAMBLE + initialPromptBody : undefined,
       dockerContainerName: this.coordinators.get(coordinatorId)?.dockerContainerName ?? null,
     };
 
