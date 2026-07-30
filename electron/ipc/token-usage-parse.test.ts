@@ -5,6 +5,7 @@ import {
   ZERO_TOTALS,
   addTotals,
   aggregateUsage,
+  agyWorkspacePath,
   claudeProjectSlug,
   claudeTotalsByPath,
   codexEventDelta,
@@ -15,6 +16,8 @@ import {
   isVertexClaudeRecord,
   isZeroTotals,
   matchKnownPath,
+  parseAgyGenerationBlob,
+  parseAgyWorkspaceBlob,
   parseClaudeUsageLine,
   parseCodexCwdLine,
   parseCodexSessionMeta,
@@ -941,5 +944,222 @@ describe('aggregateUsage', () => {
 
   it('returns an empty aggregate for no contributions', () => {
     expect(aggregateUsage([])).toEqual({ paths: [], totals: ZERO_TOTALS, byProvider: {} });
+  });
+});
+
+// --------------------------------------------------------------------------
+// Antigravity (agy)
+// --------------------------------------------------------------------------
+//
+// The field numbers below are written out as literals on purpose, rather than
+// imported from the module under test. They are not a constant the two sides
+// should agree on — they are the observed wire layout of a format nobody
+// published, recovered from the `agy` binary and confirmed arithmetically
+// against 36 real rows. A fixture built from the reader's own constants would
+// follow it into any renumbering and assert nothing. These are the bytes.
+
+function agyVarint(value: number): number[] {
+  const out: number[] = [];
+  let remaining = value;
+  do {
+    const byte = remaining % 128;
+    remaining = Math.floor(remaining / 128);
+    out.push(remaining > 0 ? byte | 0x80 : byte);
+  } while (remaining > 0);
+  return out;
+}
+
+function agyVarintField(field: number, value: number): number[] {
+  return [...agyVarint(field * 8), ...agyVarint(value)];
+}
+
+function agyBytesField(field: number, payload: readonly number[]): number[] {
+  return [...agyVarint(field * 8 + 2), ...agyVarint(payload.length), ...payload];
+}
+
+function agyStringField(field: number, text: string): number[] {
+  return agyBytesField(field, [...Buffer.from(text, 'utf8')]);
+}
+
+/** A `gen_metadata.data` blob: ModelUsageStats lives at field 1, then field 4. */
+function agyGenBlob(stats: {
+  input?: number;
+  output?: number;
+  cacheRead?: number;
+  responseOutput?: number;
+  thinkingOutput?: number;
+  model?: number;
+}): Uint8Array {
+  const body: number[] = [];
+  body.push(...agyVarintField(1, stats.model ?? 1071));
+  if (stats.input !== undefined) body.push(...agyVarintField(2, stats.input));
+  if (stats.output !== undefined) body.push(...agyVarintField(3, stats.output));
+  if (stats.cacheRead !== undefined) body.push(...agyVarintField(5, stats.cacheRead));
+  body.push(...agyVarintField(6, 24)); // api_provider enum, not a token count
+  if (stats.responseOutput !== undefined) body.push(...agyVarintField(9, stats.responseOutput));
+  if (stats.thinkingOutput !== undefined) body.push(...agyVarintField(10, stats.thinkingOutput));
+  return Uint8Array.from(agyBytesField(1, agyBytesField(4, body)));
+}
+
+describe('agyWorkspacePath', () => {
+  it('turns a file URI into an absolute path', () => {
+    expect(agyWorkspacePath('file:///Users/dev/project')).toBe('/Users/dev/project');
+  });
+
+  it('percent-decodes spaces and non-ASCII', () => {
+    expect(agyWorkspacePath('file:///Users/dev/my%20project')).toBe('/Users/dev/my project');
+    expect(agyWorkspacePath('file:///Users/dev/%E5%B7%A5%E4%BD%9C%E5%8D%80')).toBe(
+      '/Users/dev/工作區',
+    );
+  });
+
+  it('strips a trailing slash so it matches a known path exactly', () => {
+    expect(agyWorkspacePath('file:///Users/dev/project/')).toBe('/Users/dev/project');
+  });
+
+  it('rejects anything that is not an absolute file URI', () => {
+    expect(agyWorkspacePath('https://example.com/x')).toBeNull();
+    expect(agyWorkspacePath('/Users/dev/project')).toBeNull();
+    expect(agyWorkspacePath('file://host/Users/dev')).toBeNull();
+    expect(agyWorkspacePath('file:///')).toBeNull();
+  });
+
+  it('rejects a URI it cannot decode rather than half-decoding it', () => {
+    // A mangled path is worse than no path: it could match the wrong worktree.
+    expect(agyWorkspacePath('file:///Users/dev/%E0%A4%A')).toBeNull();
+  });
+});
+
+describe('parseAgyWorkspaceBlob', () => {
+  it('reads the workspace from the top-level field', () => {
+    const blob = Uint8Array.from(agyStringField(7, 'file:///Users/dev/project'));
+    expect(parseAgyWorkspaceBlob(blob)).toBe('/Users/dev/project');
+  });
+
+  it('falls back to the nested workspace message', () => {
+    const blob = Uint8Array.from(agyBytesField(1, agyStringField(1, 'file:///Users/dev/nested')));
+    expect(parseAgyWorkspaceBlob(blob)).toBe('/Users/dev/nested');
+  });
+
+  it('returns null when the conversation records no workspace', () => {
+    // Real and common: measured, 5 of 9 conversations on this machine look like
+    // this. The caller reports them as skipped rather than inventing a path.
+    const blob = Uint8Array.from([
+      ...agyStringField(3, 'some-uuid'),
+      ...agyStringField(18, 'default-cli-project'),
+    ]);
+    expect(parseAgyWorkspaceBlob(blob)).toBeNull();
+  });
+
+  it('returns null for an empty or damaged blob', () => {
+    expect(parseAgyWorkspaceBlob(new Uint8Array(0))).toBeNull();
+    expect(parseAgyWorkspaceBlob(Uint8Array.from([0x3a, 99, 1, 2]))).toBeNull();
+  });
+});
+
+describe('parseAgyGenerationBlob', () => {
+  it('reads the counters out of a real-shaped blob', () => {
+    // These are the values from row idx=0 of a conversation on this machine.
+    const got = parseAgyGenerationBlob(
+      agyGenBlob({
+        input: 12026,
+        output: 324,
+        cacheRead: 8146,
+        responseOutput: 241,
+        thinkingOutput: 83,
+      }),
+    );
+    expect(got?.totals).toEqual({ input: 12026, output: 324, cacheRead: 8146, cacheWrite: 0 });
+    expect(got?.breakdownOk).toBe(true);
+  });
+
+  it('does not subtract the cache read from the input', () => {
+    // Antigravity's input already excludes the cached prefix — measured, 24 of
+    // 36 rows report a cache read larger than their input, which is impossible
+    // if input contained it. Subtracting would clamp those to zero and lose the
+    // input entirely.
+    const got = parseAgyGenerationBlob(
+      agyGenBlob({
+        input: 6717,
+        output: 185,
+        cacheRead: 16297,
+        responseOutput: 95,
+        thinkingOutput: 90,
+      }),
+    );
+    expect(got?.totals.input).toBe(6717);
+    expect(got?.totals.cacheRead).toBe(16297);
+  });
+
+  it('never invents a cache-write count', () => {
+    // No row has ever been observed populating one; guessing it from another
+    // number would be fabrication.
+    const got = parseAgyGenerationBlob(agyGenBlob({ input: 10, output: 2, responseOutput: 2 }));
+    expect(got?.totals.cacheWrite).toBe(0);
+  });
+
+  it('treats a missing cache read as zero rather than as a failure', () => {
+    const got = parseAgyGenerationBlob(
+      agyGenBlob({ input: 18011, output: 18, responseOutput: 17, thinkingOutput: 1 }),
+    );
+    expect(got?.totals).toEqual({ input: 18011, output: 18, cacheRead: 0, cacheWrite: 0 });
+  });
+
+  it('ignores field 6, which is an enum and not a token count', () => {
+    // Field 6 is a constant 24 on every row measured. Counting it would add 24
+    // phantom tokens per generation.
+    const got = parseAgyGenerationBlob(agyGenBlob({ input: 5, output: 1, responseOutput: 1 }));
+    expect(got?.totals).toEqual({ input: 5, output: 1, cacheRead: 0, cacheWrite: 0 });
+  });
+});
+
+describe('parseAgyGenerationBlob drift canary', () => {
+  it('flags a row where response + thinking no longer equals output', () => {
+    // This is what a renumbered schema looks like from the outside, and it is
+    // the only independent evidence that field 3 is the output counter at all.
+    const got = parseAgyGenerationBlob(
+      agyGenBlob({ input: 100, output: 220, responseOutput: 136, thinkingOutput: 50 }),
+    );
+    expect(got?.breakdownOk).toBe(false);
+  });
+
+  it('passes a row whose breakdown adds up exactly', () => {
+    const got = parseAgyGenerationBlob(
+      agyGenBlob({ input: 100, output: 220, responseOutput: 136, thinkingOutput: 84 }),
+    );
+    expect(got?.breakdownOk).toBe(true);
+  });
+
+  it('reports null, not false, when the row carries no breakdown at all', () => {
+    // A model that stops reporting the split is not evidence of drift, and
+    // failing it closed would discard usage over an optional field.
+    const got = parseAgyGenerationBlob(agyGenBlob({ input: 100, output: 220 }));
+    expect(got?.breakdownOk).toBeNull();
+    expect(got?.totals.output).toBe(220);
+  });
+
+  it('still checks when only one half of the breakdown is present', () => {
+    const ok = parseAgyGenerationBlob(agyGenBlob({ input: 1, output: 50, responseOutput: 50 }));
+    expect(ok?.breakdownOk).toBe(true);
+    const bad = parseAgyGenerationBlob(agyGenBlob({ input: 1, output: 50, responseOutput: 49 }));
+    expect(bad?.breakdownOk).toBe(false);
+  });
+});
+
+describe('parseAgyGenerationBlob rejects what it cannot read', () => {
+  it('returns null when the stats message is absent', () => {
+    expect(parseAgyGenerationBlob(Uint8Array.from(agyStringField(1, 'not a message')))).toBeNull();
+    expect(parseAgyGenerationBlob(new Uint8Array(0))).toBeNull();
+  });
+
+  it('returns null for a generation that used no tokens', () => {
+    expect(parseAgyGenerationBlob(agyGenBlob({ input: 0, output: 0, cacheRead: 0 }))).toBeNull();
+  });
+
+  it('does not throw on arbitrary bytes', () => {
+    for (let seed = 0; seed < 100; seed++) {
+      const bytes = Uint8Array.from({ length: 24 }, (_, i) => (seed * 41 + i * 13) % 256);
+      expect(() => parseAgyGenerationBlob(bytes)).not.toThrow();
+    }
   });
 });

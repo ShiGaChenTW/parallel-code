@@ -13,6 +13,7 @@
 // recognise rather than throwing — one unknown record must never lose a whole
 // file's worth of counts.
 
+import { protoPath, protoString, protoSubMessage, protoVarints } from './protobuf-scan.js';
 import type { ProviderId, TokenTotals } from './shared-types.js';
 
 export const ZERO_TOTALS: TokenTotals = {
@@ -696,6 +697,138 @@ export function foldGrokLines(
   }
 
   return { byPath, skipped };
+}
+
+// --------------------------------------------------------------------------
+// Antigravity (agy) — ~/.gemini/antigravity-cli/conversations/<uuid>.db
+// --------------------------------------------------------------------------
+//
+// The only provider here that does not write JSONL. Antigravity keeps one
+// SQLite database per conversation, with the counters inside protobuf blobs in
+// `gen_metadata` — one row per LLM generation. Field *numbers* are all the wire
+// format carries, so the mapping below was recovered from the getters in the
+// `agy` Go binary and then checked arithmetically against real data; see
+// `AGY_STATS_*` and the drift check in `parseAgyGenerationBlob`.
+
+/** `gen_metadata.data` → field 1 → field 4 is the `ModelUsageStats` message. */
+const AGY_STATS_PATH = [1, 4] as const;
+
+/** Field numbers inside `ModelUsageStats`. */
+const AGY_STATS_INPUT = 2;
+const AGY_STATS_OUTPUT = 3;
+const AGY_STATS_CACHE_READ = 5;
+const AGY_STATS_RESPONSE_OUTPUT = 9;
+const AGY_STATS_THINKING_OUTPUT = 10;
+
+/**
+ * Where `trajectory_metadata_blob.data` keeps the workspace this conversation
+ * ran in. Field 7 holds it at the top level; field 1 is a workspace submessage
+ * whose own field 1 repeats it, and is used as a fallback so a layout change
+ * that moves one of the two still resolves.
+ */
+const AGY_TRAJECTORY_WORKSPACE = 7;
+const AGY_TRAJECTORY_WORKSPACE_MESSAGE = 1;
+const AGY_WORKSPACE_URI = 1;
+
+export interface AgyGeneration {
+  totals: TokenTotals;
+  /**
+   * Whether this row carried the `response_output` / `thinking_output`
+   * breakdown that the drift check relies on, and whether it added up.
+   *
+   * Null means the row reported no breakdown at all, so there was nothing to
+   * check — not that the check passed.
+   */
+  breakdownOk: boolean | null;
+}
+
+/**
+ * Turns one absolute `file://` URI into a path.
+ *
+ * Antigravity records the workspace as a URI, and a path containing a space or
+ * a non-ASCII character arrives percent-encoded. A URI that will not decode is
+ * rejected rather than half-decoded, because a mangled path would either match
+ * no worktree (harmless) or, far worse, match the wrong one.
+ */
+export function agyWorkspacePath(uri: string): string | null {
+  if (!uri.startsWith('file:///')) return null;
+  const encoded = uri.slice('file://'.length);
+  try {
+    const decoded = decodeURIComponent(encoded);
+    return decoded.length > 1 ? decoded.replace(/\/+$/, '') : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The directory a conversation ran in, from its one `trajectory_metadata_blob`
+ * row, or null when the conversation records no workspace at all.
+ *
+ * That null is a real and common state rather than a parse failure: measured on
+ * this machine, 5 of 9 conversations carry no workspace, all of them
+ * single-generation sessions started outside any project. Their usage is real
+ * but unattributable, and the caller reports it as skipped instead of guessing
+ * a directory for it.
+ */
+export function parseAgyWorkspaceBlob(data: Uint8Array): string | null {
+  const direct = protoString(data, AGY_TRAJECTORY_WORKSPACE);
+  if (direct !== null) {
+    const path = agyWorkspacePath(direct);
+    if (path !== null) return path;
+  }
+  const nested = protoSubMessage(data, AGY_TRAJECTORY_WORKSPACE_MESSAGE);
+  if (nested === null) return null;
+  const uri = protoString(nested, AGY_WORKSPACE_URI);
+  return uri === null ? null : agyWorkspacePath(uri);
+}
+
+/**
+ * Decodes one `gen_metadata` row into token counts.
+ *
+ * Antigravity's `input_tokens` excludes the cached prefix — measured, 24 of 36
+ * rows report a cache read larger than their input, which could not happen if
+ * input contained it. So the four counters are already disjoint and map across
+ * unchanged, the way Anthropic's do, with no subtraction.
+ *
+ * `cache_write_tokens` is deliberately absent. The `agy` binary names such a
+ * getter but no row has ever been observed populating a field for it, so
+ * inventing one from another number would be fabrication; the counter stays
+ * zero, as it does for codex and grok.
+ *
+ * The returned `breakdownOk` is the schema-drift canary. Field numbers here are
+ * inferred from a stripped Go binary with no `.proto` to check them against,
+ * and the one independent piece of evidence that field 3 really is the output
+ * count is that `response_output + thinking_output == output` — which holds on
+ * all 36 rows on this machine. If a CLI release renumbers these fields, that
+ * sum is what breaks first, and it breaks loudly instead of quietly returning
+ * numbers from the wrong counters.
+ */
+export function parseAgyGenerationBlob(data: Uint8Array): AgyGeneration | null {
+  const stats = protoPath(data, ...AGY_STATS_PATH);
+  if (stats === null) return null;
+  const values = protoVarints(stats);
+
+  const output = values.get(AGY_STATS_OUTPUT) ?? 0;
+  const totals: TokenTotals = {
+    input: num(values.get(AGY_STATS_INPUT)),
+    output: num(output),
+    cacheRead: num(values.get(AGY_STATS_CACHE_READ)),
+    cacheWrite: 0,
+  };
+  if (isZeroTotals(totals)) return null;
+
+  const response = values.get(AGY_STATS_RESPONSE_OUTPUT);
+  const thinking = values.get(AGY_STATS_THINKING_OUTPUT);
+  // Only a row that reports the breakdown can be checked against it. A model
+  // that stops reporting one is not evidence of drift, and failing it closed
+  // would discard usage over a field that was merely optional.
+  const breakdownOk =
+    response === undefined && thinking === undefined
+      ? null
+      : num(response) + num(thinking) === output;
+
+  return { totals, breakdownOk };
 }
 
 // --------------------------------------------------------------------------

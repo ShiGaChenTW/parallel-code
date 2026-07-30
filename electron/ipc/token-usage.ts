@@ -44,6 +44,8 @@ import {
   foldGrokLines,
   isZeroTotals,
   matchKnownPath,
+  parseAgyGenerationBlob,
+  parseAgyWorkspaceBlob,
   parseCodexSessionMeta,
   splitCompleteLines,
   type ClaudeSeenRecord,
@@ -53,7 +55,7 @@ import {
 
 /** Providers with a log location of their own, in scan order. `claude-vertex`
  *  is absent deliberately: it comes out of the Claude scan, not a directory. */
-const PROVIDERS = ['claude', 'codex', 'grok'] as const satisfies readonly ProviderId[];
+const PROVIDERS = ['claude', 'codex', 'grok', 'agy'] as const satisfies readonly ProviderId[];
 
 /** Debounce before a rescan, matching the 200ms used by steps/handoff, doubled
  *  because an active agent appends to these files far more often than it
@@ -642,6 +644,212 @@ async function scanGrok(
 }
 
 // ---------------------------------------------------------------------------
+// Antigravity (agy)
+// ---------------------------------------------------------------------------
+
+/**
+ * `node:sqlite`, loaded on demand.
+ *
+ * It ships with Node — Electron 40.8.5 carries Node 24.14.0, where
+ * `node:sqlite` exports `DatabaseSync` — so reading these databases costs no
+ * dependency at all; `better-sqlite3` would add a native build for something
+ * already in the runtime. It is imported lazily and behind a cache so that a
+ * runtime without it (or with it renamed as it leaves experimental status)
+ * disables one provider instead of preventing this module from loading and
+ * taking the other three down with it.
+ */
+let sqliteModule: Promise<typeof import('node:sqlite') | null> | null = null;
+
+function loadSqlite(): Promise<typeof import('node:sqlite') | null> {
+  sqliteModule ??= import('node:sqlite').catch((err: unknown) => {
+    logWarn('token-usage', 'node:sqlite unavailable', { err: errMessage(err) });
+    return null;
+  });
+  return sqliteModule;
+}
+
+export function agyConversationsDir(): string {
+  return path.join(homeDir(), '.gemini', 'antigravity-cli', 'conversations');
+}
+
+/** Narrows a SQLite column to bytes; anything else is a row we cannot use. */
+function asBytes(value: unknown): Uint8Array | null {
+  return value instanceof Uint8Array && value.length > 0 ? value : null;
+}
+
+/**
+ * Reads one conversation database.
+ *
+ * Opened read-only, which is both a safety property and the thing that makes
+ * WAL work. These files hold the user's actual conversations and this app has
+ * no business writing to them — and a read-write open would additionally be
+ * free to checkpoint the WAL, rewriting a database the CLI may be using.
+ *
+ * Read-only is not, however, "touch nothing". SQLite reaches a WAL through the
+ * `-shm` shared-memory index and will create that file if it is missing, so a
+ * scan updates `-shm` mtimes and can add one. That is a derived coordination
+ * file holding no user data, which SQLite rebuilds at will, and paying it is
+ * not optional: measured on this machine, 5 of 9 databases have every one of
+ * their `gen_metadata` rows still in the WAL, and reading the `.db` file alone
+ * returns zero rows for four of them and "database disk image is malformed" for
+ * the fifth. A WAL-blind reader would report this provider as empty. The `.db`
+ * and `-wal` files themselves are never modified.
+ *
+ * A database being written concurrently needs no special handling: WAL readers
+ * get a consistent snapshot of the last committed state, so a generation
+ * half-written when the scan runs is simply not in it yet and arrives on the
+ * next one.
+ */
+function readAgyConversation(
+  db: import('node:sqlite').DatabaseSync,
+  known: readonly string[],
+): { workspace: string | null; generations: ReturnType<typeof parseAgyGenerationBlob>[] } {
+  let workspace: string | null = null;
+  for (const row of db.prepare('SELECT data FROM trajectory_metadata_blob').all()) {
+    const bytes = asBytes(row['data']);
+    if (bytes === null) continue;
+    const found = parseAgyWorkspaceBlob(bytes);
+    if (found !== null) workspace = found;
+  }
+
+  // Nothing is decoded out of a conversation that did not run in one of this
+  // app's own worktrees. That is a privacy boundary as much as a cost one: the
+  // blobs in `gen_metadata` sit next to the user's prompts, and the counters for
+  // unrelated work are of no use to a per-worktree table anyway. `matchKnownPath`
+  // is used raw here, the way the codex probe does it, because whether the
+  // directory still exists is a question for attribution, not for admission.
+  if (workspace === null || matchKnownPath(workspace, known) === null) {
+    return { workspace, generations: [] };
+  }
+
+  const generations = [];
+  for (const row of db.prepare('SELECT data FROM gen_metadata ORDER BY idx').all()) {
+    const bytes = asBytes(row['data']);
+    // `gen_metadata.size` is not consulted anywhere: it equals `length(data)`
+    // exactly on all 36 rows measured, so it counts bytes, not tokens.
+    generations.push(bytes === null ? null : parseAgyGenerationBlob(bytes));
+  }
+  return { workspace, generations };
+}
+
+/** How many generations a conversation holds, without decoding any of them. */
+function countAgyGenerations(db: import('node:sqlite').DatabaseSync): number {
+  const row = db.prepare('SELECT COUNT(*) AS n FROM gen_metadata').get();
+  const n = row?.['n'];
+  return typeof n === 'number' ? n : 0;
+}
+
+/**
+ * Antigravity keeps one SQLite database per conversation, so unlike the other
+ * three there is no append-only file to follow and no byte offset to remember.
+ * Rows in `gen_metadata` are keyed by `idx` and can be rewritten in place, and
+ * with a WAL the `.db` file's own size and mtime stop moving anyway — so every
+ * scan re-reads, and no mtime is used to skip work. The tree is 5.1 MB against
+ * codex's 555 MB, and only conversations belonging to a known worktree are
+ * decoded at all, so the honest thing is also the cheap one.
+ */
+async function scanAgy(
+  knownPaths: readonly string[],
+  resolve: (recorded: string) => string | null,
+): Promise<{
+  contributions: UsageContribution[];
+  status: TokenUsageProviderStatus;
+}> {
+  const dir = agyConversationsDir();
+  const contributions: UsageContribution[] = [];
+
+  let entries: string[];
+  try {
+    entries = await fsp.readdir(dir);
+  } catch {
+    return { contributions, status: { provider: 'agy', present: false, skipped: 0 } };
+  }
+
+  const sqlite = await loadSqlite();
+  if (sqlite === null) {
+    return {
+      contributions,
+      status: { provider: 'agy', present: true, skipped: 0, error: 'node:sqlite unavailable' },
+    };
+  }
+
+  const byPath = new Map<string, TokenTotals>();
+  let drifted = 0;
+
+  for (const name of entries) {
+    // `-wal` and `-shm` sidecars share the stem and must not be opened as
+    // databases in their own right.
+    if (!name.endsWith('.db')) continue;
+    const file = path.join(dir, name);
+
+    let db: import('node:sqlite').DatabaseSync;
+    try {
+      db = new sqlite.DatabaseSync(file, { readOnly: true });
+    } catch (err) {
+      // A conversation being created, a file that is not a database, or a
+      // read-only location where the `-shm` cannot be made. None is worth
+      // failing the whole provider for.
+      addSkipped('agy', 1);
+      logDebug('token-usage', 'agy open failed', { err: errMessage(err) });
+      continue;
+    }
+
+    try {
+      const { workspace, generations } = readAgyConversation(db, knownPaths);
+      if (workspace === null) {
+        // Real usage that names no directory. Counted as skipped rather than
+        // attributed by guesswork — the same call the grok reader makes for a
+        // usage record whose session it never saw. On this machine that is 5 of
+        // 9 conversations, every one of them a single-generation session started
+        // outside any project.
+        addSkipped('agy', countAgyGenerations(db));
+        continue;
+      }
+      const target = resolve(workspace);
+      if (target === null) continue;
+
+      for (const generation of generations) {
+        if (generation === null) {
+          addSkipped('agy', 1);
+          continue;
+        }
+        if (generation.breakdownOk === false) {
+          // The field numbers are inferred, not documented. When the one
+          // arithmetic check on them fails, this row is not counted: a number
+          // read out of the wrong counter is worse than a missing one, which is
+          // the same judgement the deleted-directory rule makes.
+          drifted++;
+          addSkipped('agy', 1);
+          continue;
+        }
+        byPath.set(target, addTotals(byPath.get(target) ?? ZERO_TOTALS, generation.totals));
+      }
+    } catch (err) {
+      addSkipped('agy', 1);
+      logWarn('token-usage', 'agy read failed', { err: errMessage(err) });
+    } finally {
+      db.close();
+    }
+  }
+
+  if (drifted > 0) {
+    logWarn('token-usage', 'agy usage field mapping may have drifted', {
+      rows: drifted,
+      expected: 'response_output + thinking_output === output',
+    });
+  }
+
+  for (const [target, totals] of byPath) {
+    contributions.push({ path: target, provider: 'agy', totals });
+  }
+
+  return {
+    contributions,
+    status: { provider: 'agy', present: true, skipped: skippedByProvider.get('agy') ?? 0 },
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Snapshot
 // ---------------------------------------------------------------------------
 
@@ -665,7 +873,7 @@ export async function buildTokenUsageSnapshot(
       contributions: UsageContribution[];
       status: TokenUsageProviderStatus;
     }>
-  > = { claude: scanClaude, codex: scanCodex, grok: scanGrok };
+  > = { claude: scanClaude, codex: scanCodex, grok: scanGrok, agy: scanAgy };
 
   const contributions: UsageContribution[] = [];
   const providers: TokenUsageProviderStatus[] = [];
@@ -737,6 +945,12 @@ function watchTargets(knownPaths: readonly string[]): string[] {
   targets.add(path.join(codexRoot, year, month, day));
 
   targets.add(path.dirname(grokLogFile()));
+
+  // One directory holding every conversation database. Watching it catches a
+  // new conversation appearing; a generation appended to an existing one lands
+  // in that database's `-wal`, which lives in this same directory, so it is an
+  // event here too.
+  targets.add(agyConversationsDir());
 
   return [...targets];
 }

@@ -4,13 +4,14 @@ import path from 'path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  agyConversationsDir,
   buildTokenUsageSnapshot,
   claudeProjectsDir,
   codexSessionsDir,
   grokLogFile,
   resetTokenUsageState,
 } from './token-usage.js';
-import { claudeProjectSlug } from './token-usage-parse.js';
+import { ZERO_TOTALS, claudeProjectSlug, sumTotals } from './token-usage-parse.js';
 import type { TokenUsageSnapshot } from './shared-types.js';
 
 // A fake home directory per test. `os.homedir` is re-stubbed in every
@@ -146,7 +147,7 @@ describe('buildTokenUsageSnapshot — a CLI that is not installed', () => {
   it('reports every provider absent without erroring', async () => {
     const snapshot = await buildTokenUsageSnapshot([WT]);
     expect(snapshot.paths).toEqual([]);
-    expect(snapshot.providers.map((p) => p.present)).toEqual([false, false, false]);
+    expect(snapshot.providers.map((p) => p.present)).toEqual([false, false, false, false]);
     expect(snapshot.providers.every((p) => p.error === undefined)).toBe(true);
   });
 
@@ -265,8 +266,9 @@ describe('claude transcripts', () => {
     expect(row?.byProvider.claude?.input).toBe(10);
     expect(row?.byProvider['claude-vertex']?.input).toBe(40);
     expect(row?.totals.input).toBe(50);
-    // It is not a separate installation, so it gets no status row of its own.
-    expect(snapshot.providers.map((p) => p.provider)).toEqual(['claude', 'codex', 'grok']);
+    // It is not a separate installation, so it gets no status row of its own —
+    // unlike `agy`, which is its own CLI with its own directory and does.
+    expect(snapshot.providers.map((p) => p.provider)).toEqual(['claude', 'codex', 'grok', 'agy']);
   });
 });
 
@@ -663,5 +665,380 @@ describe('snapshot shape', () => {
     const snapshot = await buildTokenUsageSnapshot([]);
     expect(snapshot.paths).toEqual([]);
     expect(snapshot.totals).toEqual({ input: 0, output: 0, cacheRead: 0, cacheWrite: 0 });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Antigravity (agy)
+// ---------------------------------------------------------------------------
+//
+// These build real SQLite databases rather than fixtures, because the two
+// things most likely to go wrong here are properties of SQLite and not of the
+// parser: whether a WAL sidecar is read, and what a reader sees while a writer
+// holds an open transaction. A hand-made fixture cannot exercise either.
+//
+// Field numbers are literals for the reason given in token-usage-parse.test.ts:
+// they are the observed wire layout, so importing them from the reader would
+// make the fixture follow any renumbering instead of catching it.
+
+function agyVarint(value: number): number[] {
+  const out: number[] = [];
+  let remaining = value;
+  do {
+    const byte = remaining % 128;
+    remaining = Math.floor(remaining / 128);
+    out.push(remaining > 0 ? byte | 0x80 : byte);
+  } while (remaining > 0);
+  return out;
+}
+
+function agyVarintField(field: number, value: number): number[] {
+  return [...agyVarint(field * 8), ...agyVarint(value)];
+}
+
+function agyBytesField(field: number, payload: readonly number[]): number[] {
+  return [...agyVarint(field * 8 + 2), ...agyVarint(payload.length), ...payload];
+}
+
+function agyStringField(field: number, text: string): number[] {
+  return agyBytesField(field, [...Buffer.from(text, 'utf8')]);
+}
+
+interface AgyGenSpec {
+  input: number;
+  output: number;
+  cacheRead?: number;
+  /** Defaults keep the drift canary satisfied; override to simulate drift. */
+  responseOutput?: number;
+  thinkingOutput?: number;
+}
+
+function agyGenBlob(spec: AgyGenSpec): Buffer {
+  const response = spec.responseOutput ?? spec.output;
+  const thinking = spec.thinkingOutput ?? 0;
+  const body = [
+    ...agyVarintField(1, 1071),
+    ...agyVarintField(2, spec.input),
+    ...agyVarintField(3, spec.output),
+    ...(spec.cacheRead ? agyVarintField(5, spec.cacheRead) : []),
+    ...agyVarintField(6, 24),
+    ...agyVarintField(9, response),
+    ...agyVarintField(10, thinking),
+  ];
+  return Buffer.from(agyBytesField(1, agyBytesField(4, body)));
+}
+
+/**
+ * Writes one conversation database.
+ *
+ * `keepOpen` leaves the writer connection open and the data unflushed in the
+ * `-wal`, which is the state 5 of the 9 real databases on this machine are in.
+ * The caller is responsible for closing it.
+ */
+async function writeAgyConversation(opts: {
+  id: string;
+  workspace: string | null;
+  generations: readonly AgyGenSpec[];
+  wal?: boolean;
+  keepOpen?: boolean;
+}): Promise<{ close: () => void }> {
+  const { DatabaseSync } = await import('node:sqlite');
+  const dir = agyConversationsDir();
+  fs.mkdirSync(dir, { recursive: true });
+  const db = new DatabaseSync(path.join(dir, `${opts.id}.db`));
+
+  if (opts.wal) {
+    db.exec('PRAGMA journal_mode = WAL');
+    // Without this SQLite checkpoints on its own once the WAL passes a
+    // threshold, which would flush the rows into the .db and quietly turn this
+    // into a test of the non-WAL path.
+    db.exec('PRAGMA wal_autocheckpoint = 0');
+  }
+  db.exec(
+    'CREATE TABLE trajectory_metadata_blob (id text DEFAULT "main", data blob, PRIMARY KEY (id))',
+  );
+  db.exec(
+    'CREATE TABLE gen_metadata (idx integer, data blob, size integer NOT NULL DEFAULT 0, PRIMARY KEY (idx))',
+  );
+
+  if (opts.workspace !== null) {
+    const blob = Buffer.from([
+      ...agyStringField(3, 'trajectory-uuid'),
+      ...agyStringField(6, opts.id),
+      ...agyStringField(7, `file://${opts.workspace}`),
+      ...agyStringField(18, 'default-cli-project'),
+    ]);
+    db.prepare('INSERT INTO trajectory_metadata_blob (id, data) VALUES (?, ?)').run('main', blob);
+  }
+
+  const insert = db.prepare('INSERT INTO gen_metadata (idx, data, size) VALUES (?, ?, ?)');
+  opts.generations.forEach((spec, idx) => {
+    const blob = agyGenBlob(spec);
+    // `size` is length(data) in the real files, never a token count. Writing a
+    // deliberately absurd value here proves the reader does not read it.
+    insert.run(idx, blob, opts.wal ? 999_999_999 : blob.length);
+  });
+
+  if (opts.keepOpen) return { close: () => db.close() };
+  db.close();
+  return { close: () => {} };
+}
+
+describe('antigravity conversations', () => {
+  it('attributes a conversation to the worktree it recorded', async () => {
+    await writeAgyConversation({
+      id: 'conv-a',
+      workspace: WT,
+      generations: [
+        { input: 12026, output: 324, cacheRead: 8146, responseOutput: 241, thinkingOutput: 83 },
+        { input: 6717, output: 185, cacheRead: 16297, responseOutput: 95, thinkingOutput: 90 },
+      ],
+    });
+
+    const snapshot = await buildTokenUsageSnapshot([WT]);
+    expect(statusFor(snapshot, 'agy')?.present).toBe(true);
+    expect(rowFor(snapshot, WT)?.byProvider.agy).toEqual({
+      input: 18743,
+      output: 509,
+      cacheRead: 24443,
+      cacheWrite: 0,
+    });
+  });
+
+  it('keeps two worktrees apart', async () => {
+    await writeAgyConversation({
+      id: 'c1',
+      workspace: WT,
+      generations: [{ input: 100, output: 10 }],
+    });
+    await writeAgyConversation({
+      id: 'c2',
+      workspace: WT2,
+      generations: [{ input: 200, output: 20 }],
+    });
+
+    const snapshot = await buildTokenUsageSnapshot([WT, WT2]);
+    expect(sumTotals(rowFor(snapshot, WT)?.byProvider.agy ?? ZERO_TOTALS)).toBe(110);
+    expect(sumTotals(rowFor(snapshot, WT2)?.byProvider.agy ?? ZERO_TOTALS)).toBe(220);
+  });
+
+  it('does not fold a worktree into the project directory above it', async () => {
+    // WT2 lives inside WT. Its usage belongs to WT2 alone.
+    await writeAgyConversation({
+      id: 'c1',
+      workspace: WT2,
+      generations: [{ input: 500, output: 50 }],
+    });
+    const snapshot = await buildTokenUsageSnapshot([WT, WT2]);
+    expect(rowFor(snapshot, WT)).toBeUndefined();
+    expect(sumTotals(rowFor(snapshot, WT2)?.byProvider.agy ?? ZERO_TOTALS)).toBe(550);
+  });
+
+  it('does not walk a deleted worktree up into its surviving parent', async () => {
+    // The layout this app creates is the worst case for it: delete the
+    // worktree and its usage must not appear on the project's row.
+    const gone = path.join(WT, '.worktrees', 'gone');
+    await writeAgyConversation({
+      id: 'c1',
+      workspace: gone,
+      generations: [{ input: 900, output: 90 }],
+    });
+    fs.rmSync(gone, { recursive: true, force: true });
+
+    const snapshot = await buildTokenUsageSnapshot([WT]);
+    expect(rowFor(snapshot, WT)).toBeUndefined();
+  });
+
+  it('ignores a conversation that ran outside every known worktree', async () => {
+    await writeAgyConversation({
+      id: 'elsewhere',
+      workspace: path.join(home, 'somewhere-else'),
+      generations: [{ input: 999, output: 99 }],
+    });
+    const snapshot = await buildTokenUsageSnapshot([WT]);
+    expect(snapshot.paths).toEqual([]);
+    expect(statusFor(snapshot, 'agy')?.skipped).toBe(0);
+  });
+
+  it('counts usage that records no workspace as skipped rather than guessing', async () => {
+    await writeAgyConversation({
+      id: 'no-workspace',
+      workspace: null,
+      generations: [
+        { input: 18011, output: 18 },
+        { input: 5, output: 1 },
+      ],
+    });
+    const snapshot = await buildTokenUsageSnapshot([WT]);
+    expect(snapshot.paths).toEqual([]);
+    expect(statusFor(snapshot, 'agy')?.skipped).toBe(2);
+  });
+
+  it('reports the provider absent when Antigravity is not installed', async () => {
+    const snapshot = await buildTokenUsageSnapshot([WT]);
+    expect(statusFor(snapshot, 'agy')).toEqual({ provider: 'agy', present: false, skipped: 0 });
+  });
+});
+
+describe('antigravity WAL sidecars', () => {
+  it('reads generations still sitting unflushed in the -wal', async () => {
+    // The decisive case. Measured on this machine, 5 of 9 real databases hold
+    // every one of their gen_metadata rows in the WAL; a reader that opened the
+    // .db alone would report zero rows for four of them and a malformed image
+    // for the fifth, and this provider would silently show nothing.
+    const handle = await writeAgyConversation({
+      id: 'walled',
+      workspace: WT,
+      generations: [
+        { input: 1000, output: 100 },
+        { input: 2000, output: 200 },
+      ],
+      wal: true,
+      keepOpen: true,
+    });
+    try {
+      const walFile = path.join(agyConversationsDir(), 'walled.db-wal');
+      expect(fs.existsSync(walFile)).toBe(true);
+      expect(fs.statSync(walFile).size).toBeGreaterThan(0);
+
+      const snapshot = await buildTokenUsageSnapshot([WT]);
+      expect(sumTotals(rowFor(snapshot, WT)?.byProvider.agy ?? ZERO_TOTALS)).toBe(3300);
+    } finally {
+      handle.close();
+    }
+  });
+
+  it('never treats a -wal or -shm sidecar as a database of its own', async () => {
+    const handle = await writeAgyConversation({
+      id: 'walled',
+      workspace: WT,
+      generations: [{ input: 1000, output: 100 }],
+      wal: true,
+      keepOpen: true,
+    });
+    try {
+      const snapshot = await buildTokenUsageSnapshot([WT]);
+      // Counted once, not once per sidecar, and no sidecar logged as a failure.
+      expect(sumTotals(rowFor(snapshot, WT)?.byProvider.agy ?? ZERO_TOTALS)).toBe(1100);
+      expect(statusFor(snapshot, 'agy')?.skipped).toBe(0);
+    } finally {
+      handle.close();
+    }
+  });
+
+  it('sees committed rows but not an in-flight transaction', async () => {
+    // A database mid-write is not a failure case: a WAL reader gets the last
+    // committed snapshot, so a half-written generation is simply not there yet
+    // and arrives on the next scan.
+    const { DatabaseSync } = await import('node:sqlite');
+    const handle = await writeAgyConversation({
+      id: 'live',
+      workspace: WT,
+      generations: [{ input: 1000, output: 100 }],
+      wal: true,
+      keepOpen: true,
+    });
+    const writer = new DatabaseSync(path.join(agyConversationsDir(), 'live.db'));
+    try {
+      writer.exec('BEGIN IMMEDIATE');
+      writer
+        .prepare('INSERT INTO gen_metadata (idx, data, size) VALUES (?, ?, ?)')
+        .run(99, agyGenBlob({ input: 500_000, output: 500 }), 1);
+
+      const snapshot = await buildTokenUsageSnapshot([WT]);
+      expect(sumTotals(rowFor(snapshot, WT)?.byProvider.agy ?? ZERO_TOTALS)).toBe(1100);
+      expect(statusFor(snapshot, 'agy')?.error).toBeUndefined();
+
+      writer.exec('ROLLBACK');
+    } finally {
+      writer.close();
+      handle.close();
+    }
+  });
+
+  it('leaves the database and its wal byte-identical after a scan', async () => {
+    // These files are the user's conversations. The reader may touch the -shm,
+    // which SQLite rebuilds at will, but must never write the real data.
+    const handle = await writeAgyConversation({
+      id: 'untouched',
+      workspace: WT,
+      generations: [{ input: 1000, output: 100 }],
+      wal: true,
+      keepOpen: true,
+    });
+    try {
+      const dbFile = path.join(agyConversationsDir(), 'untouched.db');
+      const before = fs.readFileSync(dbFile);
+      const walBefore = fs.readFileSync(`${dbFile}-wal`);
+
+      await buildTokenUsageSnapshot([WT]);
+
+      expect(fs.readFileSync(dbFile).equals(before)).toBe(true);
+      expect(fs.readFileSync(`${dbFile}-wal`).equals(walBefore)).toBe(true);
+    } finally {
+      handle.close();
+    }
+  });
+});
+
+describe('antigravity drift and damage', () => {
+  it('drops a row whose response + thinking no longer equals output', async () => {
+    await writeAgyConversation({
+      id: 'drifted',
+      workspace: WT,
+      generations: [
+        { input: 100, output: 10, responseOutput: 10, thinkingOutput: 0 },
+        // Renumbered schema: the breakdown stops adding up.
+        { input: 200, output: 220, responseOutput: 136, thinkingOutput: 50 },
+      ],
+    });
+    const snapshot = await buildTokenUsageSnapshot([WT]);
+    // Only the row that still proves its own field mapping is counted.
+    expect(sumTotals(rowFor(snapshot, WT)?.byProvider.agy ?? ZERO_TOTALS)).toBe(110);
+    expect(statusFor(snapshot, 'agy')?.skipped).toBe(1);
+  });
+
+  it('ignores gen_metadata.size, which counts bytes and not tokens', async () => {
+    // The fixture writes 999,999,999 into `size` for every WAL row.
+    const handle = await writeAgyConversation({
+      id: 'sized',
+      workspace: WT,
+      generations: [{ input: 7, output: 3 }],
+      wal: true,
+      keepOpen: true,
+    });
+    try {
+      const snapshot = await buildTokenUsageSnapshot([WT]);
+      expect(sumTotals(rowFor(snapshot, WT)?.byProvider.agy ?? ZERO_TOTALS)).toBe(10);
+    } finally {
+      handle.close();
+    }
+  });
+
+  it('survives a file that is not a database and still reads the good ones', async () => {
+    fs.mkdirSync(agyConversationsDir(), { recursive: true });
+    fs.writeFileSync(path.join(agyConversationsDir(), 'broken.db'), 'not a database', 'utf8');
+    await writeAgyConversation({
+      id: 'good',
+      workspace: WT,
+      generations: [{ input: 50, output: 5 }],
+    });
+
+    const snapshot = await buildTokenUsageSnapshot([WT]);
+    expect(sumTotals(rowFor(snapshot, WT)?.byProvider.agy ?? ZERO_TOTALS)).toBe(55);
+    expect(statusFor(snapshot, 'agy')?.skipped).toBe(1);
+    // One unreadable conversation must not fail the provider or the snapshot.
+    expect(statusFor(snapshot, 'agy')?.error).toBeUndefined();
+  });
+
+  it('does not let a damaged conversation stop the other providers', async () => {
+    fs.mkdirSync(agyConversationsDir(), { recursive: true });
+    fs.writeFileSync(path.join(agyConversationsDir(), 'broken.db'), 'garbage', 'utf8');
+    writeGrokLog([
+      JSON.stringify({ sid: 's1', ctx: { cwd: WT } }),
+      JSON.stringify({ sid: 's1', ctx: { prompt_tokens: 40, completion_tokens: 2 } }),
+    ]);
+    const snapshot = await buildTokenUsageSnapshot([WT]);
+    expect(sumTotals(rowFor(snapshot, WT)?.byProvider.grok ?? ZERO_TOTALS)).toBe(42);
   });
 });
