@@ -91,7 +91,35 @@ fallback 到原文）。Workspace/Token 保持英文另有理由：那是 Huly �
 ## 阻塞 / 待決議
 
 - **對話紀錄中的 token 仍需撤銷**，然後從 Settings → Huly 重新輸入一次（走 `safeStorage`）。
-- 0.7.423 / 0.7.426 的版本落差仍在。讀取不受影響，但寫入路徑（FK_PC-7）開工前要重新評估。
+- ~~0.7.423 / 0.7.426 的版本落差~~ —— **已結案，決定不消除**，見下節。
+
+## 版本落差：已結案（2026-07-30 追加）
+
+Scott 要求消除落差。查證後**無法從客戶端消除**：0.7.426 沒有發佈到 npm 的任何 dist-tag，
+`dist-tags` 只有 `latest: 0.7.423`，`core` / `tracker` / `platform` 也全是 0.7.423。
+
+兩條剩餘路徑都被排除：
+
+| 方案                        | 排除理由                                               |
+| --------------------------- | ------------------------------------------------------ |
+| 降伺服器到 0.7.423          | 0.7.426 可能跑過不可逆的 migration，而那是運行中的部署 |
+| 從 Rush monorepo 建 0.7.426 | 產出無法追蹤的 vendored artifact，維護成本超過問題本身 |
+
+**實測落差對行為零影響**：`findAll` / `findOne` / `createDoc` / `addCollection` / `updateDoc`
+全部正常。唯一症狀是每次連線 15 筆 `failed to apply model transaction` 警告。
+
+**決定：不動伺服器**，用實測證據取代原本的「版本風險」註記，等 0.7.426 上 npm 再對齊。
+已寫入 `huly.ts` 檔頭與 FK_PC-7 的 comment。
+
+### 順帶修掉的兩個自己的錯
+
+1. **警告抑制原本是 no-op** —— 攔的是 `console.log`，但客戶端寫 `console.warn`。分流實測
+   `warn: 15 / log: 0 / stdout: 0 / stderr: 0`。已修（`3f48fcd`），sink 改成參數才讓 stream
+   的選擇變成可測；補了三個測試。原本聲稱有效的 commit message 是錯的。
+2. **`uploadMarkup` 不覆寫既有 blob** —— ref 由 (物件, 欄位, 版次) 決定、儲存 write-once。
+   所以先前「更新三張 issue 描述」實際只有狀態生效，描述沒動。改用 **comment** 補正，
+   而這剛好就是欄位擁有權模型本來規定的方向（PC 寫 comment，不寫 Huly 擁有的欄位）。
+   FK_PC-5 / 6 / 7 各已掛上一則 comment，已讀回驗證（912 / 1140 / 1500 字元）。
 
 ## 結束摘要
 
