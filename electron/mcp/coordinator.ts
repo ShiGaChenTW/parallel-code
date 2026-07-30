@@ -54,6 +54,11 @@ import {
   getAgentPromptReadiness,
   AGENT_READY_TAIL_CHARS,
 } from '../shared/prompt-detect.js';
+import {
+  buildAutomatedPrompt,
+  sanitisePromptBody,
+  MAX_PROVENANCE_HEADER_BYTES,
+} from '../shared/prompt-sanitise.js';
 import { SUB_TASK_PREAMBLE } from './sub-task-preamble.js';
 import { info as logInfo, warn as logWarn } from '../log.js';
 import type {
@@ -77,6 +82,12 @@ const GIT_LOCK_RETRY_DELAY_MS = 2_000;
 const INITIAL_PROMPT_READY_DELAY_MS = 1_500;
 const MAX_PENDING_PROMPTS = 32;
 const MAX_PROMPT_BYTES = 64 * 1024;
+/**
+ * Ceiling for a fully composed automated payload. Sanitisation only ever
+ * shrinks the caller's prompt, so the provenance header is the only thing that
+ * can push a delivered payload past MAX_PROMPT_BYTES.
+ */
+export const MAX_DELIVERED_PROMPT_BYTES = MAX_PROMPT_BYTES + MAX_PROVENANCE_HEADER_BYTES;
 const PROMPT_ECHO_IDLE_SUPPRESSION_MS = 2_000;
 const FOCUS_IN = '\x1b[I';
 const BRACKETED_PASTE_START = '\x1b[200~';
@@ -809,6 +820,21 @@ export class Coordinator {
       validateBranchName(baseBranch, 'baseBranch');
     }
 
+    // The initial prompt is written into the new agent's PTY by
+    // tryDeliverInitialPrompt, and it came from the coordinator agent's
+    // create_task call rather than from a human — so it gets the same
+    // content-layer treatment as sendPrompt. Deliberately no provenance header:
+    // SUB_TASK_PREAMBLE already tells the sub-agent a coordinator dispatched it,
+    // which says more than the header would. Validate before the worktree is
+    // created so a rejected prompt does not leave one behind.
+    let initialPromptBody = '';
+    if (opts.prompt) {
+      initialPromptBody = sanitisePromptBody(opts.prompt);
+      if (!initialPromptBody) throw new Error('Prompt is empty after sanitisation');
+      if (Buffer.byteLength(SUB_TASK_PREAMBLE + initialPromptBody, 'utf8') > MAX_PROMPT_BYTES)
+        throw new Error(`Prompt exceeds ${MAX_PROMPT_BYTES} byte limit`);
+    }
+
     // Create worktree + branch via existing backend
     const result = await createBackendTask(
       opts.name,
@@ -849,7 +875,7 @@ export class Coordinator {
       coordinatorTaskId: coordinatorId,
       status: 'creating',
       exitCode: null,
-      initialPrompt: opts.prompt ? SUB_TASK_PREAMBLE + opts.prompt : undefined,
+      initialPrompt: opts.prompt ? SUB_TASK_PREAMBLE + initialPromptBody : undefined,
       dockerContainerName: this.coordinators.get(coordinatorId)?.dockerContainerName ?? null,
     };
 
@@ -1034,11 +1060,28 @@ export class Coordinator {
     return this.tasks.get(taskId)?.doneToken ?? null;
   }
 
-  async sendPrompt(taskId: string, prompt: string): Promise<{ queued: boolean }> {
+  async sendPrompt(taskId: string, rawPrompt: string): Promise<{ queued: boolean }> {
     const task = this.tasks.get(taskId);
     if (!task) throw new Error(`Task not found: ${taskId}`);
-    if (Buffer.byteLength(prompt, 'utf8') > MAX_PROMPT_BYTES)
+    if (Buffer.byteLength(rawPrompt, 'utf8') > MAX_PROMPT_BYTES)
       throw new Error(`Prompt exceeds ${MAX_PROMPT_BYTES} byte limit`);
+
+    // Nothing that reaches this method was typed by a human — it came from the
+    // coordinator agent, which may be forwarding text it read out of another
+    // task. Strip the keystroke primitives and mark the provenance before the
+    // payload is queued, so what we store, echo-match, and eventually write are
+    // all the same sanitised bytes.
+    const delivered = buildAutomatedPrompt(rawPrompt, { withProvenance: true });
+    if (!delivered.body) throw new Error('Prompt is empty after sanitisation');
+    if (delivered.removed > 0) {
+      logWarn('coordinator.prompt_sanitise', 'stripped control characters from automated prompt', {
+        taskId: task.id,
+        agentId: task.agentId,
+        removedChars: delivered.removed,
+      });
+    }
+    const prompt = delivered.text;
+
     const queueLen = task.pendingPrompts?.length ?? 0;
     if (queueLen >= MAX_PENDING_PROMPTS)
       throw new Error(`Prompt queue full (${MAX_PENDING_PROMPTS} pending)`);
@@ -1114,7 +1157,14 @@ export class Coordinator {
     }
   }
 
-  private async writePromptToTask(task: CoordinatedTask, prompt: string): Promise<void> {
+  private async writePromptToTask(task: CoordinatedTask, queuedPrompt: string): Promise<void> {
+    // Last line of defence before bytes reach the PTY. Admission already
+    // sanitised, and sanitisation is idempotent, so this is a no-op for prompts
+    // that came through sendPrompt/createTask. It matters for payloads that
+    // never passed admission in this process — notably pendingPrompts and
+    // initialPrompt rehydrated from a state file written by an older build.
+    const prompt = sanitisePromptBody(queuedPrompt);
+
     // Send text then Enter separately (like the frontend does)
     this.setAutomationWriteInFlight(task, true);
     try {
