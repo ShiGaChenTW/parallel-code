@@ -10,7 +10,13 @@ import { killAllAgents } from './ipc/pty.js';
 import { stopAllPlanWatchers } from './ipc/plans.js';
 import { stopAllStepsWatchers } from './ipc/steps.js';
 import { IPC } from './ipc/channels.js';
+import { markStartup } from './startup-timing.js';
 import { resolveUserShell } from './user-shell.js';
+
+// First line of our own code to run. Everything before this — Electron's own
+// boot — is invisible from in-process, which is why the harness subtracts its
+// own spawn time rather than trusting this as t0.
+markStartup('main-module-loaded');
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -123,6 +129,7 @@ function getIconPath(): string | undefined {
 }
 
 function createWindow() {
+  markStartup('window-created');
   mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
@@ -175,6 +182,7 @@ function createWindow() {
 
   // Inject CSS to make data-tauri-drag-region work in Electron
   mainWindow.webContents.on('did-finish-load', () => {
+    markStartup('renderer-loaded');
     mainWindow?.webContents.insertCSS(`
       [data-tauri-drag-region] { -webkit-app-region: drag; }
       [data-tauri-drag-region] button,
@@ -197,6 +205,7 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  markStartup('app-ready');
   // Grant microphone and clipboard access (deny camera/video)
   session.defaultSession.setPermissionRequestHandler(
     (_webContents, permission, callback, details) => {
