@@ -8,6 +8,7 @@ import type { BrowserWindow } from 'electron';
 import { RingBuffer } from '../remote/ring-buffer.js';
 import { resolveUserShell } from '../user-shell.js';
 import { ensureClaudeSandboxFiles, ensureSandboxExcludes } from './git.js';
+import { offlineMessage, isOfflineMode } from './offline.js';
 import { debug as logDebug } from '../log.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -992,6 +993,15 @@ export function buildDockerImage(
   opts?: { dockerfilePath?: string; buildContext?: string; imageTag?: string },
 ): Promise<{ ok: boolean; error?: string }> {
   const isDefaultBuild = !opts?.dockerfilePath && !opts?.buildContext && !opts?.imageTag;
+
+  // A `docker build` always reaches the network — base image from a registry,
+  // then apt mirrors, NodeSource and npm inside the bundled Dockerfile. There
+  // is no partial-offline version of it, so it is refused whole. Returned as
+  // the function's existing `{ ok: false, error }` shape, which the New Task
+  // dialog already renders next to the Build Image button.
+  if (isOfflineMode()) {
+    return Promise.resolve({ ok: false, error: offlineMessage('docker-build') });
+  }
 
   // Only dedup when building the default image
   if (isDefaultBuild && activeBuild !== null) {

@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { app, safeStorage } from 'electron';
 import { debug, warn, errMessage } from '../log.js';
+import { OfflineModeError, isOfflineMode } from './offline.js';
 import type { HulyIssue } from './shared-types.js';
 
 /**
@@ -204,6 +205,13 @@ export async function withSuppressedModelWarnings<T>(
 }
 
 async function getClient(): Promise<HulyClient> {
+  // Guarded here rather than at each of the three call sites: every Huly
+  // operation funnels through this, including the lazy `import()` of the
+  // several-MB client that a connection would otherwise pull in. Both callers
+  // (`listIssues`, `testConnection`) already surface a thrown error to the
+  // user, so the switch reads as a message rather than a hang.
+  if (isOfflineMode()) throw new OfflineModeError('huly');
+
   if (client) return client;
   if (connecting) return connecting;
 
@@ -244,6 +252,9 @@ export function closeConnection(): void {
  * an unbounded fetch on a large project would stall the dialog.
  */
 export async function listIssues(projectIdentifier: string, limit = 100): Promise<HulyIssue[]> {
+  // Ahead of the lazy `import()` so the switch also spares the multi-MB client
+  // load, not just the socket.
+  if (isOfflineMode()) throw new OfflineModeError('huly');
   const trackerMod = await import('@hcengineering/tracker');
   const tracker = trackerMod.default ?? trackerMod;
   const coreMod = await import('@hcengineering/core');
@@ -267,6 +278,7 @@ export async function listIssues(projectIdentifier: string, limit = 100): Promis
 
 /** Verify credentials by listing projects. Used by the settings UI. */
 export async function testConnection(): Promise<{ ok: boolean; projects: string[] }> {
+  if (isOfflineMode()) throw new OfflineModeError('huly');
   const trackerMod = await import('@hcengineering/tracker');
   const tracker = trackerMod.default ?? trackerMod;
   const conn = await getClient();

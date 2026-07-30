@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('electron', () => ({
   app: { getPath: () => '/tmp/huly-test' },
@@ -9,8 +9,15 @@ vi.mock('electron', () => ({
   },
 }));
 
-const { isModelTransactionWarning, mapIssue, parseCredentials, withSuppressedModelWarnings } =
-  await import('./huly.js');
+const {
+  isModelTransactionWarning,
+  listIssues,
+  mapIssue,
+  parseCredentials,
+  testConnection,
+  withSuppressedModelWarnings,
+} = await import('./huly.js');
+const { setOfflineMode } = await import('./offline.js');
 
 describe('parseCredentials', () => {
   const valid = { url: 'https://huly.example.com', workspace: 'ws', token: 'tok' };
@@ -142,5 +149,36 @@ describe('isModelTransactionWarning', () => {
     expect(isModelTransactionWarning('websocket closed unexpectedly')).toBe(false);
     expect(isModelTransactionWarning(undefined)).toBe(false);
     expect(isModelTransactionWarning(42)).toBe(false);
+  });
+});
+
+describe('offline mode', () => {
+  beforeEach(() => setOfflineMode(false));
+  afterEach(() => setOfflineMode(false));
+
+  // Both public entry points are guarded ahead of the lazy `import()` of the
+  // several-MB @hcengineering client, so the switch spares the module load as
+  // well as the socket. If the guard moved below the import this test would
+  // still pass but would take seconds — the assertion is on the rejection.
+  it('refuses to list issues rather than opening a WebSocket', async () => {
+    setOfflineMode(true);
+    await expect(listIssues('FK_PC')).rejects.toThrow(/Offline mode is on/);
+  });
+
+  it('refuses the Settings connection test with the same message', async () => {
+    setOfflineMode(true);
+    await expect(testConnection()).rejects.toThrow(/Offline mode is on/);
+  });
+
+  it('says how to undo it, so the Settings dialog is not a dead end', async () => {
+    setOfflineMode(true);
+    await expect(testConnection()).rejects.toThrow(/Turn it off in Settings/);
+  });
+
+  it('falls back to the ordinary not-configured error once the switch is off', async () => {
+    setOfflineMode(false);
+    // No credentials are stored in this suite (safeStorage is mocked as
+    // unavailable), so the next failure is the pre-existing one.
+    await expect(listIssues('FK_PC')).rejects.toThrow(/not configured/);
   });
 });

@@ -99,6 +99,7 @@ import {
   unsubscribeFromAgent,
   validateCommand,
 } from './pty.js';
+import { setOfflineMode } from './offline.js';
 
 let tempPaths: string[] = [];
 let agentCounter = 0;
@@ -1000,6 +1001,53 @@ describe('buildDockerImage', () => {
     expect(lastCall).toBeTruthy();
     const args = ((lastCall as unknown as [string, string[]])?.[1] ?? []) as string[];
     expect(args[args.length - 1]).toBe(projectRoot);
+  });
+});
+
+describe('buildDockerImage with offline mode on', () => {
+  beforeEach(() => setOfflineMode(false));
+  afterEach(() => setOfflineMode(false));
+
+  function writeDockerfile(): { dockerfilePath: string; projectRoot: string } {
+    const projectRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'pty-offline-build-'));
+    tempPaths.push(projectRoot);
+    const dockerDir = path.join(projectRoot, '.parallel-code');
+    fs.mkdirSync(dockerDir, { recursive: true });
+    const dockerfilePath = path.join(dockerDir, 'Dockerfile');
+    fs.writeFileSync(dockerfilePath, 'FROM node:20\n');
+    return { dockerfilePath, projectRoot };
+  }
+
+  it('never runs docker build', async () => {
+    const { dockerfilePath, projectRoot } = writeDockerfile();
+    mockChildProcessSpawn.mockClear();
+    setOfflineMode(true);
+
+    await buildDockerImage(createMockWindow(), 'channel:offline-build', {
+      dockerfilePath,
+      imageTag: 'parallel-code-project:test',
+      buildContext: projectRoot,
+    } as unknown as Parameters<typeof buildDockerImage>[2]);
+
+    const dockerBuilds = mockChildProcessSpawn.mock.calls.filter(
+      (c) => (c as unknown as [string, string[]])[0] === 'docker',
+    );
+    expect(dockerBuilds).toHaveLength(0);
+  });
+
+  it('resolves with a stated reason instead of hanging on a registry timeout', async () => {
+    const { dockerfilePath, projectRoot } = writeDockerfile();
+    setOfflineMode(true);
+
+    const result = await buildDockerImage(createMockWindow(), 'channel:offline-build', {
+      dockerfilePath,
+      imageTag: 'parallel-code-project:test',
+      buildContext: projectRoot,
+    } as unknown as Parameters<typeof buildDockerImage>[2]);
+
+    expect(result.ok).toBe(false);
+    expect(result.error).toContain('Offline mode is on');
+    expect(result.error).toContain('Turn it off in Settings');
   });
 });
 

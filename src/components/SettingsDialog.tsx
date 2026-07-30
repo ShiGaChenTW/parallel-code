@@ -24,6 +24,7 @@ import {
   setShowSidebarProgress,
   setFontSmoothing,
   setDesktopNotificationsEnabled,
+  setOfflineMode,
   setVerboseLogging,
   setInactiveColumnOpacity,
   setEditorCommand,
@@ -289,8 +290,12 @@ export function SettingsDialog(props: SettingsDialogProps) {
 
   // Phases that permit a manual check. An allow-list keeps a future phase
   // from defaulting to "shown" the way excluding non-checkable phases would.
+  // 'offline' is on the list so the button stays available: the fix is to turn
+  // the switch off and press it again, which needs the button to still be there.
   const canCheckForUpdates = () =>
-    ['idle', 'checking', 'up-to-date', 'available', 'error'].includes(updateStatus().phase);
+    ['idle', 'checking', 'up-to-date', 'available', 'error', 'offline'].includes(
+      updateStatus().phase,
+    );
 
   // Fetch system fonts when the dialog opens
   createEffect(
@@ -482,6 +487,18 @@ export function SettingsDialog(props: SettingsDialogProps) {
               checked={store.fontSmoothing}
               onChange={setFontSmoothing}
               description={tr('Enable antialiasing and geometric text rendering')}
+              align="flex-start"
+            />
+          </SettingsSection>
+
+          <SettingsSection title={tr('Privacy')}>
+            <SettingsCheckboxRow
+              label={tr('Offline mode')}
+              checked={store.offlineMode}
+              onChange={setOfflineMode}
+              description={tr(
+                'Stop Parallel Code making any network request of its own: update checks, PR check polling, Huly sync, inline code Q&A, Docker image builds, git push, and external images in rendered markdown. Each one reports that offline mode is on rather than failing silently. This does not cover the AI CLIs you run as agents — those talk to their own vendors under their own configuration, and Parallel Code neither can nor should intercept them.',
+              )}
               align="flex-start"
             />
           </SettingsSection>
@@ -902,6 +919,12 @@ export function SettingsDialog(props: SettingsDialogProps) {
                   <span style={updateMessageStyle(theme.fgSubtle)}>
                     Automatic updates are not available for this build. Download the latest release
                     from GitHub to update.
+                  </span>
+                </Match>
+
+                <Match when={updateStatus().phase === 'offline'}>
+                  <span style={updateMessageStyle(theme.fgSubtle)}>
+                    {updateStatus().error ?? tr('Offline mode is on.')}
                   </span>
                 </Match>
 

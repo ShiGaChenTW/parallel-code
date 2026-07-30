@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { promisify } from 'util';
 
 vi.mock('child_process', () => {
@@ -61,7 +61,11 @@ import {
   checkMergeStatus,
   listImportableWorktrees,
   mergeTask,
+  getMainBranch,
+  pushTask,
 } from './git.js';
+import { spawn } from 'child_process';
+import { setOfflineMode } from './offline.js';
 
 type ExecFileCallback = (err: Error | null, stdout: string, stderr: string) => void;
 type MockHandler = (args: string[], cb: ExecFileCallback) => void;
@@ -1577,5 +1581,84 @@ describe('mergeTask (mergeWorktreePath)', () => {
     for (const r of statusCalls) {
       expect(r.cwd).toBe(mergeWorktreePath);
     }
+  });
+});
+
+describe('offline mode — git surfaces', () => {
+  // Each test uses a distinct repo path: detectMainBranch memoises per path for
+  // 60s, so a shared path would let one test answer from another's cache.
+  let repoCounter = 0;
+  const freshRepo = (): string => `/repo-offline-${++repoCounter}`;
+
+  beforeEach(() => setOfflineMode(false));
+  afterEach(() => setOfflineMode(false));
+
+  /** origin/HEAD exists but its remote-tracking ref is stale — the one branch
+   *  in detectMainBranchUncached that reaches the network. Local `main` exists,
+   *  so the offline fall-through has a correct answer available. */
+  function stubStaleOriginHead(): string[][] {
+    const calls: string[][] = [];
+    vi.mocked(execFile).mockImplementation(((
+      _cmd: string,
+      args: string[],
+      _opts: unknown,
+      cb: (err: Error | null, stdout: string, stderr: string) => void,
+    ) => {
+      calls.push(args);
+      const joined = args.join(' ');
+      if (joined === 'symbolic-ref refs/remotes/origin/HEAD') {
+        return cb(null, 'refs/remotes/origin/develop\n', '');
+      }
+      if (joined === 'rev-parse --verify refs/heads/main') {
+        return cb(null, 'abc123\n', '');
+      }
+      if (joined === 'remote set-head origin --auto') {
+        return cb(null, '', '');
+      }
+      return cb(new Error('no such ref'), '', '');
+    }) as unknown as typeof execFile);
+    return calls;
+  }
+
+  describe('git remote set-head (no user gesture behind it)', () => {
+    it('does not contact the remote while the switch is on', async () => {
+      const calls = stubStaleOriginHead();
+      setOfflineMode(true);
+      await getMainBranch(freshRepo());
+      expect(calls.map((a) => a.join(' '))).not.toContain('remote set-head origin --auto');
+    });
+
+    it('still resolves a default branch, from local refs alone', async () => {
+      stubStaleOriginHead();
+      setOfflineMode(true);
+      await expect(getMainBranch(freshRepo())).resolves.toBe('main');
+    });
+
+    it('does contact the remote when the switch is off', async () => {
+      const calls = stubStaleOriginHead();
+      setOfflineMode(false);
+      await getMainBranch(freshRepo());
+      expect(calls.map((a) => a.join(' '))).toContain('remote set-head origin --auto');
+    });
+  });
+
+  describe('git push', () => {
+    it('never spawns git push while the switch is on', async () => {
+      vi.mocked(spawn).mockClear();
+      setOfflineMode(true);
+      const win = { isDestroyed: () => false, webContents: { send: vi.fn() } };
+      await expect(
+        pushTask(win as unknown as Parameters<typeof pushTask>[0], '/repo', 'feat/x', 'ch'),
+      ).rejects.toThrow(/Offline mode is on/);
+      expect(vi.mocked(spawn)).not.toHaveBeenCalled();
+    });
+
+    it('rejects with the remedy rather than a git authentication failure', async () => {
+      setOfflineMode(true);
+      const win = { isDestroyed: () => false, webContents: { send: vi.fn() } };
+      await expect(
+        pushTask(win as unknown as Parameters<typeof pushTask>[0], '/repo', 'feat/x', 'ch'),
+      ).rejects.toThrow(/Turn it off in Settings/);
+    });
   });
 });

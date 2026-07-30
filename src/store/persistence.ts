@@ -21,6 +21,8 @@ import { inferDockerSource } from '../lib/docker';
 import { DEFAULT_TERMINAL_FONT } from '../lib/fonts';
 import { isLookPreset } from '../lib/look';
 import { isLocale } from '../lib/i18n';
+import { readPersistedOfflineMode } from '../lib/offline-mode';
+import { syncOfflineModeToMain } from './offline';
 import { validateCustomTheme, parseThemeCss, themeToCss } from '../lib/custom-theme';
 import type { CustomTheme } from '../lib/custom-theme';
 import { syncTerminalCounter } from './terminals';
@@ -206,6 +208,7 @@ export async function saveState(): Promise<void> {
     showSidebarProgress: store.showSidebarProgress,
     projectsCollapsed: store.projectsCollapsed,
     desktopNotificationsEnabled: store.desktopNotificationsEnabled,
+    offlineMode: store.offlineMode || undefined,
     inactiveColumnOpacity: store.inactiveColumnOpacity,
     editorCommand: store.editorCommand || undefined,
     dockerImage: store.dockerImage !== 'parallel-code-agent:latest' ? store.dockerImage : undefined,
@@ -384,6 +387,7 @@ interface LegacyPersistedState {
   showSidebarProgress?: unknown;
   projectsCollapsed?: unknown;
   desktopNotificationsEnabled?: unknown;
+  offlineMode?: unknown;
   inactiveColumnOpacity?: unknown;
   editorCommand?: unknown;
   dockerImage?: unknown;
@@ -545,6 +549,7 @@ export async function loadState(): Promise<void> {
         typeof raw.desktopNotificationsEnabled === 'boolean'
           ? raw.desktopNotificationsEnabled
           : false;
+      s.offlineMode = readPersistedOfflineMode(raw.offlineMode);
       const rawOpacity = raw.inactiveColumnOpacity;
       s.inactiveColumnOpacity =
         typeof rawOpacity === 'number' &&
@@ -891,6 +896,7 @@ export async function loadState(): Promise<void> {
   }
 
   syncTerminalCounter();
+  syncOfflineModeToMain();
 
   // Await migration of any customThemes found in state.json to individual CSS files.
   // Runs after the produce block so it can be properly awaited. loadCustomThemes() in

@@ -11,6 +11,7 @@ import { app, type BrowserWindow } from 'electron';
 import electronUpdater from 'electron-updater';
 import type { UpdateInfo, ProgressInfo, AppUpdater } from 'electron-updater';
 import { IPC } from './channels.js';
+import { isOfflineMode, offlineMessage } from './offline.js';
 import { debug, info, warn, error as logError, errMessage } from '../log.js';
 
 // `electronUpdater.autoUpdater` is a lazy getter that instantiates a
@@ -25,6 +26,10 @@ const LOG = 'updater';
 
 export type UpdatePhase =
   | 'unsupported'
+  // Offline mode is on. A distinct phase rather than `error` because nothing
+  // went wrong: the UI states the reason and keeps the check button live, so
+  // turning the switch off and retrying is one click.
+  | 'offline'
   | 'idle'
   | 'checking'
   | 'up-to-date'
@@ -41,7 +46,7 @@ export interface UpdateStatus {
   latestVersion: string | null;
   /** 0–100 while `phase` is `downloading`. */
   downloadPercent: number;
-  /** Human-readable message when `phase` is `error`. */
+  /** Human-readable message when `phase` is `error` or `offline`. */
   error: string | null;
 }
 
@@ -159,6 +164,10 @@ export function initAutoUpdater(win: BrowserWindow): void {
 /** Check GitHub Releases for a newer version. Resolves with the latest status. */
 export async function checkForUpdates(): Promise<UpdateStatus> {
   if (!isAutoUpdateSupported()) return { ...status };
+  if (isOfflineMode()) {
+    setPhase('offline', { error: offlineMessage('update-check') });
+    return { ...status };
+  }
   // A check while downloading/downloaded would clobber that progress.
   if (status.phase === 'downloading' || status.phase === 'downloaded') return { ...status };
   try {
@@ -173,6 +182,10 @@ export async function checkForUpdates(): Promise<UpdateStatus> {
 /** Download the available update; progress is reported via the status event. */
 export async function downloadUpdate(): Promise<UpdateStatus> {
   if (status.phase !== 'available') return { ...status };
+  if (isOfflineMode()) {
+    setPhase('offline', { error: offlineMessage('update-check') });
+    return { ...status };
+  }
   try {
     setPhase('downloading', { downloadPercent: 0, error: null });
     await getAutoUpdater().downloadUpdate();

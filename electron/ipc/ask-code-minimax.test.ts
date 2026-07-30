@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // Mock fetch globally
 const mockFetch = vi.fn();
@@ -10,6 +10,7 @@ import {
   MINIMAX_MODEL,
   setMinimaxApiKey,
 } from './ask-code-minimax.js';
+import { setOfflineMode } from './offline.js';
 
 function makeMockWin() {
   const messages: unknown[] = [];
@@ -301,5 +302,44 @@ describe('cancelAskAboutCodeMinimax', () => {
 
   it('is a no-op for unknown requestId', () => {
     expect(() => cancelAskAboutCodeMinimax('unknown-id')).not.toThrow();
+  });
+});
+
+describe('offline mode', () => {
+  beforeEach(() => setOfflineMode(false));
+  afterEach(() => setOfflineMode(false));
+
+  it('never reaches api.minimax.io, even with a key configured', () => {
+    setMinimaxApiKey('sk-configured');
+    setOfflineMode(true);
+    const { win } = makeMockWin();
+    askAboutCodeMinimax(win, { requestId: 'off-1', channelId: 'c', prompt: 'hi' });
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it('blames the switch, not the API key, when both would apply', () => {
+    // Checked ahead of the key so a user who configured a key correctly is not
+    // sent to look for a configuration bug that is not there.
+    setMinimaxApiKey('');
+    setOfflineMode(true);
+    const { win, messages } = makeMockWin();
+    expect(() =>
+      askAboutCodeMinimax(win, { requestId: 'off-2', channelId: 'c', prompt: 'hi' }),
+    ).not.toThrow();
+    const text = (
+      messages.find((m) => (m as { type?: string }).type === 'error') as {
+        text?: string;
+      }
+    )?.text;
+    expect(text).toContain('Offline mode is on');
+    expect(text).not.toContain('API key');
+  });
+
+  it('sends done so the answer panel stops waiting', () => {
+    setMinimaxApiKey('sk-configured');
+    setOfflineMode(true);
+    const { win, messages } = makeMockWin();
+    askAboutCodeMinimax(win, { requestId: 'off-3', channelId: 'c', prompt: 'hi' });
+    expect(messages.some((m) => (m as { type?: string }).type === 'done')).toBe(true);
   });
 });

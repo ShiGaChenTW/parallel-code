@@ -1,5 +1,6 @@
 import type { BrowserWindow } from 'electron';
 import { debug as logDebug } from '../log.js';
+import { isOfflineMode, offlineMessage } from './offline.js';
 import {
   AskCodeSession,
   ASK_CODE_MAX_CONCURRENT,
@@ -33,6 +34,18 @@ export function setMinimaxApiKey(key: string): void {
 export function askAboutCodeMinimax(win: BrowserWindow, args: MinimaxAskCodeRequest): void {
   const { requestId, channelId, prompt } = args;
   const apiKey = storedApiKey;
+
+  // Checked ahead of the API-key check so a user who has switched to offline
+  // mode is told about the switch rather than about a key they did configure.
+  // `askAboutCode` guards this too; this guard also covers a direct call.
+  if (isOfflineMode()) {
+    const notify = (msg: unknown) => {
+      if (!win.isDestroyed()) win.webContents.send(`channel:${channelId}`, msg);
+    };
+    notify({ type: 'error', text: offlineMessage('ask-code-minimax') });
+    notify({ type: 'done', exitCode: 1 });
+    return;
+  }
 
   if (!apiKey) {
     throw new Error('MiniMax API key is not set. Please configure it in Settings.');
