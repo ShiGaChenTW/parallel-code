@@ -31,6 +31,7 @@ import {
   setDockerAvailable,
   setDockerImage,
 } from '../store/store';
+import { tr } from '../store/i18n';
 import type { GitIsolationMode } from '../store/types';
 import {
   toBranchName,
@@ -138,7 +139,7 @@ function DockerTaskOptions(props: {
         style={{ display: 'flex', 'flex-direction': 'column', gap: '8px' }}
       >
         <CheckboxOption
-          label="Run in Docker container"
+          label={tr('Run in Docker container')}
           checked={props.dockerMode}
           onChange={props.setDockerMode}
         />
@@ -304,7 +305,7 @@ function CoordinatorTaskOptions(props: {
         style={{ display: 'flex', 'flex-direction': 'column', gap: '8px' }}
       >
         <CheckboxOption
-          label="Coordinator mode"
+          label={tr('Coordinator mode')}
           checked={props.coordinatorMode}
           disabled={props.hasActiveCoordinator}
           onChange={props.setCoordinatorMode}
@@ -352,7 +353,7 @@ function CoordinatorTaskOptions(props: {
           </label>
           <Show when={props.agentSupportsSkipPermissions && props.skipPermissions}>
             <CheckboxOption
-              label="Propagate skip-permissions to sub-tasks"
+              label={tr('Propagate skip-permissions to sub-tasks')}
               checked={props.propagateSkipPermissions}
               onChange={props.setPropagateSkipPermissions}
               paddingLeft="4px"
@@ -1295,7 +1296,7 @@ export function NewTaskDialog(props: NewTaskDialogProps) {
             <div data-nav-field="steps-enabled">
               <CheckboxOption
                 title="Instructs the agent to append progress entries to .claude/steps.json. Each entry is shown live in the Steps panel as the agent works."
-                label="Steps tracking"
+                label={tr('Steps tracking')}
                 checked={stepsEnabled()}
                 onChange={setStepsEnabled}
               />
@@ -1307,7 +1308,7 @@ export function NewTaskDialog(props: NewTaskDialogProps) {
                 style={{ display: 'flex', 'flex-direction': 'column', gap: '8px' }}
               >
                 <CheckboxOption
-                  label="Dangerously skip all confirms"
+                  label={tr('Dangerously skip all confirms')}
                   checked={skipPermissions()}
                   onChange={setSkipPermissions}
                 />
@@ -1443,7 +1444,7 @@ export function NewTaskDialog(props: NewTaskDialogProps) {
       </form>
       <ConfirmDialog
         open={confirmDiscard()}
-        title="Discard draft?"
+        title={tr('Discard draft?')}
         message="Closing will discard what you typed."
         confirmLabel="Discard"
         danger

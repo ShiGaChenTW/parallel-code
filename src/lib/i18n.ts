@@ -80,6 +80,28 @@ const ZH_TW: Record<string, string> = {
   Error: '錯誤',
   Done: '完成',
   'Needs input': '需要輸入',
+
+  // Sidebar
+  'Add project': '新增專案',
+  'Remove project': '移除專案',
+  'Click to restore': '點擊以復原',
+  'Expand projects': '展開專案',
+  'Collapse projects': '收合專案',
+  'Folder not found': '找不到資料夾',
+  'Connect Phone': '連接手機',
+  'Phone Connected': '手機已連接',
+
+  // New task dialog
+  Project: '專案',
+  'Git Isolation': 'Git 隔離',
+  'Run in Docker container': '在 Docker 容器中執行',
+  'Coordinator mode': 'Coordinator 模式',
+  'Propagate skip-permissions to sub-tasks': '將 skip-permissions 傳遞給子任務',
+  'Steps tracking': '步驟追蹤',
+  'Dangerously skip all confirms': '危險：略過所有確認',
+  'Discard draft?': '要捨棄草稿嗎？',
+  "Couldn't load branches.": '無法載入 branch。',
+  'Image not found locally.': '本機找不到此 image。',
 };
 
 const CATALOGUES: Record<Locale, Record<string, string>> = {

@@ -11,7 +11,7 @@ import {
 import { presetsForTone } from '../lib/look';
 import type { AppearanceMode } from '../lib/look';
 import { LOCALES, LOCALE_LABELS } from '../lib/i18n';
-import { t, setLocale } from '../store/i18n';
+import { tr, setLocale } from '../store/i18n';
 import { theme, sectionLabelStyle, readCssVarsForPreset } from '../lib/theme';
 import { themeToCss, detectThemeTone } from '../lib/custom-theme';
 import {
@@ -939,7 +939,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
         >
           {/* Language selector */}
           <div style={{ display: 'flex', 'flex-direction': 'column', gap: '10px' }}>
-            <div style={{ ...sectionLabelStyle, 'font-weight': '600' }}>{t('Language')}</div>
+            <div style={{ ...sectionLabelStyle, 'font-weight': '600' }}>{tr('Language')}</div>
             <div
               style={{
                 display: 'flex',
@@ -979,7 +979,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
 
           {/* Appearance mode selector */}
           <div style={{ display: 'flex', 'flex-direction': 'column', gap: '10px' }}>
-            <div style={{ ...sectionLabelStyle, 'font-weight': '600' }}>{t('Appearance')}</div>
+            <div style={{ ...sectionLabelStyle, 'font-weight': '600' }}>{tr('Appearance')}</div>
             <div
               style={{
                 display: 'flex',
@@ -1008,7 +1008,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
                     }}
                     onClick={() => setAppearanceMode(mode)}
                   >
-                    {t(mode)}
+                    {tr(mode)}
                   </button>
                 )}
               </For>

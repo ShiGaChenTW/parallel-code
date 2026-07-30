@@ -25,6 +25,7 @@ import {
   isProjectMissing,
   showNotification,
 } from '../store/store';
+import { tr } from '../store/i18n';
 import type { Project } from '../store/types';
 import type { TaskAttentionState } from '../store/store';
 import {
@@ -535,7 +536,7 @@ export function Sidebar() {
               onClick={() => setProjectsCollapsed(!store.projectsCollapsed)}
               aria-expanded={!store.projectsCollapsed}
               aria-controls="sidebar-projects-list"
-              title={store.projectsCollapsed ? 'Expand projects' : 'Collapse projects'}
+              title={store.projectsCollapsed ? tr('Expand projects') : tr('Collapse projects')}
               style={{
                 display: 'flex',
                 'align-items': 'center',
@@ -581,7 +582,7 @@ export function Sidebar() {
                 </svg>
               }
               onClick={() => handleAddProject()}
-              title="Add project"
+              title={tr('Add project')}
               size="sm"
             />
           </div>
@@ -664,7 +665,7 @@ export function Sidebar() {
                           }}
                         >
                           {isProjectMissing(project.id)
-                            ? 'Folder not found'
+                            ? tr('Folder not found')
                             : abbreviateHomePath(project.path)}
                         </div>
                       </div>
@@ -674,7 +675,7 @@ export function Sidebar() {
                           e.stopPropagation();
                           setConfirmRemove(project.id);
                         }}
-                        title="Remove project"
+                        title={tr('Remove project')}
                         style={{
                           background: 'transparent',
                           border: 'none',
@@ -931,7 +932,7 @@ export function Sidebar() {
                 <rect x="5" y="2" width="14" height="20" rx="2" ry="2" />
                 <line x1="12" y1="18" x2="12.01" y2="18" />
               </svg>
-              {connected() ? 'Phone Connected' : 'Connect Phone'}
+              {connected() ? tr('Phone Connected') : tr('Connect Phone')}
             </button>
           );
         })()}
@@ -1136,7 +1137,7 @@ function CollapsedTaskEntry(props: {
                 }
               }
             }}
-            title="Click to restore"
+            title={tr('Click to restore')}
             paddingLeft={props.indented ? '22px' : '10px'}
             fontSize={sf(12)}
             cursor="pointer"

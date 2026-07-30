@@ -11,7 +11,13 @@ import { translate, type Locale } from '../lib/i18n';
  * `store/ui.ts` holds the reactive state around it: `lib/i18n.ts` is the pure
  * catalogue, this file is the reactive read.
  */
-export function t(text: string): string {
+/**
+ * Named `tr`, not the conventional `t`: this codebase already binds `t` to a
+ * Task in Solid accessor callbacks (`<Show>{(t) => …}` appears three times in
+ * Sidebar.tsx alone), and a shadowed translator fails as a confusing type error
+ * rather than an obvious one.
+ */
+export function tr(text: string): string {
   return translate(store.locale, text);
 }
 
