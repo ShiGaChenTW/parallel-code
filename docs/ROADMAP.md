@@ -10,35 +10,71 @@
 
 ## 1. 進行中
 
-| 項目                         | 負責                                    | 狀態                                            |
-| ---------------------------- | --------------------------------------- | ----------------------------------------------- |
-| Huly 端到端實測              | Scott                                   | 五項檢查待回報。這是 FK_PC-6 唯一沒被證明的一段 |
-| **P** `send_prompt` 內容清理 | 子 agent（`feat/send-prompt-sanitise`） | 已 commit，等 gate 回報                         |
-| **R2** 離線模式總開關        | 子 agent（`feat/offline-mode`）         | 實作中，九個連線點已接                          |
+| 項目                     | 負責                              | 狀態                                            |
+| ------------------------ | --------------------------------- | ----------------------------------------------- |
+| **H7** Huly 端到端實測   | **Scott**                         | 五項檢查待回報。這是 FK_PC-6 唯一沒被證明的一段 |
+| **B1** entry chunk 減重  | 子 agent（`feat/bundle-diet`）    | 目標 85% 以下                                   |
+| **C4** Agent relay       | 子 agent（`feat/agent-relay`）    | 決議 7 第 2 步，不含第 3 步                     |
+| **R3b** token 計算正確性 | 子 agent（`feat/usage-accuracy`） | CodexBar 研究產出的六項修正                     |
 
-### 已完成
+排隊中：**C3** 任務單一依賴（等 C4，共用 `coordinator.ts`）、
+**Antigravity** token 讀取（等 R3b，共用 `token-usage*.ts`）。
 
-| 項目                     | commit    | 驗證                                      |
-| ------------------------ | --------- | ----------------------------------------- |
-| wave 6 i18n 動態字串     | `92b17b2` | 1717 tests、entry 87.1%                   |
-| **R0** PRD 同步裁決      | `a3964ea` | §13 改為裁決表，§3.2 Windows 措辭改為暫緩 |
-| **C2** Handoff 一層      | `39f1890` | 見下方合併後數字                          |
-| **R1** Onboarding 三階段 | `cde4f0a` | 見下方合併後數字                          |
+### 已完成（十項，`main @ 2e6a5cc`）
 
-合併後（`cde4f0a`）四道 gate：**1783 passed / 24 skipped**、entry **87.5%**、dist **85.0%**、
-421 modules 零違規。C2 回報 +32、R1 回報 +34、基準 1717 —— 三者相加剛好吻合，
-兩份回報的測試數互相印證。
+| 項目                                      | commit    |
+| ----------------------------------------- | --------- |
+| i18n 動態字串                             | `92b17b2` |
+| **R0** PRD 同步裁決                       | `a3964ea` |
+| **C2** Handoff 一層                       | `39f1890` |
+| **R1** Onboarding 三階段                  | `cde4f0a` |
+| **P** `send_prompt` 內容清理              | `8d92e09` |
+| **R2** 離線模式總開關（九個連線點）       | `649d609` |
+| **C1** Agent role（自由文字）             | `cdb75dd` |
+| **R3** Token 用量（三家、各 worktree）    | `6eb6ddb` |
+| **R4** 中文字體（五個 OFL，第十個連線點） | `bb04314` |
+| **C6** Session transcript                 | `2e6a5cc` |
 
-### 這一波學到的（會影響之後每一波）
+```
+Tests  1695 → 2248   (+553)
+entry  86.9% → 89.2%    dist 85.0% → 85.2%
+```
 
-1. **agent 會宣稱完成但沒有 commit。** P 的追蹤文檔寫「狀態：完成」、回報讀起來像交件了，
-   分支卻停在起點。要靠 `git log main..<branch>` 確認，不能靠回報。
-2. **測試可能只在整檔跑時才綠。** R1 有兩個測試單獨跑會掛，根因是
-   `vi.clearAllMocks()` 只清呼叫紀錄、不清 implementation（那要 `resetAllMocks`），
-   前面測試設的 `mockResolvedValue` 會黏著給後面借用。
-   **新 describe 一律要用 `vitest run <file> -t "<describe>"` 單獨跑過一次。**
-3. **合併若是 no-op 就不要 commit。** 無條件 `git commit` 會把 lint-staged 留在 index 的
+每一波合併後的測試數都與各分支回報的增量相加吻合（例：1783 = 1717 + 32 + 34；
+2248 = 2122 + 126）。這個交叉驗證比任何單一回報更能證明數字沒被灌水。
+
+### 驗收時一定要做的六件事
+
+全部是實測或追程式碼才浮現的，**沒有一件是讀回報或讀 diff 看得出來的**。
+
+1. **`git log main..<branch>` 確認 commit 真的存在。** 十波裡有五波宣稱完成而分支停在起點
+   （其中一次是我誤判 —— pre-commit hook 正在跑，不是假回報，查看時要留意時序）。
+2. **新測試單獨跑一次**：`vitest run <file> -t "<describe>"`。
+   根因是 `vi.clearAllMocks()` 只清呼叫紀錄、不清 implementation（那要 `resetAllMocks`），
+   前一個測試設的 `mockResolvedValue` 會黏著給後面借用。整檔綠、單跑紅。
+3. **測試斷言的常數要從 production 模組 import**，不能複製字串。
+   否則常數一改，測試就從此不證明任何事。
+4. **entry chunk 百分比下降時，先問那個 chunk 有沒有被 `modulepreload`。**
+   把程式碼搬到有 preload 的兄弟 chunk，`check:bundle` 數字會降但使用者付的成本不變 ——
+   對 gate 為真、對使用者為假。
+5. **接線超過一跳時，要有跨邊界的測試。** MCP server 是獨立 Node 行程經 REST 跟 app 對話，
+   `handleCreateTask` 是逐欄位手寫轉發 —— **沒讀到的欄位直接消失，而四道 gate 全綠**。
+   型別檢查過（欄位只是沒被讀）、lint 過、架構檢查過、測試也過。
+6. **合併若是 no-op 就不要 commit。** 無條件 `git commit` 會把 lint-staged 留在 index 的
    殘留掃進去，並冠上假的合併訊息。
+
+### 規格會錯，而 agent 查證後會更正
+
+這批裡我的規格被更正過四次，每一次不改都會出貨壞的東西：
+
+| 我寫的                          | 實際                        | 後果                                                     |
+| ------------------------------- | --------------------------- | -------------------------------------------------------- |
+| 字體家族名 `Maple Mono NF CJK`  | `Maple Mono NF CN`          | 偵測靠家族名比對，**永遠不會匹配**                       |
+| LXGW 繁中在 `lxgw/LxgwWenKai`   | 在 `lxgw/LxgwWenkaiTC`      | 原 repo 只出簡體                                         |
+| role 接線三處                   | **五處**                    | 少改兩處會靜默丟欄位而 gate 全綠                         |
+| Antigravity 可能沒有 token 資料 | 有，在 SQLite 裡的 protobuf | 用 `grep token` 找不到是因為 protobuf 存欄位編號不是名稱 |
+
+**規格寫得再細也不能取代 agent 自己查證。** 規格的作用是給約束與判準，不是給答案。
 
 ---
 
