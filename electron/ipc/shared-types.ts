@@ -138,6 +138,51 @@ export interface StepEntry {
   timestamp: string;
 }
 
+/** AI CLIs whose local usage records Parallel Code reads. */
+// Kept a type, not a value array: `src/ipc/types.ts` re-exports this module
+// type-only, and dependency-cruiser forbids the renderer importing anything
+// runtime out of `electron/`. Each side lists the providers it needs to iterate.
+export type ProviderId = 'claude' | 'codex' | 'grok';
+
+/**
+ * Four disjoint token counts. Each provider reports these differently — some
+ * fold cached tokens into the input count — so the readers normalise before
+ * anything is summed, and by this point `input` never includes `cacheRead`.
+ */
+export interface TokenTotals {
+  input: number;
+  output: number;
+  cacheRead: number;
+  cacheWrite: number;
+}
+
+/** One worktree/project path and what each CLI spent under it. */
+export interface TokenUsagePathRow {
+  path: string;
+  totals: TokenTotals;
+  byProvider: Partial<Record<ProviderId, TokenTotals>>;
+}
+
+/** Whether a CLI's local log directory exists at all. Absent is normal. */
+export interface TokenUsageProviderStatus {
+  provider: ProviderId;
+  /** False when the CLI is simply not installed — not an error. */
+  present: boolean;
+  /** Records skipped because they were malformed or of an unknown shape. */
+  skipped: number;
+  /** Set when reading failed for a reason other than "not there". */
+  error?: string;
+}
+
+export interface TokenUsageSnapshot {
+  paths: TokenUsagePathRow[];
+  totals: TokenTotals;
+  byProvider: Partial<Record<ProviderId, TokenTotals>>;
+  providers: TokenUsageProviderStatus[];
+  /** Epoch ms the snapshot was assembled. */
+  updatedAt: number;
+}
+
 /** The subset of a Huly issue the app stores and renders. */
 export interface HulyIssue {
   id: string;

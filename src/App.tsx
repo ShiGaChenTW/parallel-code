@@ -89,6 +89,7 @@ import { resetForNewMatch } from './arena/store';
 import { startDesktopNotificationWatcher } from './store/desktopNotifications';
 import { startPrChecksSubscription } from './store/pr-checks';
 import { startUpdateSubscription } from './store/updates';
+import { startTokenUsageSubscription } from './store/tokenUsage';
 import { startRemoteTaskHandlers } from './store/remoteTaskHandler';
 import { startRemoteStatusSync } from './store/remoteStatusSync';
 
@@ -548,6 +549,7 @@ function App() {
     const stopNotificationWatcher = startDesktopNotificationWatcher(windowFocused);
     const stopPrChecksSubscription = startPrChecksSubscription();
     const stopUpdateSubscription = startUpdateSubscription();
+    const stopTokenUsageSubscription = startTokenUsageSubscription();
     const stopRemoteTaskHandlers = startRemoteTaskHandlers();
     const stopRemoteStatusSync = startRemoteStatusSync();
 
@@ -758,6 +760,7 @@ function App() {
       stopNotificationWatcher();
       stopPrChecksSubscription();
       stopUpdateSubscription();
+      stopTokenUsageSubscription();
       stopRemoteTaskHandlers();
       stopRemoteStatusSync();
       offPlanContent();

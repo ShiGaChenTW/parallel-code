@@ -154,6 +154,9 @@ const ALLOWED_CHANNELS = new Set([
   'mcp_stale_url_warning',
   'mcp_coordinated_task_closed',
   'mcp_task_cleanup_failed',
+  'start_token_usage_watcher',
+  'stop_token_usage_watcher',
+  'token_usage_update',
 ]);
 
 function isAllowedChannel(channel) {

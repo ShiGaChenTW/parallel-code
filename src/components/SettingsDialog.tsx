@@ -45,6 +45,7 @@ import {
 } from '../store/store';
 import { CustomAgentEditor } from './CustomAgentEditor';
 import { HulySettings } from './HulySettings';
+import { TokenUsageSection } from './TokenUsageSection';
 import { mod } from '../lib/platform';
 import { DEFAULT_DOCKER_IMAGE, PROJECT_DOCKERFILE_RELATIVE_PATH } from '../lib/docker';
 
@@ -501,6 +502,10 @@ export function SettingsDialog(props: SettingsDialogProps) {
               )}
               align="flex-start"
             />
+          </SettingsSection>
+
+          <SettingsSection title={tr('AI Usage')}>
+            <TokenUsageSection />
           </SettingsSection>
 
           <SettingsSection title={tr('New Task Defaults')}>

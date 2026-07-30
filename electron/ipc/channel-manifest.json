@@ -149,5 +149,8 @@
   "HulyClearCredentials": "huly_clear_credentials",
   "HulyTestConnection": "huly_test_connection",
   "HulyListIssues": "huly_list_issues",
-  "SetOfflineMode": "set_offline_mode"
+  "SetOfflineMode": "set_offline_mode",
+  "StartTokenUsageWatcher": "start_token_usage_watcher",
+  "StopTokenUsageWatcher": "stop_token_usage_watcher",
+  "TokenUsageUpdate": "token_usage_update"
 }
