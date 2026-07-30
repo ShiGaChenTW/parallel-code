@@ -122,7 +122,7 @@ export function WindowTitleBar() {
           class="window-control-btn"
           onClick={() => void handleToggleMaximize()}
           aria-label={isMaximized() ? 'Restore window' : 'Maximize window'}
-          title={isMaximized() ? 'Restore' : 'Maximize'}
+          title={isMaximized() ? tr('Restore') : tr('Maximize')}
         >
           {isMaximized() ? (
             <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true">

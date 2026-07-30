@@ -171,14 +171,14 @@ export function TaskTitleBar(props: TaskTitleBarProps) {
           </span>
         </Show>
         <Show when={props.task.externalWorktree}>
-          <span style={badgeStyle(theme.accent)}>Imported</span>
+          <span style={badgeStyle(theme.accent)}>{tr('Imported')}</span>
         </Show>
         <Show when={props.task.needsReview}>
           <span
             style={badgeStyle(theme.warning)}
             title={props.task.landingReason ?? 'Review this task'}
           >
-            Review
+            {tr('Review')}
           </span>
         </Show>
         <Show when={landingBadge()}>

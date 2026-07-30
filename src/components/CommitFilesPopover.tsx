@@ -1,4 +1,5 @@
 import { For, Show } from 'solid-js';
+import { tr } from '../store/i18n';
 import { Portal } from 'solid-js/web';
 import { theme } from '../lib/theme';
 import { sf } from '../lib/fontScale';
@@ -47,7 +48,7 @@ export function CommitFilesPopover(props: CommitFilesPopoverProps) {
           {(files) => (
             <Show
               when={files().length > 0}
-              fallback={<div style={{ color: theme.fgMuted }}>No files touched.</div>}
+              fallback={<div style={{ color: theme.fgMuted }}>{tr('No files touched.')}</div>}
             >
               <div
                 style={{

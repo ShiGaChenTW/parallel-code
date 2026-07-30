@@ -10,6 +10,7 @@ import {
   ErrorBoundary,
   type JSX,
 } from 'solid-js';
+import { tr } from '../store/i18n';
 import {
   store,
   pickAndAddProject,
@@ -292,7 +293,9 @@ export function TilingLayout() {
                         'font-size': '14px',
                       }}
                     >
-                      <div style={{ color: theme.error, 'font-weight': '600' }}>Panel crashed</div>
+                      <div style={{ color: theme.error, 'font-weight': '600' }}>
+                        {tr('Panel crashed')}
+                      </div>
                       <div
                         style={{
                           'text-align': 'center',
@@ -314,7 +317,7 @@ export function TilingLayout() {
                             cursor: 'pointer',
                           }}
                         >
-                          Retry
+                          {tr('Retry')}
                         </button>
                         <button
                           onClick={() => {

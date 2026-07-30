@@ -207,7 +207,7 @@ export function CommitNavBar(props: CommitNavBarProps) {
             'flex-shrink': '0',
           }}
         >
-          Uncommitted changes only
+          {tr('Uncommitted changes only')}
         </span>
       </Show>
 

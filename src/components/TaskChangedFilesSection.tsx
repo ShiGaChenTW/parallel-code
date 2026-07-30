@@ -1,4 +1,5 @@
 import { Show, onMount } from 'solid-js';
+import { tr } from '../store/i18n';
 import { getProject, setActiveTask, setTaskFocusedPanel, isPanelFocused } from '../store/store';
 import { ChangedFilesList } from './ChangedFilesList';
 import { CommitTreeOverlay } from './CommitTreeOverlay';
@@ -86,7 +87,7 @@ export function TaskChangedFilesSection(props: TaskChangedFilesSectionProps) {
           gap: '6px',
         }}
       >
-        <span style={{ 'flex-shrink': '0' }}>Changed Files</span>
+        <span style={{ 'flex-shrink': '0' }}>{tr('Changed Files')}</span>
         <span style={{ flex: '1' }} />
         <Show when={hasCommitNav()}>
           <div style={{ display: 'flex', 'align-items': 'center', gap: '6px' }}>
@@ -145,7 +146,7 @@ export function TaskChangedFilesSection(props: TaskChangedFilesSectionProps) {
             'text-overflow': 'ellipsis',
           }}
         >
-          Uncommitted changes only
+          {tr('Uncommitted changes only')}
         </div>
       </Show>
       <div style={{ flex: '1', overflow: 'hidden' }}>

@@ -259,7 +259,7 @@ export function ImportWorktreesDialog(props: ImportWorktreesDialogProps) {
                             {candidate.branch_name}
                           </span>
                           <StatusBadge
-                            label={candidate.has_uncommitted_changes ? 'Dirty' : 'Clean'}
+                            label={candidate.has_uncommitted_changes ? tr('Dirty') : tr('Clean')}
                             tone={candidate.has_uncommitted_changes ? 'warning' : 'muted'}
                           />
                           <Show when={candidate.has_committed_changes}>
@@ -314,7 +314,7 @@ export function ImportWorktreesDialog(props: ImportWorktreesDialogProps) {
               'font-size': '13px',
             }}
           >
-            Cancel
+            {tr('Cancel')}
           </button>
           <button
             type="button"

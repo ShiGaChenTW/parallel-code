@@ -144,7 +144,7 @@ export function CommitTreeOverlay(props: CommitTreeOverlayProps) {
                   'align-items': 'center',
                 }}
               >
-                <span style={{ flex: '1' }}>Commit Tree</span>
+                <span style={{ flex: '1' }}>{tr('Commit Tree')}</span>
                 <button title={tr('Close')} onClick={() => setOpen(false)} style={closeStyle()}>
                   <CloseIcon size={12} />
                 </button>

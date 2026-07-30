@@ -381,7 +381,7 @@ export function TaskStepsSection(props: TaskStepsSectionProps) {
               'letter-spacing': '0.05em',
             }}
           >
-            Steps
+            {tr('Steps')}
           </span>
           <Show
             when={isInteracting()}

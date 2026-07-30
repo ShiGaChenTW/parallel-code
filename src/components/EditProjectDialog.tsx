@@ -176,7 +176,7 @@ export function EditProjectDialog(props: EditProjectDialogProps) {
                   'font-size': '13px',
                 }}
               >
-                <span style={{ flex: '1' }}>This folder no longer exists.</span>
+                <span style={{ flex: '1' }}>{tr('This folder no longer exists.')}</span>
                 <button
                   type="button"
                   onClick={async () => {
@@ -210,14 +210,14 @@ export function EditProjectDialog(props: EditProjectDialogProps) {
                     'flex-shrink': '0',
                   }}
                 >
-                  Remove
+                  {tr('Remove')}
                 </button>
               </div>
             </Show>
 
             {/* Name */}
             <div style={{ display: 'flex', 'flex-direction': 'column', gap: '8px' }}>
-              <label style={sectionLabelStyle}>Name</label>
+              <label style={sectionLabelStyle}>{tr('Name')}</label>
               <input
                 ref={nameRef}
                 class="input-field"
@@ -242,7 +242,7 @@ export function EditProjectDialog(props: EditProjectDialogProps) {
             {/* Branch prefix — git projects only */}
             <Show when={props.project?.isGitRepo !== false}>
               <div style={{ display: 'flex', 'flex-direction': 'column', gap: '8px' }}>
-                <label style={sectionLabelStyle}>Branch prefix</label>
+                <label style={sectionLabelStyle}>{tr('Branch prefix')}</label>
                 <input
                   class="input-field"
                   type="text"
@@ -292,7 +292,7 @@ export function EditProjectDialog(props: EditProjectDialogProps) {
 
             {/* Color palette */}
             <div style={{ display: 'flex', 'flex-direction': 'column', gap: '8px' }}>
-              <label style={sectionLabelStyle}>Color</label>
+              <label style={sectionLabelStyle}>{tr('Color')}</label>
               <div style={{ display: 'flex', gap: '8px', 'flex-wrap': 'wrap' }}>
                 <For each={PASTEL_HUES}>
                   {(hue) => {
@@ -346,7 +346,7 @@ export function EditProjectDialog(props: EditProjectDialogProps) {
 
               {/* Default isolation mode */}
               <div style={{ display: 'flex', 'flex-direction': 'column', gap: '8px' }}>
-                <label style={sectionLabelStyle}>Default Git Isolation</label>
+                <label style={sectionLabelStyle}>{tr('Default Git Isolation')}</label>
                 <SegmentedButtons
                   options={[
                     { value: 'worktree', label: 'Worktree' },
@@ -422,7 +422,7 @@ export function EditProjectDialog(props: EditProjectDialogProps) {
 
             {/* Command Bookmarks */}
             <div style={{ display: 'flex', 'flex-direction': 'column', gap: '8px' }}>
-              <label style={sectionLabelStyle}>Command Bookmarks</label>
+              <label style={sectionLabelStyle}>{tr('Command Bookmarks')}</label>
               <Show when={bookmarks().length > 0}>
                 <div style={{ display: 'flex', 'flex-direction': 'column', gap: '4px' }}>
                   <For each={bookmarks()}>
@@ -540,7 +540,7 @@ export function EditProjectDialog(props: EditProjectDialogProps) {
                   'font-size': '14px',
                 }}
               >
-                Cancel
+                {tr('Cancel')}
               </button>
               <button
                 type="button"
@@ -559,7 +559,7 @@ export function EditProjectDialog(props: EditProjectDialogProps) {
                   opacity: canSave() ? '1' : '0.4',
                 }}
               >
-                Save
+                {tr('Save')}
               </button>
             </div>
             <ImportWorktreesDialog

@@ -1,4 +1,5 @@
 import { For, Show, createSignal } from 'solid-js';
+import { tr } from '../store/i18n';
 import { store, addCustomAgent, removeCustomAgent } from '../store/store';
 import { theme } from '../lib/theme';
 import type { AgentDef } from '../ipc/types';
@@ -164,7 +165,7 @@ export function CustomAgentEditor() {
                 'font-size': '13px',
               }}
             >
-              Cancel
+              {tr('Cancel')}
             </button>
             <button
               type="button"

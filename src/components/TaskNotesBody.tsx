@@ -110,7 +110,7 @@ export function TaskNotesBody(props: TaskNotesBodyProps) {
             }}
             onClick={() => setNotesTab('notes')}
           >
-            Notes
+            {tr('Notes')}
           </button>
           <button
             style={{
@@ -126,7 +126,7 @@ export function TaskNotesBody(props: TaskNotesBodyProps) {
             }}
             onClick={() => setNotesTab('plan')}
           >
-            Plan
+            {tr('Plan')}
           </button>
         </div>
       </Show>

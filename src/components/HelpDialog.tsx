@@ -491,7 +491,7 @@ export function HelpDialog(props: HelpDialogProps) {
                                 cursor: 'pointer',
                               }}
                             >
-                              Cancel
+                              {tr('Cancel')}
                             </button>
                           </div>
                         </div>

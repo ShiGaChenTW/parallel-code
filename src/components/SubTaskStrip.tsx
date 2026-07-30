@@ -78,7 +78,9 @@ function MCPLogModal(props: { onClose: () => void }) {
         <Show when={!loading()} fallback={<span style={{ color: theme.fgSubtle }}>Loading…</span>}>
           <Show
             when={logs().length > 0}
-            fallback={<span style={{ color: theme.fgSubtle }}>No MCP log entries yet.</span>}
+            fallback={
+              <span style={{ color: theme.fgSubtle }}>{tr('No MCP log entries yet.')}</span>
+            }
           >
             <For each={logs()}>
               {(entry) => (
@@ -122,7 +124,7 @@ function MCPLogModal(props: { onClose: () => void }) {
             });
           }}
         >
-          Refresh
+          {tr('Refresh')}
         </button>
       </div>
     </Dialog>

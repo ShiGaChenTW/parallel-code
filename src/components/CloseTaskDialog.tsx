@@ -148,7 +148,9 @@ export function CloseTaskDialog(props: CloseTaskDialogProps) {
         </div>
       }
       confirmLabel={
-        props.task.gitIsolation !== 'worktree' || props.task.externalWorktree ? 'Close' : 'Delete'
+        props.task.gitIsolation !== 'worktree' || props.task.externalWorktree
+          ? tr('Close')
+          : tr('Delete')
       }
       // Don't allow deleting before the dirty-worktree check resolves — the
       // uncommitted/unmerged warnings above only render once it has.

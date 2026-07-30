@@ -188,6 +188,62 @@ const ZH_TW: Record<string, string> = {
   'Test connection': '測試連線',
   'Clear credentials': '清除憑證',
   'Connected.': '已連線。',
+  // Settings — checkbox descriptions
+  'Automatically accept trust and permission dialogs from agents':
+    '自動接受 agent 的信任與權限對話框',
+  'Daily completed-task count and merged-line totals at the bottom of the sidebar':
+    '在側欄底部顯示每日完成任務數與合併行數總計',
+  'Display Claude Code plan files in a tab next to Notes':
+    '在筆記旁邊的分頁顯示 Claude Code 的 plan 檔案',
+  'Enable antialiasing and geometric text rendering': '啟用反鋸齒與幾何文字算繪',
+  'Keyboard shortcut hints at the bottom of the sidebar': '在側欄底部顯示快捷鍵提示',
+  'Pre-tick Steps tracking in the New Task dialog': '在新增任務對話框中預先勾選步驟追蹤',
+  'Show native notifications when tasks finish or need attention':
+    '任務完成或需要處理時顯示系統通知',
+  'When hidden, the terminal occupies the full panel and auto-focuses on activation':
+    '隱藏時終端機會佔滿整個面板，並在啟用時自動取得焦點',
+  'Verbose logging': '詳細記錄',
+
+  // Panel and section headings
+  'Branch prefix': 'Branch 前綴',
+  'Command Bookmarks': '指令書籤',
+  'Commit Tree': 'Commit 樹',
+  'Default Git Isolation': '預設 Git 隔離',
+  'Theme CSS': '主題 CSS',
+  Themes: '主題',
+  Experimental: '實驗性功能',
+  Updates: '更新',
+  Color: '顏色',
+  Name: '名稱',
+  Source: '來源',
+  Imported: '已匯入',
+
+  // Empty and transient states
+  'Closing task...': '正在關閉任務…',
+  'Starting server...': '正在啟動伺服器…',
+  'No files touched.': '沒有動到任何檔案。',
+  'No MCP log entries yet.': '尚無 MCP 記錄。',
+  'Not detected': '未偵測到',
+  'Panel crashed': '面板已當機',
+  'This folder no longer exists.': '這個資料夾已不存在。',
+  'Merged today': '今日已合併',
+  'Merged (total)': '已合併（總計）',
+  'No dimming': '不變暗',
+  'More dimmed': '更暗',
+  'Disconnecting stops the server and revokes every connected and paired device.':
+    '中斷連線會停止伺服器，並撤銷所有已連線與已配對的裝置。',
+  // Binary states rendered as ternaries
+  // 'Delete' already appears under Common actions.
+  Comment: '留言',
+  Ask: '詢問',
+  Connected: '已連線',
+  Disconnected: '未連線',
+  Dirty: '有未提交變更',
+  Clean: '乾淨',
+  Hide: '隱藏',
+  Show: '顯示',
+  Restore: '還原',
+  Maximize: '最大化',
 };
 
 const CATALOGUES: Record<Locale, Record<string, string>> = {

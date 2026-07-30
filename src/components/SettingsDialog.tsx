@@ -332,7 +332,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
               'font-weight': '600',
             }}
           >
-            Settings
+            {tr('Settings')}
           </h2>
           <span style={{ 'font-size': '13px', color: theme.fgSubtle }}>
             Customize your workspace. Shortcut:{' '}
@@ -409,7 +409,11 @@ export function SettingsDialog(props: SettingsDialogProps) {
                 transition: 'color 0.15s, border-color 0.15s',
               }}
             >
-              {tab === 'general' ? 'General' : tab === 'themes' ? 'Themes' : 'Experimental'}
+              {tab === 'general'
+                ? tr('General')
+                : tab === 'themes'
+                  ? tr('Themes')
+                  : tr('Experimental')}
             </button>
           )}
         </For>
@@ -427,43 +431,47 @@ export function SettingsDialog(props: SettingsDialogProps) {
               label={tr('Auto-trust folders')}
               checked={store.autoTrustFolders}
               onChange={setAutoTrustFolders}
-              description="Automatically accept trust and permission dialogs from agents"
+              description={tr('Automatically accept trust and permission dialogs from agents')}
             />
             <SettingsCheckboxRow
               label="Show plans"
               checked={store.showPlans}
               onChange={setShowPlans}
-              description="Display Claude Code plan files in a tab next to Notes"
+              description={tr('Display Claude Code plan files in a tab next to Notes')}
             />
             <SettingsCheckboxRow
               label={tr('Desktop notifications')}
               checked={store.desktopNotificationsEnabled}
               onChange={setDesktopNotificationsEnabled}
-              description="Show native notifications when tasks finish or need attention"
+              description={tr('Show native notifications when tasks finish or need attention')}
             />
             <SettingsCheckboxRow
               label="Show prompt input box below terminal"
               checked={store.showPromptInput}
               onChange={setShowPromptInput}
-              description="When hidden, the terminal occupies the full panel and auto-focuses on activation"
+              description={tr(
+                'When hidden, the terminal occupies the full panel and auto-focuses on activation',
+              )}
             />
             <SettingsCheckboxRow
               label="Show progress section in sidebar"
               checked={store.showSidebarProgress}
               onChange={setShowSidebarProgress}
-              description="Daily completed-task count and merged-line totals at the bottom of the sidebar"
+              description={tr(
+                'Daily completed-task count and merged-line totals at the bottom of the sidebar',
+              )}
             />
             <SettingsCheckboxRow
               label="Show tips section in sidebar"
               checked={store.showSidebarTips}
               onChange={setShowSidebarTips}
-              description="Keyboard shortcut hints at the bottom of the sidebar"
+              description={tr('Keyboard shortcut hints at the bottom of the sidebar')}
             />
             <SettingsCheckboxRow
               label={tr('Font smoothing')}
               checked={store.fontSmoothing}
               onChange={setFontSmoothing}
-              description="Enable antialiasing and geometric text rendering"
+              description={tr('Enable antialiasing and geometric text rendering')}
               align="flex-start"
             />
           </SettingsSection>
@@ -473,7 +481,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
               label={tr('Steps tracking')}
               checked={store.defaultStepsEnabled}
               onChange={setDefaultStepsEnabled}
-              description="Pre-tick Steps tracking in the New Task dialog"
+              description={tr('Pre-tick Steps tracking in the New Task dialog')}
             />
             <SettingsCheckboxRow
               label={tr('Dangerously skip all confirms by default')}
@@ -772,8 +780,8 @@ export function SettingsDialog(props: SettingsDialogProps) {
                   color: theme.fgSubtle,
                 }}
               >
-                <span>More dimmed</span>
-                <span>No dimming</span>
+                <span>{tr('More dimmed')}</span>
+                <span>{tr('No dimming')}</span>
               </div>
             </div>
           </div>
@@ -831,7 +839,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
 
           <SettingsSection title={tr('Diagnostics')}>
             <SettingsCheckboxRow
-              label="Verbose logging"
+              label={tr('Verbose logging')}
               checked={store.verboseLogging}
               onChange={setVerboseLogging}
               description="Emit debug-level logs to the developer console. Verbose logs may include file paths, branch names, commit messages, IPC channel activity, and pty lifecycle events. Review the contents before sharing."
@@ -839,7 +847,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
           </SettingsSection>
 
           <div style={{ display: 'flex', 'flex-direction': 'column', gap: '10px' }}>
-            <div style={{ ...sectionLabelStyle, 'font-weight': '600' }}>Updates</div>
+            <div style={{ ...sectionLabelStyle, 'font-weight': '600' }}>{tr('Updates')}</div>
             <div
               style={{
                 display: 'flex',
@@ -1028,7 +1036,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
               'justify-content': 'space-between',
             }}
           >
-            <div style={{ ...sectionLabelStyle, 'font-weight': '600' }}>Themes</div>
+            <div style={{ ...sectionLabelStyle, 'font-weight': '600' }}>{tr('Themes')}</div>
             <button
               type="button"
               onClick={() => {

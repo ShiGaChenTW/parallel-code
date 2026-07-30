@@ -218,13 +218,13 @@ export function ConnectPhoneModal(props: ConnectPhoneModalProps) {
     >
       <div style={{ 'text-align': 'center' }}>
         <h2 style={{ margin: '0', 'font-size': '17px', color: theme.fg, 'font-weight': '600' }}>
-          Connect Phone
+          {tr('Connect Phone')}
         </h2>
-        <span style={{ 'font-size': '12px', color: theme.fgSubtle }}>Experimental</span>
+        <span style={{ 'font-size': '12px', color: theme.fgSubtle }}>{tr('Experimental')}</span>
       </div>
 
       <Show when={starting()}>
-        <div style={{ color: theme.fgMuted, 'font-size': '14px' }}>Starting server...</div>
+        <div style={{ color: theme.fgMuted, 'font-size': '14px' }}>{tr('Starting server...')}</div>
       </Show>
 
       <Show when={error()}>
@@ -263,7 +263,9 @@ export function ConnectPhoneModal(props: ConnectPhoneModalProps) {
               WiFi
             </button>
             <Show when={!store.remoteAccess.wifiUrl}>
-              <span style={{ 'font-size': '10px', color: theme.fgSubtle }}>Not detected</span>
+              <span style={{ 'font-size': '10px', color: theme.fgSubtle }}>
+                {tr('Not detected')}
+              </span>
             </Show>
           </div>
           <div
@@ -285,7 +287,9 @@ export function ConnectPhoneModal(props: ConnectPhoneModalProps) {
               Tailscale
             </button>
             <Show when={!store.remoteAccess.tailscaleUrl}>
-              <span style={{ 'font-size': '10px', color: theme.fgSubtle }}>Not detected</span>
+              <span style={{ 'font-size': '10px', color: theme.fgSubtle }}>
+                {tr('Not detected')}
+              </span>
             </Show>
           </div>
         </div>
@@ -572,7 +576,11 @@ export function ConnectPhoneModal(props: ConnectPhoneModalProps) {
                 A paired phone can create new tasks, which run code on this computer, until you
                 disconnect.
               </li>
-              <li>Disconnecting stops the server and revokes every connected and paired device.</li>
+              <li>
+                {tr(
+                  'Disconnecting stops the server and revokes every connected and paired device.',
+                )}
+              </li>
             </ul>
           </Show>
         </div>

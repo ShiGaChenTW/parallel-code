@@ -170,7 +170,7 @@ export function TaskShellSection(props: TaskShellSectionProps) {
           style={toolbarBtnStyle(shellToolbarIdx() === 0 && shellToolbarFocused())}
         >
           <span style={{ 'font-family': 'monospace', 'font-size': sf(14) }}>&gt;_</span>
-          <span>Terminal</span>
+          <span>{tr('Terminal')}</span>
         </button>
         <For each={projectBookmarks()}>
           {(bookmark, i) => (

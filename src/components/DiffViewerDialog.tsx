@@ -431,7 +431,7 @@ function DiffViewerContent(props: DiffViewerDialogProps) {
               'user-select': 'none',
             }}
           >
-            Changed Files
+            {tr('Changed Files')}
           </div>
           <div style={{ flex: '1', overflow: 'hidden' }}>
             <ChangedFilesList

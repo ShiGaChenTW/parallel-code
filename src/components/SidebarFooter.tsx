@@ -1,4 +1,5 @@
 import { createMemo, createEffect, onCleanup, Show } from 'solid-js';
+import { tr } from '../store/i18n';
 import {
   store,
   getMergedTasksTodayCount,
@@ -58,7 +59,7 @@ export function SidebarFooter() {
               color: theme.fgMuted,
             }}
           >
-            MCP {mcpOk() ? 'Connected' : 'Disconnected'}
+            MCP {mcpOk() ? tr('Connected') : tr('Disconnected')}
           </span>
         </div>
       </Show>
@@ -97,7 +98,7 @@ export function SidebarFooter() {
               color: theme.fgMuted,
             }}
           >
-            <span>Merged today</span>
+            <span>{tr('Merged today')}</span>
             <span
               style={{
                 color: theme.fg,
@@ -121,7 +122,7 @@ export function SidebarFooter() {
               color: theme.fgMuted,
             }}
           >
-            <span>Merged (total)</span>
+            <span>{tr('Merged (total)')}</span>
             <span
               style={{
                 color: theme.fg,

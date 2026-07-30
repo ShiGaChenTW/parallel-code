@@ -201,7 +201,7 @@ export function CustomThemeDialog(props: CustomThemeDialogProps) {
                 'border-radius': '4px',
               }}
             >
-              {showPrompt() ? 'Hide' : 'Show'} prompt
+              {showPrompt() ? tr('Hide') : tr('Show')} prompt
             </button>
             <button
               type="button"
@@ -250,7 +250,7 @@ export function CustomThemeDialog(props: CustomThemeDialogProps) {
 
       {/* CSS paste area */}
       <div style={{ display: 'flex', 'flex-direction': 'column', gap: '6px' }}>
-        <span style={sectionLabelStyle}>Theme CSS</span>
+        <span style={sectionLabelStyle}>{tr('Theme CSS')}</span>
         <textarea
           value={css()}
           onInput={(e) => setCss(e.currentTarget.value)}
@@ -379,7 +379,7 @@ export function CustomThemeDialog(props: CustomThemeDialogProps) {
               'border-radius': '6px',
             }}
           >
-            Cancel
+            {tr('Cancel')}
           </button>
           <button
             type="button"

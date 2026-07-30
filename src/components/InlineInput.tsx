@@ -136,7 +136,7 @@ export function InlineInput(props: InlineInputProps) {
           'font-weight': '600',
         }}
       >
-        {mode() === 'review' ? 'Comment' : 'Ask'}
+        {mode() === 'review' ? tr('Comment') : tr('Ask')}
       </button>
 
       {/* Cancel button */}

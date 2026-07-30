@@ -215,7 +215,7 @@ function DockerTaskOptions(props: {
                 color: theme.fgMuted,
               }}
             >
-              <span>Image not found locally.</span>
+              <span>{tr('Image not found locally.')}</span>
               <Show
                 when={
                   props.projectDockerfile ||
@@ -1072,7 +1072,7 @@ export function NewTaskDialog(props: NewTaskDialogProps) {
                 'font-weight': '600',
               }}
             >
-              New Task
+              {tr('New Task')}
             </h2>
           </div>
 
@@ -1081,7 +1081,7 @@ export function NewTaskDialog(props: NewTaskDialogProps) {
             data-nav-field="project"
             style={{ display: 'flex', 'flex-direction': 'column', gap: '8px' }}
           >
-            <label style={sectionLabelStyle}>Project</label>
+            <label style={sectionLabelStyle}>{tr('Project')}</label>
             <ProjectSelect value={selectedProjectId()} onChange={setSelectedProjectId} />
           </div>
 
@@ -1204,7 +1204,7 @@ export function NewTaskDialog(props: NewTaskDialogProps) {
               data-nav-field="git-isolation"
               style={{ display: 'flex', 'flex-direction': 'column', gap: '8px' }}
             >
-              <label style={sectionLabelStyle}>Git Isolation</label>
+              <label style={sectionLabelStyle}>{tr('Git Isolation')}</label>
               <SegmentedButtons
                 options={[
                   {
@@ -1274,7 +1274,7 @@ export function NewTaskDialog(props: NewTaskDialogProps) {
                       color: theme.error,
                     }}
                   >
-                    <span>Couldn't load branches.</span>
+                    <span>{tr("Couldn't load branches.")}</span>
                     <button
                       type="button"
                       onClick={() => setBranchRetryToken((n) => n + 1)}
@@ -1288,7 +1288,7 @@ export function NewTaskDialog(props: NewTaskDialogProps) {
                         cursor: 'pointer',
                       }}
                     >
-                      Retry
+                      {tr('Retry')}
                     </button>
                   </div>
                 }
@@ -1427,7 +1427,7 @@ export function NewTaskDialog(props: NewTaskDialogProps) {
               'font-size': '14px',
             }}
           >
-            Cancel
+            {tr('Cancel')}
           </button>
           <button
             type="submit"

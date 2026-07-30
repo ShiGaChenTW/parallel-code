@@ -1,4 +1,5 @@
 import { Show } from 'solid-js';
+import { tr } from '../store/i18n';
 import { theme } from '../lib/theme';
 
 interface BranchPrefixFieldProps {
@@ -17,7 +18,7 @@ export function BranchPrefixField(props: BranchPrefixFieldProps) {
     >
       <div style={{ display: 'flex', 'align-items': 'center', gap: '6px' }}>
         <label style={{ 'font-size': '12px', color: theme.fgSubtle, 'white-space': 'nowrap' }}>
-          Branch prefix
+          {tr('Branch prefix')}
         </label>
         <input
           class="input-field"

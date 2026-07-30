@@ -1,4 +1,5 @@
 import { Show } from 'solid-js';
+import { tr } from '../store/i18n';
 import { theme } from '../lib/theme';
 
 interface TaskClosingOverlayProps {
@@ -26,7 +27,7 @@ export function TaskClosingOverlay(props: TaskClosingOverlayProps) {
         }}
       >
         <Show when={props.closingStatus === 'closing'}>
-          <div style={{ 'font-size': '14px', color: theme.fgMuted }}>Closing task...</div>
+          <div style={{ 'font-size': '14px', color: theme.fgMuted }}>{tr('Closing task...')}</div>
         </Show>
         <Show when={props.closingStatus === 'error'}>
           <div style={{ 'font-size': '14px', color: theme.error, 'font-weight': '600' }}>
@@ -58,7 +59,7 @@ export function TaskClosingOverlay(props: TaskClosingOverlayProps) {
               'font-size': '13px',
             }}
           >
-            Retry
+            {tr('Retry')}
           </button>
         </Show>
       </div>

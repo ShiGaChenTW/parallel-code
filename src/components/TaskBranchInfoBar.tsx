@@ -184,7 +184,7 @@ export function TaskBranchInfoBar(props: TaskBranchInfoBarProps) {
             title={url()}
             style={{ ...infoBarBtnStyle, 'margin-right': '8px', color: theme.accent }}
           >
-            <span style={{ color: theme.fgMuted, 'font-weight': '600' }}>Source</span>
+            <span style={{ color: theme.fgMuted, 'font-weight': '600' }}>{tr('Source')}</span>
             <svg
               width="12"
               height="12"

@@ -1,4 +1,5 @@
 import { onMount, onCleanup, createEffect, createMemo, createSignal, Show } from 'solid-js';
+import { tr } from '../store/i18n';
 import { Terminal, type IMarker } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebglAddon } from '@xterm/addon-webgl';
@@ -1210,7 +1211,7 @@ export function TerminalView(props: TerminalViewProps) {
             }}
             onClick={() => retryTaskMcpStartup(props.taskId)}
           >
-            Retry
+            {tr('Retry')}
           </button>
         </div>
       </Show>
