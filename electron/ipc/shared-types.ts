@@ -148,7 +148,12 @@ export interface StepEntry {
 // so it gets its own column rather than being summed into `claude`. It has no
 // entry in the provider status list for the same reason — there is nothing
 // separate for the user to install or be missing.
-export type ProviderId = 'claude' | 'claude-vertex' | 'codex' | 'grok';
+//
+// `agy` is Antigravity, the one provider that does not write JSONL — it keeps
+// one SQLite database per conversation with the counters in protobuf blobs.
+// That difference lives entirely inside the reader; by the time a count reaches
+// here it is the same four integers as everyone else's.
+export type ProviderId = 'claude' | 'claude-vertex' | 'codex' | 'grok' | 'agy';
 
 /**
  * Four disjoint token counts. Each provider reports these differently — some

@@ -6,13 +6,22 @@
 
 import type { ProviderId, TokenTotals, TokenUsagePathRow } from '../ipc/types';
 
-export const TOKEN_PROVIDERS: readonly ProviderId[] = ['claude', 'claude-vertex', 'codex', 'grok'];
+export const TOKEN_PROVIDERS: readonly ProviderId[] = [
+  'claude',
+  'claude-vertex',
+  'codex',
+  'grok',
+  'agy',
+];
 
 export const PROVIDER_LABELS: Record<ProviderId, string> = {
   claude: 'Claude',
   'claude-vertex': 'Claude (Vertex)',
   codex: 'Codex',
   grok: 'Grok',
+  // Invoked as `agy`, but it calls itself Antigravity everywhere a user reads
+  // it, so the column does too.
+  agy: 'Antigravity',
 };
 
 /**
