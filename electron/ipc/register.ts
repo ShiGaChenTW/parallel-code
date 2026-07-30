@@ -36,6 +36,7 @@ import {
   testConnection as hulyTestConnection,
 } from './huly.js';
 import { startStepsWatcher, stopStepsWatcher, readStepsForWorktree } from './steps.js';
+import { startHandoffWatcher, stopHandoffWatcher, readHandoffForWorktree } from './handoff.js';
 import {
   initPrChecks,
   startPrChecksWatcher,
@@ -468,6 +469,13 @@ export function registerAllHandlers(win: BrowserWindow): void {
           console.warn('Failed to start steps watcher:', err);
         }
       }
+      // Unconditional, like the plan watcher: a handoff is written by whichever
+      // agent hands over, so there is no per-task setting that could predict it.
+      try {
+        startHandoffWatcher(win, args.taskId, args.cwd);
+      } catch (err) {
+        console.warn('Failed to start handoff watcher:', err);
+      }
     }
     return result;
   });
@@ -855,6 +863,12 @@ export function registerAllHandlers(win: BrowserWindow): void {
     stopStepsWatcher(args.taskId);
   });
 
+  // --- Handoff watcher cleanup ---
+  ipcMain.handle(IPC.StopHandoffWatcher, (_e, args) => {
+    assertString(args.taskId, 'taskId');
+    stopHandoffWatcher(args.taskId);
+  });
+
   // --- PR CI status watcher ---
   initPrChecks(win);
   ipcMain.handle(IPC.StartPrChecksWatcher, (_e, args) => {
@@ -900,6 +914,12 @@ export function registerAllHandlers(win: BrowserWindow): void {
   ipcMain.handle(IPC.ReadStepsContent, (_e, args) => {
     validatePath(args.worktreePath, 'worktreePath');
     return readStepsForWorktree(args.worktreePath);
+  });
+
+  // --- Handoff content (one-shot read, used to rehydrate after a restart) ---
+  ipcMain.handle(IPC.ReadHandoffContent, (_e, args) => {
+    validatePath(args.worktreePath, 'worktreePath');
+    return readHandoffForWorktree(args.worktreePath);
   });
 
   // --- Ask about code ---

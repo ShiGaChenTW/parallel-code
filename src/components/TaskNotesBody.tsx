@@ -1,4 +1,4 @@
-import { Show, createSignal, createEffect, onMount } from 'solid-js';
+import { For, Show, createSignal, createEffect, onMount } from 'solid-js';
 import { tr } from '../store/i18n';
 import {
   store,
@@ -12,6 +12,12 @@ import { theme } from '../lib/theme';
 import { sf } from '../lib/fontScale';
 import { createHighlightedMarkdown } from '../lib/marked-shiki';
 import { useFocusRegistration } from '../lib/focus-registration';
+import {
+  nextNotesTab,
+  visibleNotesTabs,
+  type NotesTab,
+  type NotesTabAvailability,
+} from './task-notes-tabs';
 import type { Task } from '../store/types';
 
 interface TaskNotesBodyProps {
@@ -20,8 +26,48 @@ interface TaskNotesBodyProps {
   onPlanFullscreen: () => void;
 }
 
+/** Untranslated on purpose: the sibling tabs are too. See the plan doc, D6. */
+const TAB_LABELS: Record<NotesTab, string> = {
+  notes: 'Notes',
+  plan: 'Plan',
+  handoff: 'Handoff',
+};
+
+/** Keyboard scrolling shared by the read-only markdown panes (plan, handoff). */
+function scrollByKey(el: HTMLDivElement | undefined, e: KeyboardEvent): void {
+  if (!el) return;
+  const step = 40;
+  const page = Math.max(100, el.clientHeight - 40);
+  switch (e.key) {
+    case 'ArrowDown':
+      e.preventDefault();
+      el.scrollTop += step;
+      break;
+    case 'ArrowUp':
+      e.preventDefault();
+      el.scrollTop -= step;
+      break;
+    case 'PageDown':
+      e.preventDefault();
+      el.scrollTop += page;
+      break;
+    case 'PageUp':
+      e.preventDefault();
+      el.scrollTop -= page;
+      break;
+    case 'Home':
+      e.preventDefault();
+      el.scrollTop = 0;
+      break;
+    case 'End':
+      e.preventDefault();
+      el.scrollTop = el.scrollHeight;
+      break;
+  }
+}
+
 export function TaskNotesBody(props: TaskNotesBodyProps) {
-  const [notesTab, setNotesTab] = createSignal<'notes' | 'plan'>('notes');
+  const [notesTab, setNotesTab] = createSignal<NotesTab>('notes');
   const [sendingNotes, setSendingNotes] = createSignal(false);
 
   async function handleSendNotes() {
@@ -45,28 +91,45 @@ export function TaskNotesBody(props: TaskNotesBodyProps) {
     !!props.task.notes?.trim() &&
     !!props.agentId &&
     !isAgentAskingQuestion(props.agentId);
+  // Both panes go through createHighlightedMarkdown, which runs the rendered
+  // HTML through DOMPurify before it reaches innerHTML (FR-CONTEXT-03).
   const planHtml = createHighlightedMarkdown(() => props.task.planContent);
+  const handoffHtml = createHighlightedMarkdown(() => props.task.handoffContent);
 
-  // Auto-switch to plan tab when plan content first appears
-  let hadPlan = false;
+  const availability = (): NotesTabAvailability => ({
+    plan: store.showPlans && !!props.task.planContent,
+    handoff: !!props.task.handoffContent,
+  });
+
+  const tabs = () => visibleNotesTabs(availability());
+
+  /** The tab actually rendered — clamped so a tab can never outlive its content. */
+  const activeTab = (): NotesTab => {
+    const current = notesTab();
+    return tabs().includes(current) ? current : 'notes';
+  };
+
+  // Auto-switch when content appears or disappears. All of the decision-making
+  // lives in nextNotesTab so it can be unit tested; this effect only feeds it.
+  let previousAvailability: NotesTabAvailability = { plan: false, handoff: false };
   createEffect(() => {
-    const hasPlan = store.showPlans && !!props.task.planContent;
-    if (hasPlan && !hadPlan) {
-      setNotesTab('plan');
-    } else if (!hasPlan && hadPlan) {
-      setNotesTab('notes');
-    }
-    hadPlan = hasPlan;
+    const next = availability();
+    setNotesTab((current) => nextNotesTab({ current, previous: previousAvailability, next }));
+    previousAvailability = next;
   });
 
   let notesRef: HTMLTextAreaElement | undefined;
   let planScrollRef: HTMLDivElement | undefined;
+  let handoffScrollRef: HTMLDivElement | undefined;
 
   onMount(() => {
     const id = props.task.id;
     useFocusRegistration(`${id}:notes`, () => {
-      if (notesTab() === 'plan') {
+      const tab = activeTab();
+      if (tab === 'plan') {
         planScrollRef?.focus();
+      } else if (tab === 'handoff') {
+        handoffScrollRef?.focus();
       } else {
         notesRef?.focus();
       }
@@ -88,7 +151,9 @@ export function TaskNotesBody(props: TaskNotesBodyProps) {
       }}
       onClick={() => setTaskFocusedPanel(props.task.id, 'notes')}
     >
-      <Show when={store.showPlans && props.task.planContent}>
+      {/* A lone Notes tab is noise, so the strip only appears once there is
+          something to switch to. */}
+      <Show when={tabs().length > 1}>
         <div
           style={{
             display: 'flex',
@@ -96,42 +161,30 @@ export function TaskNotesBody(props: TaskNotesBodyProps) {
             'flex-shrink': '0',
           }}
         >
-          <button
-            style={{
-              padding: '2px 8px',
-              'font-size': sf(11),
-              background: notesTab() === 'notes' ? theme.taskPanelBg : 'transparent',
-              color: notesTab() === 'notes' ? theme.fg : theme.fgMuted,
-              border: 'none',
-              'border-bottom':
-                notesTab() === 'notes' ? `2px solid ${theme.accent}` : '2px solid transparent',
-              cursor: 'pointer',
-              'font-family': "'JetBrains Mono', monospace",
-            }}
-            onClick={() => setNotesTab('notes')}
-          >
-            {tr('Notes')}
-          </button>
-          <button
-            style={{
-              padding: '2px 8px',
-              'font-size': sf(11),
-              background: notesTab() === 'plan' ? theme.taskPanelBg : 'transparent',
-              color: notesTab() === 'plan' ? theme.fg : theme.fgMuted,
-              border: 'none',
-              'border-bottom':
-                notesTab() === 'plan' ? `2px solid ${theme.accent}` : '2px solid transparent',
-              cursor: 'pointer',
-              'font-family': "'JetBrains Mono', monospace",
-            }}
-            onClick={() => setNotesTab('plan')}
-          >
-            {tr('Plan')}
-          </button>
+          <For each={tabs()}>
+            {(tab) => (
+              <button
+                style={{
+                  padding: '2px 8px',
+                  'font-size': sf(11),
+                  background: activeTab() === tab ? theme.taskPanelBg : 'transparent',
+                  color: activeTab() === tab ? theme.fg : theme.fgMuted,
+                  border: 'none',
+                  'border-bottom':
+                    activeTab() === tab ? `2px solid ${theme.accent}` : '2px solid transparent',
+                  cursor: 'pointer',
+                  'font-family': "'JetBrains Mono', monospace",
+                }}
+                onClick={() => setNotesTab(tab)}
+              >
+                {tr(TAB_LABELS[tab])}
+              </button>
+            )}
+          </For>
         </div>
       </Show>
 
-      <Show when={notesTab() === 'notes' || !store.showPlans || !props.task.planContent}>
+      <Show when={activeTab() === 'notes'}>
         <div
           style={{
             flex: '1',
@@ -198,7 +251,7 @@ export function TaskNotesBody(props: TaskNotesBodyProps) {
         </div>
       </Show>
 
-      <Show when={notesTab() === 'plan' && store.showPlans && props.task.planContent}>
+      <Show when={activeTab() === 'plan'}>
         <div
           style={{
             flex: '1',
@@ -228,35 +281,7 @@ export function TaskNotesBody(props: TaskNotesBodyProps) {
                 props.onPlanFullscreen();
                 return;
               }
-              if (!planScrollRef) return;
-              const step = 40;
-              const page = Math.max(100, planScrollRef.clientHeight - 40);
-              switch (e.key) {
-                case 'ArrowDown':
-                  e.preventDefault();
-                  planScrollRef.scrollTop += step;
-                  break;
-                case 'ArrowUp':
-                  e.preventDefault();
-                  planScrollRef.scrollTop -= step;
-                  break;
-                case 'PageDown':
-                  e.preventDefault();
-                  planScrollRef.scrollTop += page;
-                  break;
-                case 'PageUp':
-                  e.preventDefault();
-                  planScrollRef.scrollTop -= page;
-                  break;
-                case 'Home':
-                  e.preventDefault();
-                  planScrollRef.scrollTop = 0;
-                  break;
-                case 'End':
-                  e.preventDefault();
-                  planScrollRef.scrollTop = planScrollRef.scrollHeight;
-                  break;
-              }
+              scrollByKey(planScrollRef, e);
             }}
             // eslint-disable-next-line solid/no-innerhtml -- plan files are local, written by Claude Code in the worktree
             innerHTML={planHtml()}
@@ -282,6 +307,31 @@ export function TaskNotesBody(props: TaskNotesBodyProps) {
             {tr('Review Plan')}
           </button>
         </div>
+      </Show>
+
+      {/* Handoff — `.claude/handoff.md`, written by the agent handing over.
+          Read-only by design: the file is the agent's output, and the app
+          editing it would fight whichever agent is writing. Reuses the
+          `plan-markdown` class so no stylesheet changes are needed. */}
+      <Show when={activeTab() === 'handoff'}>
+        <div
+          ref={(el) => (handoffScrollRef = el)}
+          tabIndex={0}
+          class="plan-markdown"
+          style={{
+            flex: '1',
+            overflow: 'auto',
+            padding: '6px 8px',
+            background: theme.taskPanelBg,
+            color: theme.fg,
+            'font-size': sf(12),
+            'font-family': "'JetBrains Mono', monospace",
+            outline: 'none',
+          }}
+          onKeyDown={(e) => scrollByKey(handoffScrollRef, e)}
+          // eslint-disable-next-line solid/no-innerhtml -- sanitised by DOMPurify in createHighlightedMarkdown (FR-CONTEXT-03)
+          innerHTML={handoffHtml()}
+        />
       </Show>
     </div>
   );

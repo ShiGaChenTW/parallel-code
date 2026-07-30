@@ -60,6 +60,7 @@ import {
   validateProjectPaths,
   setPlanContent,
   setStepsContent,
+  setHandoffContent,
   setDockerAvailable,
   toggleTaskFocusMode,
   initMCPListeners,
@@ -519,6 +520,25 @@ function App() {
         });
     }
 
+    // Restore handoff content from the worktree. Unlike plans (gated on
+    // planFileName) and steps (gated on stepsEnabled), there is no persisted
+    // flag to gate on: handoffContent is never saved, the file is the only
+    // source of truth. The path is fixed, so just try the read — a task with no
+    // handoff returns null from an ENOENT and nothing is written to the store.
+    for (const taskId of [...store.taskOrder, ...store.collapsedTaskOrder]) {
+      const task = store.tasks[taskId];
+      if (!task?.worktreePath) continue;
+      invoke<string | null>(IPC.ReadHandoffContent, {
+        worktreePath: task.worktreePath,
+      })
+        .then((result) => {
+          if (result) setHandoffContent(taskId, result);
+        })
+        .catch((err) => {
+          console.warn(`Failed to restore handoff for task ${taskId}:`, err);
+        });
+    }
+
     await validateProjectPaths();
     await restoreWindowState();
     await captureWindowState();
@@ -549,6 +569,18 @@ function App() {
         setStepsContent(msg.taskId, msg.steps);
       }
     });
+
+    // Listen for handoff content pushed from the backend handoff watcher
+    const offHandoffContent = window.electron.ipcRenderer.on(
+      IPC.HandoffContent,
+      (data: unknown) => {
+        if (!data || typeof data !== 'object') return;
+        const msg = data as { taskId: string; content: string | null };
+        if (msg.taskId && store.tasks[msg.taskId]) {
+          setHandoffContent(msg.taskId, msg.content);
+        }
+      },
+    );
 
     const handlePaste = (e: ClipboardEvent) => {
       if (store.showNewTaskDialog || store.showHelpDialog || store.showSettingsDialog) return;
@@ -730,6 +762,7 @@ function App() {
       stopRemoteStatusSync();
       offPlanContent();
       offStepsContent();
+      offHandoffContent();
       unlistenFocusChanged?.();
       unlistenResized?.();
       unlistenMoved?.();
