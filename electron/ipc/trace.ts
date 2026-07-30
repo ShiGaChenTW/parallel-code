@@ -45,6 +45,11 @@ const NEVER_SAFE: ReadonlySet<string> = new Set<string>([
   IPC.CheckPathExists,
   IPC.ResolveProjectDockerfile,
   IPC.BuildDockerImage,
+  // Transcript events carry agent-authored free text — step summaries, merge
+  // details, PR check names. That is the same class of content as WriteToAgent
+  // and belongs here for the same reason. ReadTranscript returns it.
+  IPC.AppendTranscriptEvent,
+  IPC.ReadTranscript,
 ]);
 
 for (const ch of NEVER_SAFE) {

@@ -18,6 +18,9 @@ export type {
   PtyOutput,
   HulyIssue,
   StepEntry,
+  TranscriptEvent,
+  TranscriptEventInput,
+  TranscriptEventKind,
   WorktreeStatus,
 } from '../../electron/ipc/shared-types';
 

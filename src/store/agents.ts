@@ -6,6 +6,8 @@ import type { AgentDef } from '../ipc/types';
 import type { Agent } from './types';
 import { refreshTaskStatus, clearAgentActivity, markAgentSpawned } from './taskStatus';
 import { saveState } from './persistence';
+import { recordTranscriptEvent } from './transcript';
+import { agentExitedEvent, agentSpawnedEvent } from '../lib/transcript-events';
 
 export async function loadAgents(): Promise<void> {
   const defaults = await invoke<AgentDef[]>(IPC.ListAgents);
@@ -43,6 +45,7 @@ export async function addAgentToTask(taskId: string, agentDef: AgentDef): Promis
 
   // Start the agent as "busy" immediately, before any PTY data arrives.
   markAgentSpawned(agentId);
+  recordTranscriptEvent(agentSpawnedEvent(taskId, agentDef.name));
   void saveState();
   return agentId;
 }
@@ -100,6 +103,7 @@ export function markAgentExited(
   if (agent) {
     clearAgentActivity(agentId);
     refreshTaskStatus(agent.taskId);
+    recordTranscriptEvent(agentExitedEvent(agent.taskId, agent.def.name, exitInfo));
   }
 }
 

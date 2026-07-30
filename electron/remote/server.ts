@@ -24,6 +24,11 @@ import {
   type RemoteAgent,
   type RemoteAttentionState,
 } from './protocol.js';
+import {
+  getTranscriptStore,
+  isTranscriptEnabled,
+  sanitiseTranscriptTaskId,
+} from '../ipc/transcript.js';
 import type { Coordinator } from '../mcp/coordinator.js';
 import { validateBranchName } from '../mcp/validation.js';
 import type { ApiTaskDetail, LandSelfInput, SubtaskVerification } from '../mcp/types.js';
@@ -918,7 +923,13 @@ export function startRemoteServer(opts: {
       if (tokenClass === 'mobile' || tokenClass === 'paired') {
         const allowed =
           req.method === 'GET' &&
-          (url.pathname === '/api/agents' || /^\/api\/agents\/[^/]+$/.test(url.pathname));
+          (url.pathname === '/api/agents' ||
+            /^\/api\/agents\/[^/]+$/.test(url.pathname) ||
+            // Read-only, and strictly less sensitive than the scrollback route
+            // directly above it: a transcript is redacted lifecycle events,
+            // where `/api/agents/:id` returns raw terminal bytes. It also
+            // returns nothing at all unless the user opted in.
+            /^\/api\/transcripts\/[^/]+$/.test(url.pathname));
         if (!allowed) {
           res.writeHead(403, { ...SECURITY_HEADERS, 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ error: 'forbidden' }));
@@ -953,6 +964,20 @@ export function startRemoteServer(opts: {
             exitCode: info?.exitCode ?? null,
           }),
         );
+        return;
+      }
+
+      // --- Session transcript (read-only, local file, no outbound traffic) ---
+      const transcriptMatch = url.pathname.match(/^\/api\/transcripts\/([^/]+)$/);
+      if (transcriptMatch && req.method === 'GET') {
+        const taskId = sanitiseTranscriptTaskId(decodeURIComponent(transcriptMatch[1]));
+        // `enabled` is reported rather than inferred from an empty list, so a
+        // client can tell "recording is off" from "nothing happened yet".
+        const enabled = isTranscriptEnabled();
+        const events =
+          taskId === null || !enabled ? [] : (getTranscriptStore()?.read(taskId) ?? []);
+        res.writeHead(200, { ...SECURITY_HEADERS, 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ taskId: taskId ?? null, enabled, events }));
         return;
       }
 

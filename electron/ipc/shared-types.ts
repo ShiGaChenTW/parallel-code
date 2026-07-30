@@ -138,6 +138,37 @@ export interface StepEntry {
   timestamp: string;
 }
 
+/**
+ * One line of a session transcript.
+ *
+ * The vocabulary is borrowed, not invented — each kind maps to a detection
+ * module that already existed: `agent` (spawn/exit), `step` (the six StepEntry
+ * stages above), `attention` (ready / needs_input / error), `merge`, `pr-checks`
+ * and `commit`. See `electron/ipc/transcript.ts` for the storage rules.
+ */
+export type TranscriptEventKind = 'agent' | 'step' | 'attention' | 'merge' | 'pr-checks' | 'commit';
+
+export interface TranscriptEvent {
+  /** On-disk format version of this line. */
+  v: number;
+  /** ISO-8601, stamped by the main process — never by the sender. */
+  ts: string;
+  taskId: string;
+  kind: TranscriptEventKind;
+  /** Sub-classification inside the kind: `spawned`, `implementing`, `ready`, … */
+  status: string;
+  summary: string;
+  detail?: string;
+  /** Ids of the redaction rules that fired. Absent when none did. */
+  redacted?: string[];
+}
+
+/** What a renderer hands to the main process; `v` and `ts` are added there. */
+export type TranscriptEventInput = Pick<
+  TranscriptEvent,
+  'taskId' | 'kind' | 'status' | 'summary' | 'detail'
+>;
+
 /** The subset of a Huly issue the app stores and renders. */
 export interface HulyIssue {
   id: string;

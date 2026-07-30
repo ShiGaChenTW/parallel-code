@@ -17,6 +17,8 @@ import {
   rescheduleTaskStatusPolling,
 } from './taskStatus';
 import { recordMergedLines, recordTaskMerged } from './completion';
+import { recordTranscriptEvent } from './transcript';
+import { newStepEvents } from '../lib/transcript-events';
 import { nextPeakConcurrentTasks } from '../lib/onboarding';
 import { warn as logWarn } from '../lib/log';
 import { cleanTaskName } from '../lib/clean-task-name';
@@ -107,6 +109,9 @@ function removeTaskDraftEntries(
 ): void {
   delete s.tasks[taskId];
   delete s.taskGitStatus[taskId];
+  // In-memory bookkeeping only. The transcript file itself deliberately
+  // outlives the task — see the decision record in the plan doc.
+  forgetTranscribedSteps(taskId);
 
   const neighborId =
     s.activeTaskId === taskId ? selectActiveNeighborAfterRemoval(s.taskOrder, taskId) : null;
@@ -653,7 +658,7 @@ export async function mergeTask(
 
   if (cleanup) {
     recordMergedLines(mergeResult.lines_added, mergeResult.lines_removed);
-    recordTaskMerged();
+    recordTaskMerged({ taskId, result: mergeResult });
     await Promise.allSettled(
       [...agentIds, ...shellAgentIds].map((id) => invoke(IPC.KillAgent, { agentId: id })),
     );
@@ -1555,11 +1560,34 @@ export function setHandoffContent(taskId: string, content: string | null): void 
   setStore('tasks', taskId, 'handoffContent', content ?? undefined);
 }
 
+/**
+ * Steps already recorded to the transcript, per task.
+ *
+ * The backend watcher re-pushes the whole `steps.json` array on every change,
+ * so without this every write would re-record every earlier step. Keyed by
+ * content (see `stepKey`) rather than by index, because agents rewrite the
+ * array wholesale and an entry can move without being new.
+ */
+const transcribedStepKeys = new Map<string, Set<string>>();
+
+function forgetTranscribedSteps(taskId: string): void {
+  transcribedStepKeys.delete(taskId);
+}
+
 export function setStepsContent(taskId: string, steps: unknown[] | null): void {
   const valid = steps
     ? (steps.filter((s) => s !== null && typeof s === 'object' && !Array.isArray(s)) as StepEntry[])
     : [];
   setStore('tasks', taskId, 'stepsContent', valid.length > 0 ? valid : undefined);
+
+  let seen = transcribedStepKeys.get(taskId);
+  if (!seen) {
+    seen = new Set<string>();
+    transcribedStepKeys.set(taskId, seen);
+  }
+  const { events, keys } = newStepEvents(taskId, seen, valid);
+  for (const key of keys) seen.add(key);
+  for (const event of events) recordTranscriptEvent(event);
 }
 
 export function setTaskLastInputAt(taskId: string): void {

@@ -149,5 +149,9 @@
   "HulyClearCredentials": "huly_clear_credentials",
   "HulyTestConnection": "huly_test_connection",
   "HulyListIssues": "huly_list_issues",
-  "SetOfflineMode": "set_offline_mode"
+  "SetOfflineMode": "set_offline_mode",
+  "SetTranscriptEnabled": "set_transcript_enabled",
+  "AppendTranscriptEvent": "append_transcript_event",
+  "ReadTranscript": "read_transcript",
+  "ClearTranscripts": "clear_transcripts"
 }

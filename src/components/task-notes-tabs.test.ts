@@ -11,6 +11,7 @@ const NONE: NotesTabAvailability = { plan: false, handoff: false };
 const PLAN: NotesTabAvailability = { plan: true, handoff: false };
 const HANDOFF: NotesTabAvailability = { plan: false, handoff: true };
 const BOTH: NotesTabAvailability = { plan: true, handoff: true };
+const TIMELINE: NotesTabAvailability = { plan: false, handoff: false, timeline: true };
 
 describe('visibleNotesTabs', () => {
   it('shows notes alone when there is nothing else to show', () => {
@@ -70,5 +71,57 @@ describe('nextNotesTab — handoff', () => {
       const availability = BOTH;
       expect(nextNotesTab({ current, previous: availability, next: availability })).toBe(current);
     }
+  });
+});
+
+describe('nextNotesTab — timeline', () => {
+  it('appears in the strip last, after the content-driven tabs', () => {
+    expect(visibleNotesTabs({ plan: true, handoff: true, timeline: true })).toEqual([
+      'notes',
+      'plan',
+      'handoff',
+      'timeline',
+    ]);
+  });
+
+  it('is absent while session transcripts are off', () => {
+    expect(visibleNotesTabs(NONE)).toEqual(['notes']);
+    expect(visibleNotesTabs({ plan: false, handoff: false, timeline: false })).toEqual(['notes']);
+  });
+
+  it('never steals focus when it appears — a setting flipping is not an event', () => {
+    // Plan and handoff appear because a task produced something. Timeline
+    // appears because the user changed a switch, which is not news about work.
+    expect(nextNotesTab({ current: 'notes', previous: NONE, next: TIMELINE })).toBe('notes');
+  });
+
+  it('does not steal focus from an already-open plan tab either', () => {
+    expect(
+      nextNotesTab({
+        current: 'plan',
+        previous: PLAN,
+        next: { plan: true, handoff: false, timeline: true },
+      }),
+    ).toBe('plan');
+  });
+
+  it('falls back to notes when recording is switched off under it', () => {
+    expect(nextNotesTab({ current: 'timeline', previous: TIMELINE, next: NONE })).toBe('notes');
+  });
+
+  it('stays put while recording remains on', () => {
+    expect(nextNotesTab({ current: 'timeline', previous: TIMELINE, next: TIMELINE })).toBe(
+      'timeline',
+    );
+  });
+
+  it('still yields to plan content newly appearing, which is real news', () => {
+    expect(
+      nextNotesTab({
+        current: 'timeline',
+        previous: TIMELINE,
+        next: { plan: true, handoff: false, timeline: true },
+      }),
+    ).toBe('plan');
   });
 });

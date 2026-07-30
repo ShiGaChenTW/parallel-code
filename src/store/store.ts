@@ -105,6 +105,7 @@ export {
 export type { PanelId, PendingAction, TaskViewportVisibility } from './types';
 export { saveState, loadState, loadCustomThemes } from './persistence';
 export { setOfflineMode } from './offline';
+export { setTranscriptEnabled, clearTranscripts, readTranscript } from './transcript';
 export {
   adjustGlobalScale,
   resetGlobalScale,
