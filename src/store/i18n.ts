@@ -1,5 +1,11 @@
 import { store, setStore } from './core';
-import { translate, type Locale } from '../lib/i18n';
+import {
+  translate,
+  translateParts,
+  type Locale,
+  type TemplateSegment,
+  type TranslationParams,
+} from '../lib/i18n';
 
 /**
  * Translate a UI string into the active locale.
@@ -17,8 +23,22 @@ import { translate, type Locale } from '../lib/i18n';
  * Sidebar.tsx alone), and a shadowed translator fails as a confusing type error
  * rather than an obvious one.
  */
-export function tr(text: string): string {
-  return translate(store.locale, text);
+export function tr(text: string, params?: TranslationParams): string {
+  return translate(store.locale, text, params);
+}
+
+/**
+ * `tr` for a sentence whose value is a JSX element rather than a string — a
+ * styled `<kbd>` shortcut, a `<strong>` branch name. Returns the translated
+ * sentence as segments; the component renders `text` verbatim and decides what
+ * each `slot` looks like, so the translation still owns the word order.
+ *
+ * Separate from `tr` rather than an option on it because the return type
+ * differs: components that want a plain string (a `title` attribute) must not
+ * be handed segments.
+ */
+export function trParts(text: string): TemplateSegment[] {
+  return translateParts(store.locale, text);
 }
 
 export function setLocale(locale: Locale): void {

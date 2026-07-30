@@ -59,8 +59,10 @@ export function TerminalBookmarkGutter(props: TerminalBookmarkGutterProps): JSX.
           <Show when={props.topOf(b.id) !== null}>
             <button
               type="button"
-              title={`${b.preview}\n\nClick to jump · Right-click to remove`}
-              aria-label={`Jump to bookmark: ${b.preview}`}
+              // The preview is opaque terminal output on its own line, so only
+              // the instruction below it is a sentence to translate.
+              title={`${b.preview}\n\n${tr('Click to jump · Right-click to remove')}`}
+              aria-label={tr('Jump to bookmark: {preview}', { preview: b.preview })}
               onClick={(e) => {
                 e.stopPropagation();
                 props.onJump(b.id);
@@ -163,7 +165,14 @@ function OverflowBadge(props: {
   return (
     <button
       type="button"
-      title={`${props.count} more bookmark${props.count === 1 ? '' : 's'} ${props.direction} — click to jump`}
+      // Two whole sentences rather than a plural rule: zh-TW maps both to the
+      // same string, and English keeps the inflection it already had.
+      title={tr(
+        props.count === 1
+          ? '{count} more bookmark {direction} — click to jump'
+          : '{count} more bookmarks {direction} — click to jump',
+        { count: props.count, direction: tr(props.direction) },
+      )}
       onClick={(e) => {
         e.stopPropagation();
         props.onClick();

@@ -118,7 +118,7 @@ function AgentChip(props: { agentId: string }) {
   const letter = () => (props.agentId.charAt(0) || '?').toUpperCase();
   return (
     <span
-      title={`Sub-agent: ${props.agentId}`}
+      title={tr('Sub-agent: {agentId}', { agentId: props.agentId })}
       style={{
         width: '18px',
         height: '14px',
@@ -154,7 +154,7 @@ function AgentHeader(props: { agentId: string }) {
     >
       <AgentChip agentId={props.agentId} />
       <span
-        title={`Sub-agent: ${props.agentId}`}
+        title={tr('Sub-agent: {agentId}', { agentId: props.agentId })}
         style={{
           'font-size': sf(10),
           color: theme.fgMuted,
@@ -199,8 +199,8 @@ function CopyButton(props: { text: string; visible: boolean; label: string }) {
   return (
     <button
       type="button"
-      title={`Copy ${props.label}`}
-      aria-label={`Copy ${props.label}`}
+      title={tr('Copy {label}', { label: props.label })}
+      aria-label={tr('Copy {label}', { label: props.label })}
       onClick={(e) => {
         e.stopPropagation();
         navigator.clipboard

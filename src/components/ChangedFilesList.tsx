@@ -69,8 +69,11 @@ export function filesFooterLabel(fileCount: number, uncommittedCount: number): s
 
 export function filesFooterTitle(fileCount: number, uncommittedCount: number): string {
   return uncommittedCount > 0
-    ? `${fileCount} changed files, ${uncommittedCount} uncommitted.`
-    : `${fileCount} changed files.`;
+    ? tr('{count} changed files, {uncommitted} uncommitted.', {
+        count: fileCount,
+        uncommitted: uncommittedCount,
+      })
+    : tr('{count} changed files.', { count: fileCount });
 }
 
 export function coverageFooterTitle(
@@ -180,7 +183,7 @@ function OpenInEditorButton(props: {
         'border-radius': '4px',
       }}
       title={tr('Open in editor')}
-      aria-label={`Open ${props.filePath} in editor`}
+      aria-label={tr('Open {file} in editor', { file: props.filePath })}
     >
       <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
         <path d="M3.5 2a1.5 1.5 0 0 0-1.5 1.5v9A1.5 1.5 0 0 0 3.5 14h9a1.5 1.5 0 0 0 1.5-1.5v-3a.75.75 0 0 1 1.5 0v3A3 3 0 0 1 12.5 16h-9A3 3 0 0 1 0 12.5v-9A3 3 0 0 1 3.5 0h3a.75.75 0 0 1 0 1.5h-3ZM10 .75a.75.75 0 0 1 .75-.75h4.5a.75.75 0 0 1 .75.75v4.5a.75.75 0 0 1-1.5 0V2.56L8.53 8.53a.75.75 0 0 1-1.06-1.06L13.44 1.5H10.75A.75.75 0 0 1 10 .75Z" />
@@ -706,7 +709,12 @@ export function ChangedFilesList(props: ChangedFilesListProps) {
                 </Show>
                 <Show when={lowCoverageCount() > 0}>
                   <span
-                    title={`${lowCoverageCount()} changed file${lowCoverageCount() === 1 ? '' : 's'} below 60% line coverage.`}
+                    title={tr(
+                      lowCoverageCount() === 1
+                        ? '{count} changed file below 60% line coverage.'
+                        : '{count} changed files below 60% line coverage.',
+                      { count: lowCoverageCount() },
+                    )}
                     style={{ color: theme.warning, 'font-weight': '600' }}
                   >
                     △ {lowCoverageCount()}
@@ -714,7 +722,12 @@ export function ChangedFilesList(props: ChangedFilesListProps) {
                 </Show>
                 <Show when={missingCoverageCount() > 0}>
                   <span
-                    title={`${missingCoverageCount()} changed file${missingCoverageCount() === 1 ? '' : 's'} missing from the loaded coverage report.`}
+                    title={tr(
+                      missingCoverageCount() === 1
+                        ? '{count} changed file missing from the loaded coverage report.'
+                        : '{count} changed files missing from the loaded coverage report.',
+                      { count: missingCoverageCount() },
+                    )}
                     style={{ color: theme.error, 'font-weight': '600' }}
                   >
                     ∅ {missingCoverageCount()}
@@ -729,10 +742,16 @@ export function ChangedFilesList(props: ChangedFilesListProps) {
               >
                 {filesFooterLabel(files().length, uncommittedCount())}
               </span>
-              <span title={`${totalAdded()} added lines`} style={{ color: theme.success }}>
+              <span
+                title={tr('{count} added lines', { count: totalAdded() })}
+                style={{ color: theme.success }}
+              >
                 +{totalAdded()}
               </span>
-              <span title={`${totalRemoved()} removed lines`} style={{ color: theme.error }}>
+              <span
+                title={tr('{count} removed lines', { count: totalRemoved() })}
+                style={{ color: theme.error }}
+              >
                 -{totalRemoved()}
               </span>
             </div>

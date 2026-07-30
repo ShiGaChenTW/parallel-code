@@ -18,6 +18,7 @@ import { formatDuration } from './utils';
 import { invoke } from '../lib/ipc';
 import { IPC } from '../../electron/ipc/channels';
 import { store, toggleNewTaskDialog, toggleArena, setNewTaskPrefillPrompt } from '../store/store';
+import { tr } from '../store/i18n';
 import type { ArenaMatch } from './types';
 import type { ChangedFile } from '../ipc/types';
 
@@ -257,7 +258,7 @@ export function ResultsScreen() {
                           class="arena-star-btn"
                           data-filled={(ratings()[competitor.id] ?? 0) >= star ? 'true' : undefined}
                           onClick={() => setRating(competitor.id, star)}
-                          title={`${star} star${star > 1 ? 's' : ''}`}
+                          title={tr(star > 1 ? '{count} stars' : '{count} star', { count: star })}
                         >
                           <svg width="28" height="28" viewBox="0 0 16 16" fill="currentColor">
                             <path d="M8 1.3l1.8 3.6 4 .6-2.9 2.8.7 4-3.6-1.9-3.6 1.9.7-4L2.2 5.5l4-.6L8 1.3z" />

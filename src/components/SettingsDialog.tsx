@@ -11,7 +11,7 @@ import {
 import { presetsForTone } from '../lib/look';
 import type { AppearanceMode } from '../lib/look';
 import { LOCALES, LOCALE_LABELS } from '../lib/i18n';
-import { tr, setLocale } from '../store/i18n';
+import { tr, trParts, setLocale } from '../store/i18n';
 import { theme, sectionLabelStyle, readCssVarsForPreset } from '../lib/theme';
 import { themeToCss, detectThemeTone } from '../lib/custom-theme';
 import {
@@ -335,19 +335,29 @@ export function SettingsDialog(props: SettingsDialogProps) {
             {tr('Settings')}
           </h2>
           <span style={{ 'font-size': '13px', color: theme.fgSubtle }}>
-            Customize your workspace. Shortcut:{' '}
-            <kbd
-              style={{
-                background: theme.bgInput,
-                border: `1px solid ${theme.border}`,
-                'border-radius': '4px',
-                padding: '1px 6px',
-                'font-family': "'JetBrains Mono', monospace",
-                color: theme.fgMuted,
-              }}
-            >
-              {mod}+,
-            </kbd>
+            {/* The shortcut is a styled <kbd>, not a string, so the sentence is
+                rendered from segments. The translation decides where the key cap
+                lands; before this it was hard-coded English, never translated. */}
+            <For each={trParts('Customize your workspace. Shortcut: {shortcut}')}>
+              {(segment) =>
+                segment.kind === 'text' ? (
+                  segment.value
+                ) : (
+                  <kbd
+                    style={{
+                      background: theme.bgInput,
+                      border: `1px solid ${theme.border}`,
+                      'border-radius': '4px',
+                      padding: '1px 6px',
+                      'font-family': "'JetBrains Mono', monospace",
+                      color: theme.fgMuted,
+                    }}
+                  >
+                    {mod}+,
+                  </kbd>
+                )
+              }
+            </For>
           </span>
         </div>
         <button

@@ -12,6 +12,12 @@
  * The trade-off is that editing English text orphans its translation — the
  * accompanying test asserts every catalogue entry is non-empty so an orphan is
  * at least visible when the catalogue is reviewed.
+ *
+ * Sentences that contain a value use `{name}` placeholders
+ * (`'Merge into {branch}'`), so the whole sentence is one catalogue entry and
+ * the translator decides where the value lands. The alternative the codebase
+ * used before — a catalogue entry ending in a colon with the value concatenated
+ * after it — pinned every such sentence to English label-first order.
  */
 
 export type Locale = 'en' | 'zh-TW';
@@ -25,6 +31,73 @@ export const LOCALE_LABELS: Record<Locale, string> = {
 
 export function isLocale(value: unknown): value is Locale {
   return typeof value === 'string' && (LOCALES as readonly string[]).includes(value);
+}
+
+/**
+ * Values substituted into a translated sentence. Named rather than positional:
+ * `{branch}` still reads as the branch after a translator has moved it to the
+ * front of the sentence, where `{0}` would not.
+ *
+ * Deliberately narrow — `string | number` only. Anything else (a Date, an
+ * element) has locale-dependent formatting of its own and belongs at the call
+ * site, not inside a string template.
+ */
+export type TranslationParams = Readonly<Record<string, string | number>>;
+
+/** A translated template cut into literal text and `{name}` placeholders. */
+export type TemplateSegment =
+  | { readonly kind: 'text'; readonly value: string }
+  | { readonly kind: 'slot'; readonly name: string };
+
+/**
+ * A placeholder is `{` + an identifier + `}`. Anything else containing a brace
+ * — `{}`, `{ spaced }`, a JSON snippet in help copy — stays literal text, so
+ * there is no escape syntax for the translator to get wrong.
+ */
+const PLACEHOLDER = /\{([A-Za-z][A-Za-z0-9_]*)\}/g;
+
+/**
+ * Cut `template` into text and slot segments in source order. Empty text
+ * segments are never emitted, so a template that is a bare placeholder yields
+ * exactly one slot.
+ */
+export function parseTemplate(template: string): TemplateSegment[] {
+  const segments: TemplateSegment[] = [];
+  let cursor = 0;
+  for (const match of template.matchAll(PLACEHOLDER)) {
+    const start = match.index;
+    const name = match[1];
+    if (start === undefined || name === undefined) continue;
+    if (start > cursor) segments.push({ kind: 'text', value: template.slice(cursor, start) });
+    segments.push({ kind: 'slot', name });
+    cursor = start + match[0].length;
+  }
+  if (cursor < template.length) segments.push({ kind: 'text', value: template.slice(cursor) });
+  return segments;
+}
+
+/**
+ * Substitute `params` into `template`.
+ *
+ * Three deliberate behaviours, each covered by a test:
+ * - a missing parameter is left as its own `{name}`, because a visible
+ *   placeholder is caught in review while a blank silently loses information
+ *   and a throw would blank a panel through the error boundary;
+ * - an extra parameter is ignored, because catalogue and call site drift and an
+ *   unused value is not a user-facing defect;
+ * - substituted values are never re-scanned, so a branch literally named
+ *   `{base}` cannot pull in another parameter.
+ */
+export function interpolate(template: string, params?: TranslationParams): string {
+  if (params === undefined) return template;
+  return parseTemplate(template)
+    .map((segment) => (segment.kind === 'text' ? segment.value : resolveSlot(segment.name, params)))
+    .join('');
+}
+
+function resolveSlot(name: string, params: TranslationParams): string {
+  const value: string | number | undefined = params[name];
+  return value === undefined ? `{${name}}` : String(value);
 }
 
 /**
@@ -249,7 +322,7 @@ const ZH_TW: Record<string, string> = {
   Maximize: '最大化',
 
   // Bulk pass — settings copy, dialogs, task lifecycle, remote pairing
-  'Customize your workspace. Shortcut:': '自訂你的工作區。快捷鍵：',
+  'Customize your workspace. Shortcut: {shortcut}': '自訂你的工作區。快捷鍵：{shortcut}',
   'Show plans': '顯示 plan',
   'Show prompt input box below terminal': '在終端機下方顯示 prompt 輸入框',
   'Show progress section in sidebar': '在側欄顯示進度區塊',
@@ -331,12 +404,12 @@ const ZH_TW: Record<string, string> = {
   'Search branches…': '搜尋 branch…',
   'Loading branches…': '正在載入 branch…',
   'No matching branches': '沒有相符的 branch',
-  'Failed to load branches:': '載入 branch 失敗：',
-  'Local feature branch': '本機功能 branch',
+  'Local feature branch {branch}': '本機功能 branch {branch}',
   'Current Branch': '目前 branch',
   'Existing worktree': '既有 worktree',
   Worktrees: 'Worktree',
-  'Worktree at': 'Worktree 位於',
+  'Worktree at {path}': 'Worktree 位於 {path}',
+  'Branch {branch} will be kept': 'branch {branch} 會保留',
   'Symlink into worktree': '以 symlink 連進 worktree',
   'Always delete branch and worktree on close': '關閉時一律刪除 branch 與 worktree',
   'Creates a git branch and worktree so the AI agent can work in isolation without affecting your current branch.':
@@ -351,7 +424,6 @@ const ZH_TW: Record<string, string> = {
   'Pick a preset for your coding agent': '為你的 coding agent 選一個預設組',
   'Add Agent': '新增 agent',
   'Add agent': '新增 agent',
-  'Failed to add agent:': '新增 agent 失敗：',
   'Command (e.g. opencode)': '指令（例如 opencode）',
   'Name (e.g. OpenCode)': '名稱（例如 OpenCode）',
   'Resume args (optional, space-separated)': 'Resume 參數（選填，以空白分隔）',
@@ -366,8 +438,6 @@ const ZH_TW: Record<string, string> = {
     '輸入 prompt…（Enter 送出，Shift+Enter 換行）',
   'No prompts sent': '尚未送出 prompt',
   'No prompts sent yet': '尚未送出任何 prompt',
-  'Failed to send prompt:': '送出 prompt 失敗：',
-  'Failed to send notes to prompt:': '把筆記送成 prompt 失敗：',
   'Waiting to send prompt…': '等待送出 prompt…',
   'Sending when ready…': '就緒後送出…',
   'Sending when coordinator is ready…': 'coordinator 就緒後送出…',
@@ -433,7 +503,6 @@ const ZH_TW: Record<string, string> = {
   'Rebase with AI': '用 AI 執行 rebase',
   'Rebasing...': '正在 rebase…',
   'Rebase successful': 'rebase 成功',
-  'Failed to send rebase prompt:': '送出 rebase prompt 失敗：',
   'Push to Remote': 'Push 到遠端',
   'Push to remote': 'Push 到遠端',
   'Pushing...': '正在 push…',
@@ -466,7 +535,6 @@ const ZH_TW: Record<string, string> = {
   'Importing...': '正在匯入…',
   'Scanning for existing worktrees...': '正在掃描既有的 worktree…',
   'No importable worktrees were found for this project.': '這個專案找不到可匯入的 worktree。',
-  'Failed to scan importable worktrees:': '掃描可匯入的 worktree 失敗：',
   'Build Image': '建置 image',
   'Building image... this may take a few minutes.': '正在建置 image…可能需要幾分鐘。',
   'Build failed': '建置失敗',
@@ -547,6 +615,46 @@ const ZH_TW: Record<string, string> = {
   'Failed to query focus state': '查詢焦點狀態失敗',
   'Maximize window': '最大化視窗',
   'Restore window': '還原視窗',
+
+  // Sentences with an interpolated value. The `{name}` placeholder lets the
+  // translation put the value wherever zh-TW wants it; several below move it
+  // away from the position English uses.
+  //
+  // Where English inflects a noun for count, the call site picks between two
+  // whole sentences with a ternary. That is not plural machinery: zh-TW has no
+  // plural form, so both keys map to the same translation, and English keeps
+  // the grammar it already had.
+  'Merge into {branch}': '合併進 {branch}',
+  'Open {file} in editor': '在編輯器中開啟 {file}',
+  'Jump to bookmark: {preview}': '跳至書籤：{preview}',
+  'Sub-agent: {agentId}': '子 agent：{agentId}',
+  'Copy {label}': '複製{label}',
+  'Hue {hue}': '色相 {hue}',
+  'Open terminal ({shortcut})': '開啟終端機（{shortcut}）',
+  'New task ({shortcut})': '新增任務（{shortcut}）',
+  'New terminal ({shortcut})': '新增終端機（{shortcut}）',
+  'Show sidebar ({shortcut})': '顯示側欄（{shortcut}）',
+  'Collapse sidebar ({shortcut})': '收合側欄（{shortcut}）',
+  'Settings ({shortcut})': '設定（{shortcut}）',
+  'Click to jump · Right-click to remove': '點擊跳至此處 · 右鍵移除',
+  '{count} star': '{count} 顆星',
+  '{count} stars': '{count} 顆星',
+  '{count} more bookmark {direction} — click to jump': '{direction}還有 {count} 個書籤 —— 點擊跳至',
+  '{count} more bookmarks {direction} — click to jump':
+    '{direction}還有 {count} 個書籤 —— 點擊跳至',
+  above: '上方',
+  below: '下方',
+  '{count} added lines': '新增 {count} 行',
+  '{count} removed lines': '刪除 {count} 行',
+  '{count} changed file below 60% line coverage.': '有 {count} 個變更檔案的行覆蓋率低於 60%。',
+  '{count} changed files below 60% line coverage.': '有 {count} 個變更檔案的行覆蓋率低於 60%。',
+  '{count} changed file missing from the loaded coverage report.':
+    '載入的覆蓋率報告中缺少 {count} 個變更檔案。',
+  '{count} changed files missing from the loaded coverage report.':
+    '載入的覆蓋率報告中缺少 {count} 個變更檔案。',
+  '{count} changed files.': '{count} 個變更檔案。',
+  '{count} changed files, {uncommitted} uncommitted.':
+    '{count} 個變更檔案，{uncommitted} 個未 commit。',
 };
 
 const CATALOGUES: Record<Locale, Record<string, string>> = {
@@ -555,12 +663,53 @@ const CATALOGUES: Record<Locale, Record<string, string>> = {
 };
 
 /**
+ * Catalogue keys that are allowed to end in a colon.
+ *
+ * Every other trailing colon meant "the code concatenates the value after
+ * this", which pinned word order to English and is exactly what the placeholder
+ * syntax removes. Two categories survive, neither of which concatenates:
+ *
+ * - labels whose value is a sibling DOM node — a number input, a text input, a
+ *   row of buttons, a large styled PIN. Both languages put such a label first,
+ *   and dissolving them into slot templates would mean deleting the `<label>`
+ *   and `<span>` elements that carry their styling for no translator gain;
+ * - sentences that introduce a following `<ul>`, where the colon is ordinary
+ *   punctuation and nothing follows it in the same string.
+ *
+ * The accompanying test asserts this list is exactly the set of colon-ending
+ * keys, so a new concatenation-style entry fails rather than creeping in.
+ */
+export const COLON_LABEL_KEYS: readonly string[] = [
+  // Label before a sibling value element
+  'Enter this code on your phone (valid 5 min):',
+  'Image:',
+  'Max concurrent sub-tasks:',
+  'Sub-tasks:',
+  // Sentence introducing a list
+  'The worktree will be removed but the branch will be kept:',
+  'This action cannot be undone. The following will be permanently deleted:',
+];
+
+/**
  * Translate `text` into `locale`. Unknown strings and the `en` locale return
  * `text` unchanged, so a missing translation is a readable English string
  * rather than a blank or an id.
+ *
+ * Pass `params` for a sentence with `{name}` placeholders. Without `params` the
+ * template is returned verbatim, so an existing static string containing a
+ * brace is unaffected.
  */
-export function translate(locale: Locale, text: string): string {
-  return CATALOGUES[locale]?.[text] ?? text;
+export function translate(locale: Locale, text: string, params?: TranslationParams): string {
+  return interpolate(CATALOGUES[locale]?.[text] ?? text, params);
+}
+
+/**
+ * Translate `text` and return it as segments, for a sentence whose value is a
+ * JSX element rather than a string — a `<kbd>` shortcut, a `<strong>` branch
+ * name. The component renders each slot; the translator still owns the order.
+ */
+export function translateParts(locale: Locale, text: string): TemplateSegment[] {
+  return parseTemplate(CATALOGUES[locale]?.[text] ?? text);
 }
 
 /** Catalogue entries for a locale. Exposed for coverage reporting in tests. */

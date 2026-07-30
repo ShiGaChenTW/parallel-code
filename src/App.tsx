@@ -864,7 +864,7 @@ function App() {
             <button
               class="icon-btn"
               onClick={() => toggleSidebar()}
-              title={`Show sidebar (${mod}+B)`}
+              title={tr('Show sidebar ({shortcut})', { shortcut: `${mod}+B` })}
               style={{
                 width: '24px',
                 'min-width': '24px',

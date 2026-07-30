@@ -122,7 +122,7 @@ export function MergeDialog(props: MergeDialogProps) {
   return (
     <ConfirmDialog
       open={props.open}
-      title={`Merge into ${baseBranchName()}`}
+      title={tr('Merge into {branch}', { branch: baseBranchName() })}
       width="520px"
       autoFocusCancel
       message={
