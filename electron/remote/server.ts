@@ -78,6 +78,27 @@ function validateRestPrompt(
   return sanitized;
 }
 
+/**
+ * Admission check for the optional free-text role fields on create_task.
+ *
+ * Same treatment as a REST prompt — these end up in another agent's PTY — but
+ * never required: a value that sanitises away to nothing is simply absent,
+ * because the role is an adornment on the prompt, not the payload itself.
+ */
+function validateRestRoleField(
+  value: unknown,
+  field: string,
+): string | undefined | { error: string } {
+  if (value === undefined) return undefined;
+  if (typeof value !== 'string') return { error: `${field} must be a string` };
+  const sanitized = sanitizePromptText(value);
+  if (!sanitized) return undefined;
+  if (Buffer.byteLength(sanitized, 'utf8') > MAX_REST_PROMPT_BYTES) {
+    return { error: `${field} must be ${MAX_REST_PROMPT_BYTES} bytes or fewer` };
+  }
+  return sanitized;
+}
+
 export function getMCPLogs(): MCPLogEntry[] {
   return mcpLogs.slice();
 }
@@ -386,6 +407,10 @@ function handleCreateTask(ctx: CoordinatorRouteContext): void {
       if (!body.name) return ctx.jsonReply(400, { error: 'name must be a non-empty string' });
       const prompt = validateRestPrompt(body.prompt, true);
       if (typeof prompt !== 'string') return ctx.jsonReply(400, prompt);
+      const role = validateRestRoleField(body.role, 'role');
+      if (typeof role === 'object') return ctx.jsonReply(400, role);
+      const roleInstructions = validateRestRoleField(body.roleInstructions, 'roleInstructions');
+      if (typeof roleInstructions === 'object') return ctx.jsonReply(400, roleInstructions);
       if (body.projectId !== undefined && typeof body.projectId !== 'string')
         return ctx.jsonReply(400, { error: 'projectId must be a string' });
       if (body.gitIsolation !== undefined)
@@ -424,6 +449,8 @@ function handleCreateTask(ctx: CoordinatorRouteContext): void {
         coordinatorTaskId,
         projectId: body.projectId as string | undefined,
         baseBranch,
+        role,
+        roleInstructions,
       });
       mcpLog('info', `create_task OK id=${result.id}`);
       ctx.jsonReply(201, ctx.orch.getTaskStatus(result.id));

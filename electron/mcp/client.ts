@@ -52,6 +52,10 @@ export class MCPClient {
     coordinatorTaskId?: string;
     skipPermissions?: boolean;
     baseBranch?: string;
+    /** Free-text sub-task role. Advisory — no tool-permission binding. */
+    role?: string;
+    /** Free-text elaboration of `role`. */
+    roleInstructions?: string;
   }): Promise<ApiTaskDetail> {
     return this.request<ApiTaskDetail>('POST', '/api/tasks', opts);
   }

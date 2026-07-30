@@ -588,6 +588,92 @@ describe('coordinator scoping', () => {
       expect(mockCoord.createTask).toHaveBeenLastCalledWith(expect.objectContaining({ prompt }));
     });
 
+    it('forwards create_task role and roleInstructions to the coordinator', async () => {
+      const res = await post(
+        '/api/tasks',
+        {
+          name: 'new task',
+          prompt: 'do the work',
+          role: 'Reviewer — read-only, do not edit files',
+          roleInstructions: 'Report findings; never run git commit.',
+        },
+        COORD_A,
+      );
+
+      expect(res.status).toBe(201);
+      expect(mockCoord.createTask).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          role: 'Reviewer — read-only, do not edit files',
+          roleInstructions: 'Report findings; never run git commit.',
+        }),
+      );
+    });
+
+    it('omits role and roleInstructions when the request did not carry them', async () => {
+      const res = await post('/api/tasks', { name: 'new task', prompt: 'do the work' }, COORD_A);
+
+      expect(res.status).toBe(201);
+      const calls = vi.mocked(mockCoord.createTask).mock.calls;
+      const arg = calls[calls.length - 1][0];
+      expect(arg.role).toBeUndefined();
+      expect(arg.roleInstructions).toBeUndefined();
+    });
+
+    it('strips control characters out of a create_task role', async () => {
+      const res = await post(
+        '/api/tasks',
+        { name: 'new task', prompt: 'do the work', role: 'Rev\x1b[31miewer\r' },
+        COORD_A,
+      );
+
+      expect(res.status).toBe(201);
+      expect(mockCoord.createTask).toHaveBeenLastCalledWith(
+        expect.objectContaining({ role: 'Rev [31miewer' }),
+      );
+    });
+
+    it('returns 400 when create_task role is not a string', async () => {
+      const beforeCalls = vi.mocked(mockCoord.createTask).mock.calls.length;
+
+      const res = await post(
+        '/api/tasks',
+        { name: 'new task', prompt: 'do the work', role: 42 },
+        COORD_A,
+      );
+
+      expect(res.status).toBe(400);
+      await expect(res.json()).resolves.toEqual({ error: 'role must be a string' });
+      expect(vi.mocked(mockCoord.createTask).mock.calls).toHaveLength(beforeCalls);
+    });
+
+    it('returns 400 when create_task roleInstructions exceed the byte limit', async () => {
+      const beforeCalls = vi.mocked(mockCoord.createTask).mock.calls.length;
+
+      const res = await post(
+        '/api/tasks',
+        { name: 'new task', prompt: 'do the work', roleInstructions: '😀'.repeat(5_000) },
+        COORD_A,
+      );
+
+      expect(res.status).toBe(400);
+      await expect(res.json()).resolves.toEqual({
+        error: 'roleInstructions must be 16384 bytes or fewer',
+      });
+      expect(vi.mocked(mockCoord.createTask).mock.calls).toHaveLength(beforeCalls);
+    });
+
+    it('accepts a role that is blank after sanitisation, treating it as absent', async () => {
+      const res = await post(
+        '/api/tasks',
+        { name: 'new task', prompt: 'do the work', role: '\x03\r\n' },
+        COORD_A,
+      );
+
+      expect(res.status).toBe(201);
+      const calls = vi.mocked(mockCoord.createTask).mock.calls;
+      expect(calls[calls.length - 1][0].role).toBeUndefined();
+    });
+
     it('rejects oversized multi-byte create_task prompts before calling the coordinator', async () => {
       const beforeCalls = vi.mocked(mockCoord.createTask).mock.calls.length;
 

@@ -17,6 +17,17 @@ export interface MCPToolHandlerContext {
   coordinatorId: string;
 }
 
+/**
+ * Pass an optional free-text field through untouched, or reject a non-string.
+ * Content sanitisation happens further down the chain (REST admission and
+ * `sanitisePromptBody` in the coordinator); this only guards the type.
+ */
+function optionalString(value: unknown, field: string): string | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== 'string') throw new Error(`${field} must be a string`);
+  return value;
+}
+
 export async function handleMCPToolCall(
   { client, taskId, coordinatorId }: MCPToolHandlerContext,
   name: string,
@@ -48,11 +59,19 @@ export async function handleMCPToolCall(
         const rawBranch = p.baseBranch;
         const baseBranch =
           rawBranch !== undefined ? validateBranchName(rawBranch, 'baseBranch') : undefined;
+        // Role is free text and stays optional. When the coordinator sends
+        // neither field the keys are absent from the payload, so a sub-task
+        // created without a role is composed exactly as it was before roles
+        // existed.
+        const role = optionalString(p.role, 'role');
+        const roleInstructions = optionalString(p.roleInstructions, 'roleInstructions');
         const result = await client.createTask({
           name: p.name as string,
           prompt: p.prompt,
           coordinatorTaskId: coordinatorId || undefined,
           baseBranch,
+          role,
+          roleInstructions,
         });
         return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
       }

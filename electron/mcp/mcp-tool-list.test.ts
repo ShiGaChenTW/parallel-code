@@ -76,6 +76,40 @@ describe('selectTools — role-based tool list', () => {
     expect(properties?.prompt?.type).toBe('string');
   });
 
+  it('create_task exposes role and roleInstructions as optional free-text strings', () => {
+    const createTask = COORDINATOR_TOOLS.find((tool) => tool.name === 'create_task');
+    const properties = createTask?.inputSchema.properties as
+      | Record<string, { type?: string }>
+      | undefined;
+
+    expect(properties?.role?.type).toBe('string');
+    expect(properties?.roleInstructions?.type).toBe('string');
+    expect(createTask?.inputSchema.required).not.toContain('role');
+    expect(createTask?.inputSchema.required).not.toContain('roleInstructions');
+  });
+
+  it('does not constrain role to a fixed set of values', () => {
+    // Decision 2: free text, not an enum. A fixed enum is only meaningful if it
+    // binds tool permissions, which selectTools does not do.
+    const createTask = COORDINATOR_TOOLS.find((tool) => tool.name === 'create_task');
+    const properties = createTask?.inputSchema.properties as
+      | Record<string, Record<string, unknown>>
+      | undefined;
+
+    expect(properties?.role).not.toHaveProperty('enum');
+    expect(properties?.roleInstructions).not.toHaveProperty('enum');
+  });
+
+  it('documents the role as advisory rather than tool-enforced', () => {
+    const createTask = COORDINATOR_TOOLS.find((tool) => tool.name === 'create_task');
+    const properties = createTask?.inputSchema.properties as
+      | Record<string, { description?: string }>
+      | undefined;
+
+    expect(properties?.role?.description).toMatch(/free text/i);
+    expect(properties?.role?.description).toMatch(/not enforced/i);
+  });
+
   it('send_prompt requires a prompt', () => {
     const sendPrompt = COORDINATOR_TOOLS.find((tool) => tool.name === 'send_prompt');
     expect(sendPrompt?.inputSchema.required).toContain('prompt');

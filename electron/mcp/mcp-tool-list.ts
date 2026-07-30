@@ -68,6 +68,16 @@ export const COORDINATOR_TOOLS: ToolDef[] = [
           description:
             'Git branch to base the worktree on. Defaults to the coordinator task branch. Only set this when deliberately overriding that default.',
         },
+        role: {
+          type: 'string',
+          description:
+            'Optional role for this sub-task, as free text — there is no fixed list of roles. Write it the way you would say it, e.g. "Reviewer — read-only, do not edit files" or "Researcher — read and report, change nothing". It is prepended to the sub-task prompt. Advisory only: roles are not enforced at the tool layer, so the sub-task still holds every tool it would otherwise hold.',
+        },
+        roleInstructions: {
+          type: 'string',
+          description:
+            'Optional longer instructions expanding on role — what this sub-task should and should not do. Also free text, also prepended to the prompt, also advisory.',
+        },
       },
       required: ['name', 'prompt'],
     },
