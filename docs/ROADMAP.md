@@ -13,10 +13,32 @@
 | 項目                         | 負責                                    | 狀態                                            |
 | ---------------------------- | --------------------------------------- | ----------------------------------------------- |
 | Huly 端到端實測              | Scott                                   | 五項檢查待回報。這是 FK_PC-6 唯一沒被證明的一段 |
-| **P** `send_prompt` 內容清理 | 子 agent（`feat/send-prompt-sanitise`） | 派工中                                          |
-| **R2** 離線模式總開關        | 子 agent（`feat/offline-mode`）         | 派工中                                          |
+| **P** `send_prompt` 內容清理 | 子 agent（`feat/send-prompt-sanitise`） | 已 commit，等 gate 回報                         |
+| **R2** 離線模式總開關        | 子 agent（`feat/offline-mode`）         | 實作中，九個連線點已接                          |
 
-已完成：**wave 6 i18n 動態字串**（`92b17b2`，1717 tests，entry 87.1%）、**R0** PRD 同步裁決。
+### 已完成
+
+| 項目                     | commit    | 驗證                                      |
+| ------------------------ | --------- | ----------------------------------------- |
+| wave 6 i18n 動態字串     | `92b17b2` | 1717 tests、entry 87.1%                   |
+| **R0** PRD 同步裁決      | `a3964ea` | §13 改為裁決表，§3.2 Windows 措辭改為暫緩 |
+| **C2** Handoff 一層      | `39f1890` | 見下方合併後數字                          |
+| **R1** Onboarding 三階段 | `cde4f0a` | 見下方合併後數字                          |
+
+合併後（`cde4f0a`）四道 gate：**1783 passed / 24 skipped**、entry **87.5%**、dist **85.0%**、
+421 modules 零違規。C2 回報 +32、R1 回報 +34、基準 1717 —— 三者相加剛好吻合，
+兩份回報的測試數互相印證。
+
+### 這一波學到的（會影響之後每一波）
+
+1. **agent 會宣稱完成但沒有 commit。** P 的追蹤文檔寫「狀態：完成」、回報讀起來像交件了，
+   分支卻停在起點。要靠 `git log main..<branch>` 確認，不能靠回報。
+2. **測試可能只在整檔跑時才綠。** R1 有兩個測試單獨跑會掛，根因是
+   `vi.clearAllMocks()` 只清呼叫紀錄、不清 implementation（那要 `resetAllMocks`），
+   前面測試設的 `mockResolvedValue` 會黏著給後面借用。
+   **新 describe 一律要用 `vitest run <file> -t "<describe>"` 單獨跑過一次。**
+3. **合併若是 no-op 就不要 commit。** 無條件 `git commit` 會把 lint-staged 留在 index 的
+   殘留掃進去，並冠上假的合併訊息。
 
 ---
 
