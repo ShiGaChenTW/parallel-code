@@ -115,11 +115,28 @@ export function claudeProjectSlug(absolutePath: string): string {
  *
  * Returns null when nothing matches, which is the normal case for the user's
  * work outside Parallel Code and means those counts are simply not shown.
+ *
+ * Pass `candidateExists: false` when the recorded directory is gone from disk;
+ * see the comment in the body for why that has to disable the prefix rule.
  */
-export function matchKnownPath(candidate: string, knownPaths: readonly string[]): string | null {
+export function matchKnownPath(
+  candidate: string,
+  knownPaths: readonly string[],
+  options: { candidateExists?: boolean } = {},
+): string | null {
+  // A directory that is no longer on disk is historical evidence, not a hint to
+  // search upwards. Walking up would fold a deleted worktree's usage into
+  // whichever surviving ancestor happens to be known — `/repo/.worktrees/gone`
+  // silently inflating `/repo`, which is exactly the project layout this app
+  // creates. Measured on this machine: 76 of 173 recorded Claude working
+  // directories no longer exist, behind 10,953 usage records. An exact match is
+  // still honoured, because that names the worktree rather than guessing at it.
+  const exactOnly = options.candidateExists === false;
+
   let best: string | null = null;
   for (const known of knownPaths) {
     if (candidate !== known) {
+      if (exactOnly) continue;
       if (!candidate.startsWith(known)) continue;
       const nextChar = candidate.charAt(known.length);
       if (nextChar !== '/' && nextChar !== '\\') continue;
@@ -133,12 +150,38 @@ export function matchKnownPath(candidate: string, knownPaths: readonly string[])
 // Claude — ~/.claude/projects/<slug>/*.jsonl
 // --------------------------------------------------------------------------
 
+/**
+ * Which service answered the request.
+ *
+ * Claude Code can be pointed at Google's Vertex AI instead of Anthropic's own
+ * API, and when it is, the transcripts land in the same `~/.claude/projects`
+ * tree with the same shape. They are a different account, a different quota and
+ * a different bill, so folding them into one number describes nothing that
+ * exists. Two markers identify them, either of which is sufficient: `_vrtx_`
+ * inside the message id or request id, and the `@`-versioned model naming
+ * (`claude-opus-4-8@20260514`) that only Vertex uses.
+ */
+export type ClaudeVendor = 'anthropic' | 'vertex';
+
 export interface ClaudeUsageRecord {
   /** `message.id:requestId`, or null when the record carries no identity. */
   dedupeKey: string | null;
   /** Absolute project path from the record's own `cwd`, or null. */
   cwd: string | null;
+  vendor: ClaudeVendor;
   totals: TokenTotals;
+}
+
+/** A deduplicated usage record, held per project directory. */
+export interface ClaudeSeenRecord {
+  path: string;
+  vendor: ClaudeVendor;
+  totals: TokenTotals;
+}
+
+/** True for an id, request id or model name that only Vertex AI produces. */
+export function isVertexClaudeRecord(messageId: string, requestId: string, model: string): boolean {
+  return messageId.includes('_vrtx_') || requestId.includes('_vrtx_') || model.includes('@');
 }
 
 /**
@@ -170,18 +213,18 @@ export function parseClaudeUsageLine(line: string): ClaudeUsageRecord | null {
   };
   if (isZeroTotals(totals)) return null;
 
-  const messageId = message?.['id'];
-  const requestId = obj['requestId'];
-  const dedupeKey =
-    typeof messageId === 'string' && messageId.length > 0
-      ? `${messageId}:${typeof requestId === 'string' ? requestId : ''}`
-      : null;
+  const messageId = typeof message?.['id'] === 'string' ? (message['id'] as string) : '';
+  const rawRequestId = obj['requestId'];
+  const requestId = typeof rawRequestId === 'string' ? rawRequestId : '';
+  const model = typeof message?.['model'] === 'string' ? (message['model'] as string) : '';
+  const dedupeKey = messageId.length > 0 ? `${messageId}:${requestId}` : null;
 
   const cwd = obj['cwd'];
 
   return {
     dedupeKey,
     cwd: typeof cwd === 'string' && cwd.length > 0 ? cwd : null,
+    vendor: isVertexClaudeRecord(messageId, requestId, model) ? 'vertex' : 'anthropic',
     totals,
   };
 }
@@ -198,13 +241,21 @@ export function parseClaudeUsageLine(line: string): ClaudeUsageRecord | null {
  * Records with no `message.id` cannot be deduplicated and are counted once
  * each; that is the lesser error, since dropping them would silently lose real
  * usage.
+ *
+ * The last occurrence of a key wins rather than the first. On this machine the
+ * choice is worth exactly nothing — 36,268 usage records across 90 project
+ * directories reduce to 18,362 keys, and every one of the 17,906 duplicates
+ * carries a byte-identical usage value, so the two rules agree to 0.0000%. It
+ * is here because it is also correct if a CLI ever streams a record and
+ * rewrites it as the counts firm up, which is the behaviour CodexBar found on
+ * its side. Holding the value instead of just the key is what makes that
+ * possible, and it costs one small object per unique record.
  */
 export function foldClaudeLines(
   lines: readonly string[],
-  seen: Set<string>,
+  seen: Map<string, ClaudeSeenRecord>,
   fallbackCwd: string | null = null,
-): { byPath: Map<string, TokenTotals>; skipped: number } {
-  const byPath = new Map<string, TokenTotals>();
+): { skipped: number } {
   let skipped = 0;
 
   for (const line of lines) {
@@ -217,19 +268,37 @@ export function foldClaudeLines(
       if (parseJsonObjectLine(line) === null) skipped++;
       continue;
     }
-    if (record.dedupeKey !== null) {
-      if (seen.has(record.dedupeKey)) continue;
-      seen.add(record.dedupeKey);
-    }
     const path = record.cwd ?? fallbackCwd;
     if (path === null) {
       skipped++;
       continue;
     }
-    byPath.set(path, addTotals(byPath.get(path) ?? ZERO_TOTALS, record.totals));
+    // A record with no identity cannot be deduplicated, so it gets a key that
+    // can never collide and is counted once. `seen.size` only ever grows, which
+    // is what makes that guarantee hold.
+    const key = record.dedupeKey ?? ` anon:${seen.size}`;
+    seen.set(key, { path, vendor: record.vendor, totals: record.totals });
   }
 
-  return { byPath, skipped };
+  return { skipped };
+}
+
+/**
+ * Turns a directory's deduplicated records into per-path, per-vendor totals.
+ *
+ * Kept separate from the fold because the fold is called once per chunk of an
+ * incremental read while this runs once per scan, over the whole directory.
+ */
+export function claudeTotalsByPath(
+  seen: ReadonlyMap<string, ClaudeSeenRecord>,
+): Map<string, Record<ClaudeVendor, TokenTotals>> {
+  const byPath = new Map<string, Record<ClaudeVendor, TokenTotals>>();
+  for (const record of seen.values()) {
+    const entry = byPath.get(record.path) ?? { anthropic: ZERO_TOTALS, vertex: ZERO_TOTALS };
+    entry[record.vendor] = addTotals(entry[record.vendor], record.totals);
+    byPath.set(record.path, entry);
+  }
+  return byPath;
 }
 
 // --------------------------------------------------------------------------
@@ -257,33 +326,18 @@ export function parseCodexCwdLine(line: string): string | null {
 }
 
 /**
- * Pulls the running session total out of a `token_count` line.
- *
- * `info.total_token_usage` is cumulative for the session, so the last one in
- * the file is the answer for the whole file — which is why the reader only ever
- * needs the tail. Summing the per-turn `last_token_usage` instead over-counts:
- * measured on a 54 MB rollout it came to 129,617,191 against a true cumulative
- * 127,199,725, because retried turns emit their usage twice.
+ * Normalises one of codex's usage objects.
  *
  * OpenAI's `input_tokens` includes the cached prefix, so the cached portion is
  * subtracted out to keep `input` disjoint from `cacheRead` the way Anthropic
  * already reports it. `reasoning_output_tokens` is a subset of `output_tokens`
  * and is not added.
  */
-export function parseCodexTotalLine(line: string): TokenTotals | null {
-  const obj = parseJsonObjectLine(line);
-  if (!obj) return null;
-  const payload = asRecord(obj['payload']);
-  if (!payload || payload['type'] !== 'token_count') return null;
-  const info = asRecord(payload['info']);
-  const total = asRecord(info?.['total_token_usage']);
-  if (!total) return null;
-
-  const cached = num(total['cached_input_tokens']);
-  const rawInput = num(total['input_tokens']);
+function codexUsage(raw: Record<string, unknown>): TokenTotals {
+  const cached = num(raw['cached_input_tokens']);
   return {
-    input: Math.max(0, rawInput - cached),
-    output: num(total['output_tokens']),
+    input: Math.max(0, num(raw['input_tokens']) - cached),
+    output: num(raw['output_tokens']),
     cacheRead: cached,
     // Codex rollouts carry no cache-write counter; the field stays zero rather
     // than being guessed from another number.
@@ -291,33 +345,270 @@ export function parseCodexTotalLine(line: string): TokenTotals | null {
   };
 }
 
-export interface CodexRolloutSummary {
-  cwd: string | null;
-  /** Last cumulative total seen, or null when the file has no token_count yet. */
-  totals: TokenTotals | null;
-  skipped: number;
+/** One `token_count` event: the running session total and that turn's own use. */
+export interface CodexTokenEvent {
+  /** Cumulative for the session, as codex reports it. */
+  total: TokenTotals;
+  /** What this turn alone used, or null when the record omits it. */
+  last: TokenTotals | null;
+  /** Epoch ms from the record's own `timestamp`, or null. */
+  atMs: number | null;
 }
 
-/** Reduces rollout lines to the session cwd and its final cumulative total. */
-export function foldCodexLines(lines: readonly string[]): CodexRolloutSummary {
-  let cwd: string | null = null;
-  let totals: TokenTotals | null = null;
+export function parseCodexTokenEvent(line: string): CodexTokenEvent | null {
+  const obj = parseJsonObjectLine(line);
+  if (!obj) return null;
+  const payload = asRecord(obj['payload']);
+  if (!payload || payload['type'] !== 'token_count') return null;
+  const info = asRecord(payload['info']);
+  const total = asRecord(info?.['total_token_usage']);
+  if (!total) return null;
+  const last = asRecord(info?.['last_token_usage']);
+  const timestamp = obj['timestamp'];
+  const atMs = typeof timestamp === 'string' ? Date.parse(timestamp) : NaN;
+
+  return {
+    total: codexUsage(total),
+    last: last ? codexUsage(last) : null,
+    atMs: Number.isFinite(atMs) ? atMs : null,
+  };
+}
+
+/** What the first line of a rollout says about the session it opens. */
+export interface CodexSessionMeta {
+  cwd: string | null;
+  /** Epoch ms the rollout was created, or null. */
+  startedAtMs: number | null;
+  /**
+   * True when this rollout was forked from another thread or spawned as a
+   * subagent — meaning it opens with a replay of its parent's history.
+   */
+  inherited: boolean;
+}
+
+export function parseCodexSessionMeta(line: string): CodexSessionMeta | null {
+  const obj = parseJsonObjectLine(line);
+  if (!obj || obj['type'] !== 'session_meta') return null;
+  const payload = asRecord(obj['payload']);
+  if (!payload) return null;
+
+  const source = asRecord(payload['source']);
+  const inherited =
+    typeof payload['forked_from_id'] === 'string' ||
+    typeof payload['parent_thread_id'] === 'string' ||
+    source?.['subagent'] !== undefined;
+
+  const timestamp = obj['timestamp'] ?? payload['timestamp'];
+  const startedAtMs = typeof timestamp === 'string' ? Date.parse(timestamp) : NaN;
+
+  return {
+    cwd: parseCodexCwdLine(line),
+    startedAtMs: Number.isFinite(startedAtMs) ? startedAtMs : null,
+    inherited,
+  };
+}
+
+/**
+ * How long after a rollout opens its replayed history is still arriving.
+ *
+ * A forked or subagent rollout begins by writing its parent's entire history
+ * into the new file, `token_count` records included — measured here, one 770
+ * event rollout shared its first 761 events with its parent, so counting them
+ * charges the parent's whole session a second time. The replay is one
+ * synchronous burst at session creation; real turns take seconds. Sweeping the
+ * window against the cross-file ground truth on all 49 forked rollouts on this
+ * machine: 1s got 48 right, 2s and 5s got all 49, 10s started swallowing
+ * genuine first turns on 27 of them. 2s is the smallest exact value, so drift
+ * in either direction fails towards counting a copied record rather than
+ * discarding a real one — the same bias the Claude reader takes with records
+ * that have no id.
+ */
+export const CODEX_REPLAY_WINDOW_MS = 2000;
+
+/** True componentwise. Codex's counters advance independently. */
+function totalsAtLeast(a: TokenTotals, b: TokenTotals): boolean {
+  return (
+    a.input >= b.input &&
+    a.output >= b.output &&
+    a.cacheRead >= b.cacheRead &&
+    a.cacheWrite >= b.cacheWrite
+  );
+}
+
+function subtractTotals(a: TokenTotals, b: TokenTotals): TokenTotals {
+  return {
+    input: a.input - b.input,
+    output: a.output - b.output,
+    cacheRead: a.cacheRead - b.cacheRead,
+    cacheWrite: a.cacheWrite - b.cacheWrite,
+  };
+}
+
+function maxTotals(a: TokenTotals, b: TokenTotals): TokenTotals {
+  return {
+    input: Math.max(a.input, b.input),
+    output: Math.max(a.output, b.output),
+    cacheRead: Math.max(a.cacheRead, b.cacheRead),
+    cacheWrite: Math.max(a.cacheWrite, b.cacheWrite),
+  };
+}
+
+/**
+ * Everything a rollout reader has to remember between chunks.
+ *
+ * `watermark` is a componentwise high-water mark rather than the previous
+ * reading, because that is what makes the interleaved case detectable.
+ */
+export interface CodexDeltaState {
+  /** The directory in force for the events read so far. */
+  cwd: string | null;
+  watermark: TokenTotals | null;
+  /** Latched once a reading falls below the watermark; never unlatches. */
+  interleaved: boolean;
+  sessionStartMs: number | null;
+  /** Whether this rollout opens with a replay of a parent's history. */
+  inherited: boolean;
+  /** Set once the replay window has been left behind. */
+  pastReplay: boolean;
+  /**
+   * Whether the rollout's own `session_meta` has been read.
+   *
+   * There can be more than one. A fork replays its parent's records verbatim
+   * and the parent's `session_meta` is among them — so the second one seen
+   * describes the *parent*: no fork marker, and a start time from whenever the
+   * parent began. Letting it overwrite the first turns off the replay rule
+   * exactly on the files that need it. Measured on this machine, that single
+   * mistake left 784,610,389 tokens of replayed parent history being charged a
+   * second time. Only the first `session_meta` is the identity of this file.
+   */
+  identified: boolean;
+}
+
+export function createCodexDeltaState(): CodexDeltaState {
+  return {
+    cwd: null,
+    watermark: null,
+    interleaved: false,
+    sessionStartMs: null,
+    inherited: false,
+    pastReplay: false,
+    identified: false,
+  };
+}
+
+/**
+ * What one `token_count` event added, given what has been seen before it.
+ *
+ * The cumulative counter is the authority on how much was really spent, but a
+ * single cumulative number cannot be split — not by day, and not by worktree
+ * when a session changes directory mid-run, which is the only reason this
+ * feature exists. So the counter is differenced per event and the difference is
+ * capped by that turn's own `last_token_usage`. A retry re-emits `last`, but the
+ * cumulative counter does not advance twice, so on a retry the difference is
+ * the smaller of the two and wins; that is what removes the 1.9% overshoot R3
+ * measured from summing `last` while keeping per-event attribution.
+ *
+ * A reading below the watermark is deliberately *not* treated as a restart. It
+ * can equally be a second fork lineage whose cumulative snapshots were written
+ * into the same rollout, and re-baselining there would count the gap between
+ * the lineages all over again. Instead the file latches as interleaved and
+ * every later event falls back to its self-contained `last` value, which is
+ * correct whichever lineage the event belongs to.
+ */
+export function codexEventDelta(
+  state: Pick<CodexDeltaState, 'watermark' | 'interleaved' | 'inherited'>,
+  event: CodexTokenEvent,
+): { delta: TokenTotals; watermark: TokenTotals; interleaved: boolean } {
+  const watermark = state.watermark;
+  const advance = (delta: TokenTotals, interleaved: boolean) => ({
+    delta,
+    watermark: watermark === null ? event.total : maxTotals(watermark, event.total),
+    interleaved,
+  });
+
+  // No baseline yet. The opening reading may already carry a whole inherited
+  // session, so it establishes the baseline rather than being spent, and the
+  // turn's own figure is what this event cost. All 16,794 `token_count` records
+  // on this machine carry one; the fallback matters only if a CLI version stops
+  // writing it, and it then keeps the reading for a session that started from
+  // nothing and discards it for one that opened on someone else's history.
+  if (watermark === null) {
+    if (event.last !== null) return advance(event.last, state.interleaved);
+    return advance(state.inherited ? ZERO_TOTALS : event.total, state.interleaved);
+  }
+  if (state.interleaved) return advance(event.last ?? ZERO_TOTALS, true);
+  if (!totalsAtLeast(event.total, watermark)) return advance(event.last ?? ZERO_TOTALS, true);
+
+  const totalsDelta = subtractTotals(event.total, watermark);
+  if (event.last === null) return advance(totalsDelta, false);
+  return advance(totalsAtLeast(event.last, totalsDelta) ? totalsDelta : event.last, false);
+}
+
+/**
+ * Folds rollout lines into per-directory totals, advancing `state` in place.
+ *
+ * The directory is tracked as the file is walked — `session_meta`,
+ * `turn_context` and `thread_settings_applied` all move it — so a session that
+ * spans two worktrees is charged to each for the turns it actually ran there.
+ */
+export function foldCodexLines(
+  lines: readonly string[],
+  state: CodexDeltaState,
+): { byPath: Map<string, TokenTotals>; skipped: number } {
+  const byPath = new Map<string, TokenTotals>();
   let skipped = 0;
 
   for (const line of lines) {
     if (line.trim().length === 0) continue;
-    const obj = parseJsonObjectLine(line);
-    if (!obj) {
+    if (parseJsonObjectLine(line) === null) {
       skipped++;
       continue;
     }
-    const foundCwd = parseCodexCwdLine(line);
-    if (foundCwd !== null) cwd = foundCwd;
-    const foundTotals = parseCodexTotalLine(line);
-    if (foundTotals !== null) totals = foundTotals;
+
+    const meta = parseCodexSessionMeta(line);
+    if (meta) {
+      // Only the first one identifies this rollout; see `identified`.
+      if (!state.identified) {
+        state.identified = true;
+        state.sessionStartMs = meta.startedAtMs;
+        state.inherited = meta.inherited;
+      }
+      if (meta.cwd !== null) state.cwd = meta.cwd;
+      continue;
+    }
+
+    const cwd = parseCodexCwdLine(line);
+    if (cwd !== null) state.cwd = cwd;
+
+    const event = parseCodexTokenEvent(line);
+    if (event === null) continue;
+
+    const { delta, watermark, interleaved } = codexEventDelta(state, event);
+    state.watermark = watermark;
+    state.interleaved = interleaved;
+
+    if (isCodexReplayEvent(state, event)) continue;
+    state.pastReplay = true;
+
+    if (state.cwd === null || isZeroTotals(delta)) continue;
+    byPath.set(state.cwd, addTotals(byPath.get(state.cwd) ?? ZERO_TOTALS, delta));
   }
 
-  return { cwd, totals, skipped };
+  return { byPath, skipped };
+}
+
+/**
+ * Whether this event belongs to the parent history a fork replayed into its own
+ * file rather than to work this session did.
+ *
+ * Only the leading run counts: once one live event has been seen the session is
+ * past its replay for good, so a later burst of fast turns is never mistaken
+ * for one.
+ */
+function isCodexReplayEvent(state: CodexDeltaState, event: CodexTokenEvent): boolean {
+  if (!state.inherited || state.pastReplay) return false;
+  if (state.sessionStartMs === null || event.atMs === null) return false;
+  return event.atMs - state.sessionStartMs <= CODEX_REPLAY_WINDOW_MS;
 }
 
 // --------------------------------------------------------------------------
@@ -405,31 +696,6 @@ export function foldGrokLines(
   }
 
   return { byPath, skipped };
-}
-
-// --------------------------------------------------------------------------
-// Monotonic counter accumulation
-// --------------------------------------------------------------------------
-
-/**
- * Folds a cumulative counter that may restart.
- *
- * Codex reports a session total that only grows — until it does not. A counter
- * going backwards means the source restarted (a compaction, a rewritten file),
- * and the tokens counted before the restart are still real, so the pre-restart
- * value is carried into a base rather than thrown away. When the counter simply
- * grew, the answer is the new value.
- */
-export function accumulateMonotonic(
-  previous: TokenTotals | null,
-  carried: TokenTotals,
-  next: TokenTotals,
-): { carried: TokenTotals; total: TokenTotals } {
-  if (previous !== null && sumTotals(next) < sumTotals(previous)) {
-    const nextCarried = addTotals(carried, previous);
-    return { carried: nextCarried, total: addTotals(nextCarried, next) };
-  }
-  return { carried, total: addTotals(carried, next) };
 }
 
 // --------------------------------------------------------------------------
