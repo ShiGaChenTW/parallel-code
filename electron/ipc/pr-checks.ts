@@ -3,6 +3,7 @@ import { promisify } from 'util';
 import { Notification, type BrowserWindow } from 'electron';
 import { stat } from 'fs/promises';
 import { IPC } from './channels.js';
+import { OfflineModeError, isOfflineMode } from './offline.js';
 import type {
   PrCheckBucket,
   PrCheckRun,
@@ -155,6 +156,11 @@ function windowIsVisible(): boolean {
 
 function ensureInterval(): void {
   if (tickHandle || disabled) return;
+  // Offline mode does not latch `disabled` — that flag is a permanent
+  // session kill for a missing or unauthenticated `gh`. The switch is
+  // reversible, so it is checked per call and `applyOfflineMode` re-arms the
+  // timer the moment it goes back off.
+  if (isOfflineMode()) return;
   if (!windowIsVisible()) return;
   tickHandle = setInterval(() => {
     runTick().catch((err) => console.warn('[pr-checks] tick failed:', err));
@@ -170,7 +176,7 @@ function clearTickInterval(): void {
 }
 
 async function runTick(): Promise<void> {
-  if (disabled || isRefreshing) return;
+  if (disabled || isRefreshing || isOfflineMode()) return;
   isRefreshing = true;
   try {
     const now = Date.now();
@@ -389,6 +395,9 @@ export async function detectPrUrlForBranch(
   worktreePath: string,
   branchName: string,
 ): Promise<string | null> {
+  // "No PR detected" is already this function's normal negative answer and the
+  // caller renders it as such, so returning null is honest rather than silent.
+  if (isOfflineMode()) return null;
   if (!(await isDirectory(worktreePath))) return null;
   const { stdout } = await exec(
     'gh',
@@ -434,6 +443,10 @@ async function isDirectory(path: string): Promise<boolean> {
 export async function fetchPrStatus(
   prUrl: string,
 ): Promise<{ state: string; headRefOid: string; checks: PrCheckRun[] }> {
+  // Belt and braces: `runTick` already returns before reaching here when the
+  // switch is on. This guards the exported entry point against a future caller
+  // that does not go through the tick.
+  if (isOfflineMode()) throw new OfflineModeError('pr-checks');
   const { stdout } = await exec(
     'gh',
     ['pr', 'view', prUrl, '--json', 'state,headRefOid,statusCheckRollup'],
@@ -520,6 +533,24 @@ function handleGhError(err: unknown): void {
   }
   // Transient: keep previous state, let caller preserve entry.
   console.warn('[pr-checks] transient gh failure:', (err as Error)?.message ?? err);
+}
+
+/**
+ * React to the offline switch changing.
+ *
+ * Polling is driven by a timer, so unlike the request-shaped surfaces this one
+ * needs a push: turning the switch on must stop the timer immediately rather
+ * than leaving it to spin and no-op every 30 seconds, and turning it off must
+ * re-arm without waiting for the user to happen to open or refresh a task.
+ */
+export function applyOfflineMode(offline: boolean): void {
+  if (offline) {
+    clearTickInterval();
+    return;
+  }
+  if (tasks.size === 0) return;
+  ensureInterval();
+  runTick().catch((err) => console.warn('[pr-checks] offline-mode resume tick failed:', err));
 }
 
 // --- Test seams ---

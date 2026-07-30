@@ -17,6 +17,7 @@ const ALLOWED_CHANNELS = new Set([
   'huly_clear_credentials',
   'huly_test_connection',
   'huly_list_issues',
+  'set_offline_mode',
   'create_task',
   'delete_task',
   'get_changed_files',

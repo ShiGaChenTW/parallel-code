@@ -2,12 +2,17 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AgentDef } from '../ipc/types';
 import type { PersistedTask } from './types';
 
-const { mockInvoke } = vi.hoisted(() => ({
+const { mockInvoke, mockFireAndForget } = vi.hoisted(() => ({
   mockInvoke: vi.fn(),
+  mockFireAndForget: vi.fn(),
 }));
 
+// The mock replaces the whole module, so every export the module under test
+// reaches for has to be listed. `loadState` pushes the offline-mode switch to
+// the main process via `fireAndForget` once hydration finishes.
 vi.mock('../lib/ipc', () => ({
   invoke: mockInvoke,
+  fireAndForget: mockFireAndForget,
 }));
 
 import { loadState, resolveIncomingPanelUserSize, saveState } from './persistence';

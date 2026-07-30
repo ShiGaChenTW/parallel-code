@@ -266,6 +266,9 @@ export interface PersistedState {
   showSidebarProgress?: boolean;
   projectsCollapsed?: boolean;
   desktopNotificationsEnabled?: boolean;
+  /** Master privacy switch: when true the app makes no outbound request of
+   *  its own. Does not cover third-party CLI traffic — see PRIVACY.md. */
+  offlineMode?: boolean;
   inactiveColumnOpacity?: number;
   editorCommand?: string;
   dockerImage?: string;
@@ -367,6 +370,9 @@ export interface AppStore {
   showSidebarProgress: boolean;
   projectsCollapsed: boolean;
   desktopNotificationsEnabled: boolean;
+  /** Master privacy switch: when true the app makes no outbound request of
+   *  its own. Does not cover third-party CLI traffic — see PRIVACY.md. */
+  offlineMode: boolean;
   inactiveColumnOpacity: number;
   editorCommand: string;
   dockerImage: string;

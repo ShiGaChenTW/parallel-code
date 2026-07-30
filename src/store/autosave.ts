@@ -32,6 +32,7 @@ export function persistedSnapshot(): string {
     showSidebarProgress: store.showSidebarProgress,
     projectsCollapsed: store.projectsCollapsed,
     desktopNotificationsEnabled: store.desktopNotificationsEnabled,
+    offlineMode: store.offlineMode,
     inactiveColumnOpacity: store.inactiveColumnOpacity,
     editorCommand: store.editorCommand,
     customAgents: store.customAgents,

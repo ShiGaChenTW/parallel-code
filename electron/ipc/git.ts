@@ -5,6 +5,7 @@ import path from 'path';
 import type { BrowserWindow } from 'electron';
 import { debug as logDebug } from '../log.js';
 import { appendGitInfoExcludeBlockAtPath, resolveGitInfoExcludePath } from './git-exclude.js';
+import { OfflineModeError, isOfflineMode } from './offline.js';
 import type { ChangedFile, CommitInfo, FileDiffResult } from './shared-types.js';
 
 export type { ChangedFile, CommitInfo, FileDiffResult } from './shared-types.js';
@@ -238,16 +239,27 @@ async function detectMainBranchUncached(repoRoot: string): Promise<string> {
     // stale when the default branch is changed on the remote.
     if (await remoteTrackingRefExists(repoRoot, branch)) return branch;
 
-    // Stale ref — try refreshing from the remote
-    try {
-      await exec('git', ['remote', 'set-head', 'origin', '--auto'], {
-        cwd: repoRoot,
-        timeout: 5_000,
-      });
-      const refreshed = await resolveOriginHead(repoRoot);
-      if (refreshed && (await remoteTrackingRefExists(repoRoot, refreshed))) return refreshed;
-    } catch {
-      /* no network or no remote — fall through */
+    // Stale ref — try refreshing from the remote.
+    //
+    // This is the only outbound call in the app with no user gesture behind
+    // it: a stale `refs/remotes/origin/HEAD` makes merely opening a project
+    // contact the remote. Offline mode skips the refresh and falls through to
+    // the local heuristics below, which is a pre-existing, already-tested path
+    // — the same one taken when there is no network or no remote. No message
+    // is shown because there is no action to explain; the debug log records it.
+    if (isOfflineMode()) {
+      logDebug('git', 'offline mode: skipping `git remote set-head origin --auto`');
+    } else {
+      try {
+        await exec('git', ['remote', 'set-head', 'origin', '--auto'], {
+          cwd: repoRoot,
+          timeout: 5_000,
+        });
+        const refreshed = await resolveOriginHead(repoRoot);
+        if (refreshed && (await remoteTrackingRefExists(repoRoot, refreshed))) return refreshed;
+      } catch {
+        /* no network or no remote — fall through */
+      }
     }
   }
 
@@ -1813,6 +1825,10 @@ export function pushTask(
   branchName: string,
   channelId: string,
 ): Promise<void> {
+  // Rejects before spawning. The push UI already renders a rejection as the
+  // failure reason next to the button, so this reads as "offline mode is on"
+  // rather than as a git authentication error thirty seconds later.
+  if (isOfflineMode()) return Promise.reject(new OfflineModeError('git-push'));
   return new Promise((resolve, reject) => {
     const proc = spawn('git', ['push', '--progress', '-u', 'origin', '--', branchName], {
       cwd: projectRoot,

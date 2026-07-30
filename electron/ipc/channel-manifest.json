@@ -145,5 +145,6 @@
   "HulySaveCredentials": "huly_save_credentials",
   "HulyClearCredentials": "huly_clear_credentials",
   "HulyTestConnection": "huly_test_connection",
-  "HulyListIssues": "huly_list_issues"
+  "HulyListIssues": "huly_list_issues",
+  "SetOfflineMode": "set_offline_mode"
 }

@@ -38,6 +38,7 @@ import {
 import { startStepsWatcher, stopStepsWatcher, readStepsForWorktree } from './steps.js';
 import {
   initPrChecks,
+  applyOfflineMode as applyPrChecksOfflineMode,
   startPrChecksWatcher,
   stopPrChecksWatcher,
   detectPrUrlForBranch,
@@ -89,6 +90,7 @@ import {
   deleteCustomThemeFile,
 } from './persistence.js';
 import { loadKeybindings, saveKeybindings } from './keybindings.js';
+import { parsePersistedOfflineMode, setOfflineMode } from './offline.js';
 import {
   initAutoUpdater,
   getUpdateStatus,
@@ -409,6 +411,14 @@ function createThrottledForwarder(
  * git-exclude a generated file must not block coordinator startup.
  */
 export function registerAllHandlers(win: BrowserWindow): void {
+  // --- Offline mode ---
+  // Seeded from the persisted state file before anything that could reach the
+  // network is wired up (`initPrChecks`, `initAutoUpdater` both run below).
+  // Main reads the file itself rather than waiting for the renderer to push the
+  // value: the updater's silent startup check is on a ten-second timer, and an
+  // offline promise that depends on winning a race is not a promise.
+  setOfflineMode(parsePersistedOfflineMode(loadAppState()));
+
   // --- Remote access state ---
   let remoteServer: Awaited<ReturnType<typeof startRemoteServer>> | null = null;
   const taskNames = new Map<string, string>();
@@ -752,6 +762,15 @@ export function registerAllHandlers(win: BrowserWindow): void {
     if (json) syncTaskNamesFromJson(json);
     return json;
   });
+  ipcMain.handle(IPC.SetOfflineMode, (_e, args) => {
+    const enabled = args.enabled === true;
+    setOfflineMode(enabled);
+    // Polling is timer-driven, so unlike the request-shaped surfaces it has to
+    // be told: stop the tick now, or re-arm it now. Everything else consults
+    // `isOfflineMode()` at call time and needs no notification.
+    applyPrChecksOfflineMode(enabled);
+  });
+
   ipcMain.handle(IPC.LoadCustomThemes, () => loadCustomThemeFiles());
   ipcMain.handle(IPC.SaveCustomTheme, (_e, args) => {
     assertString(args.id, 'id');

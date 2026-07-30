@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { promisify } from 'util';
 
 const { mockStat } = vi.hoisted(() => ({
@@ -49,8 +49,10 @@ import {
   initPrChecks,
   refreshPrChecksWatcher,
   startPrChecksWatcher,
+  applyOfflineMode,
   type PrCheckRun,
 } from './pr-checks.js';
+import { setOfflineMode } from './offline.js';
 
 type ExecCb = (err: Error | null, stdout: string, stderr: string) => void;
 type GhHandler = (args: string[], cb: ExecCb, cmd: string) => void;
@@ -452,5 +454,87 @@ describe('startPrChecksWatcher — graceful degradation', () => {
     await new Promise((resolve) => setImmediate(resolve));
     expect(__getStateForTests().disabled).toBe(true);
     expect(__getStateForTests().disabledReason).toBe('auth');
+  });
+});
+
+describe('offline mode', () => {
+  beforeEach(() => {
+    __resetForTests();
+    setOfflineMode(false);
+  });
+
+  afterEach(() => setOfflineMode(false));
+
+  it('never forks gh while the switch is on', async () => {
+    const calls = stubGh((_args, cb) => cb(null, '{}', ''));
+    setOfflineMode(true);
+    startPrChecksWatcher({
+      taskId: 't1',
+      prUrl: 'https://github.com/a/b/pull/1',
+      taskName: 'test',
+    });
+    await flushPromises();
+    await __runTickForTests();
+    await flushPromises();
+    expect(calls).toHaveLength(0);
+  });
+
+  it('keeps the task registered, so polling resumes instead of needing a re-add', async () => {
+    stubGh((_args, cb) => cb(null, '{}', ''));
+    setOfflineMode(true);
+    startPrChecksWatcher({
+      taskId: 't1',
+      prUrl: 'https://github.com/a/b/pull/1',
+      taskName: 'test',
+    });
+    await flushPromises();
+    expect(__getStateForTests().taskIds).toEqual(['t1']);
+  });
+
+  it('does not latch `disabled` — the switch is reversible, a missing gh is not', async () => {
+    stubGh((_args, cb) => cb(null, '{}', ''));
+    setOfflineMode(true);
+    startPrChecksWatcher({
+      taskId: 't1',
+      prUrl: 'https://github.com/a/b/pull/1',
+      taskName: 'test',
+    });
+    await flushPromises();
+    expect(__getStateForTests().disabled).toBe(false);
+  });
+
+  it('refuses a direct fetchPrStatus call rather than letting it through', async () => {
+    const calls = stubGh((_args, cb) => cb(null, '{}', ''));
+    setOfflineMode(true);
+    await expect(fetchPrStatus('https://github.com/a/b/pull/1')).rejects.toThrow(
+      /Offline mode is on/,
+    );
+    expect(calls).toHaveLength(0);
+  });
+
+  it('answers "no PR" for branch detection instead of forking gh', async () => {
+    const calls = stubGh((_args, cb) => cb(null, '[]', ''));
+    setOfflineMode(true);
+    await expect(detectPrUrlForBranch('/repo', 'feat/x')).resolves.toBeNull();
+    expect(calls).toHaveLength(0);
+  });
+
+  it('polls again once the switch goes back off, without waiting for a user action', async () => {
+    const calls = stubGh((_args, cb) =>
+      cb(null, JSON.stringify({ state: 'OPEN', headRefOid: 'sha', statusCheckRollup: [] }), ''),
+    );
+    setOfflineMode(true);
+    startPrChecksWatcher({
+      taskId: 't1',
+      prUrl: 'https://github.com/a/b/pull/1',
+      taskName: 'test',
+    });
+    await flushPromises();
+    expect(calls).toHaveLength(0);
+
+    setOfflineMode(false);
+    applyOfflineMode(false);
+    await flushPromises();
+    expect(calls.length).toBeGreaterThan(0);
   });
 });

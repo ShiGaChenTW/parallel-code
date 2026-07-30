@@ -2,6 +2,35 @@ import DOMPurify from 'dompurify';
 import { Marked, type Tokens } from 'marked';
 import { createSignal, createEffect } from 'solid-js';
 import { highlightLines } from './shiki-highlighter';
+import { store } from '../store/store';
+import { BLOCKED_IMAGE_ATTR, blockExternalImage } from './offline-mode';
+
+/**
+ * DOMPurify `afterSanitizeAttributes` hook.
+ *
+ * That is the last point before the HTML reaches the document — and the fetch
+ * happens on insertion, so nothing earlier would help. The decision itself
+ * lives in `offline-mode.ts`, where it is unit-testable without a DOM; this is
+ * only the adapter. Only `<img>` is touched: an `<a>` is not fetched until it
+ * is clicked, and clicks already route through `shell.openExternal`.
+ */
+function stripExternalImageSources(node: Element): void {
+  blockExternalImage(node);
+}
+
+/** Sanitize, optionally neutralising external images on the way through. */
+function sanitize(raw: string, blockExternalImages: boolean): string {
+  const config = { ADD_ATTR: ['data-lang', BLOCKED_IMAGE_ATTR] };
+  if (!blockExternalImages) return DOMPurify.sanitize(raw, config);
+  DOMPurify.addHook('afterSanitizeAttributes', stripExternalImageSources);
+  try {
+    return DOMPurify.sanitize(raw, config);
+  } finally {
+    // Removes the hook just added. This module is the only place in the app
+    // that registers a DOMPurify hook, so there is nothing else to disturb.
+    DOMPurify.removeHook('afterSanitizeAttributes');
+  }
+}
 
 /**
  * Render markdown to HTML with Shiki syntax highlighting for fenced code blocks.
@@ -9,8 +38,14 @@ import { highlightLines } from './shiki-highlighter';
  * Two-pass approach:
  *  1. Walk tokens to collect code blocks, highlight them in parallel via Shiki.
  *  2. Render markdown, substituting highlighted HTML for each code block.
+ *
+ * `blockExternalImages` is a parameter rather than a store read, so the render
+ * path stays independent of app state; `createHighlightedMarkdown` supplies it.
  */
-export async function renderMarkdownWithHighlighting(markdown: string): Promise<string> {
+export async function renderMarkdownWithHighlighting(
+  markdown: string,
+  blockExternalImages = false,
+): Promise<string> {
   const marked = new Marked();
 
   // First pass — collect code blocks
@@ -44,7 +79,7 @@ export async function renderMarkdownWithHighlighting(markdown: string): Promise<
 
   marked.use({ renderer });
   const raw = marked.parser(tokens);
-  return DOMPurify.sanitize(raw, { ADD_ATTR: ['data-lang'] });
+  return sanitize(raw, blockExternalImages);
 }
 
 interface TokenLike {
@@ -105,17 +140,18 @@ export function createHighlightedMarkdown(source: () => string | undefined): () 
       setHtml('');
       return;
     }
+    // Read inside the effect so flipping the switch re-renders already-visible
+    // markdown, rather than leaving external images loaded until the next edit.
+    const blockExternalImages = store.offlineMode;
     const thisGen = ++generation;
-    renderMarkdownWithHighlighting(content)
+    renderMarkdownWithHighlighting(content, blockExternalImages)
       .then((result) => {
         if (thisGen === generation) setHtml(result);
       })
       .catch(() => {
         if (thisGen === generation) {
           setHtml(
-            DOMPurify.sanitize(new Marked().parse(content, { async: false }) as string, {
-              ADD_ATTR: ['data-lang'],
-            }),
+            sanitize(new Marked().parse(content, { async: false }) as string, blockExternalImages),
           );
         }
       });

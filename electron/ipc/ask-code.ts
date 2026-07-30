@@ -1,6 +1,7 @@
 import { spawn, type ChildProcess } from 'child_process';
 import type { BrowserWindow } from 'electron';
 import { validateCommand } from './pty.js';
+import { isOfflineMode, offlineMessage } from './offline.js';
 import {
   askAboutCodeMinimax,
   cancelAskAboutCodeMinimax,
@@ -32,6 +33,22 @@ const activeRequests = new RequestRegistry<ChildProcess>({
 
 export function askAboutCode(win: BrowserWindow, args: AskCodeRequest): void {
   const { requestId, channelId, prompt, cwd, provider } = args;
+
+  // Reported down the answer channel rather than thrown: the Ask panel renders
+  // `error` + `done` inline where the answer would have been, so the user reads
+  // the reason in the place they were already looking. A thrown IPC rejection
+  // would leave that panel spinning.
+  if (isOfflineMode()) {
+    const send = (msg: unknown) => {
+      if (!win.isDestroyed()) win.webContents.send(`channel:${channelId}`, msg);
+    };
+    send({
+      type: 'error',
+      text: offlineMessage(provider === 'minimax' ? 'ask-code-minimax' : 'ask-code-claude'),
+    });
+    send({ type: 'done', exitCode: 1 });
+    return;
+  }
 
   // Route to MiniMax backend when configured
   if (provider === 'minimax') {

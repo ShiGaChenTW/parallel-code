@@ -225,6 +225,25 @@ Parallel Code 應成為「本機 AI 軟體團隊的控制台」：開發者保�
 - 原始碼、task metadata、notes、設定與 terminal buffer 預設只存於本機。
 - UI 與隱私政策須清楚區分 Parallel Code 自身網路活動與第三方 CLI 的網路活動。
 - 渲染 Markdown 允許的外部圖片可能洩漏 IP，須在文件中揭露。
+- **Parallel Code 自身的對外連線點共有九個**（此數字先前記為三個，實際盤點後為九個）：
+  1. 更新檢查／下載（GitHub Releases，`electron/ipc/updater.ts`）
+  2. PR check 狀態輪詢（`gh` CLI，`electron/ipc/pr-checks.ts`）
+  3. Ask About Code — Claude CLI（`electron/ipc/ask-code.ts`）
+  4. Ask About Code — MiniMax API（`electron/ipc/ask-code-minimax.ts`）
+  5. 渲染 Markdown 中的外部圖片（`src/lib/marked-shiki.ts`）
+  6. Huly 同步（WebSocket，`electron/ipc/huly.ts`）
+  7. `git push`（`electron/ipc/git.ts`）
+  8. `git remote set-head origin --auto`（`electron/ipc/git.ts`）——**唯一沒有使用者手勢的隱式連線**，
+     只要遠端追蹤 ref 過期，開啟專案即會觸發
+  9. `docker build`（`electron/ipc/pty.ts`）
+- 上述九個必須全部受單一「離線模式」總開關控制（見 §13 Q3 裁決）。開關關閉時，
+  每個連線點都必須回報明確原因，不得靜默逾時或無限等待。
+- 離線模式**不涵蓋**第三方 AI CLI 自身的網路活動；文件必須明確寫出這條界線，
+  避免使用者誤以為開關能管到 Claude Code 等工具自己的連線。
+- 離線模式不得以網路層攔截（`session.webRequest` 之類）實作 —— 那會一併影響第三方 CLI，
+  且會把失敗模式變成靜默逾時。
+- Remote Access 與 MCP coordinator 是 **inbound** listener，不屬於這九個對外連線點，
+  由各自的啟動／停止控制，不受離線模式管轄。
 
 ### 7.2 安全
 
@@ -341,7 +360,9 @@ Parallel Code 應成為「本機 AI 軟體團隊的控制台」：開發者保�
 
 1. 「Ten agents」是行銷敘述、建議上限，還是未來應強制的全域上限？
 2. Coordinator 與 Arena 應維持進階功能，或成為主要 onboarding 的核心路徑？
-3. 是否要正式承諾完全離線模式；若是，更新檢查、外部 Markdown 圖片與 Ask About Code 應提供總開關。
+3. ~~是否要正式承諾完全離線模式；若是，更新檢查、外部 Markdown 圖片與 Ask About Code 應提供總開關。~~
+   **已裁決：要。** 已實作單一總開關（Settings → Privacy → Offline mode）。
+   本題原先只列出三個連線點，實際盤點為九個，完整清單見 §7.1。
 4. Remote Access 是否預期只服務單一使用者；若要多人使用，需新增裝置管理、撤銷與 audit log。
 5. Windows 是永久非目標，或僅為目前 release gap？
 6. 是否接受 opt-in diagnostics；若不接受，成功指標需維持純本機 dashboard 或使用者研究。
