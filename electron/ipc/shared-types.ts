@@ -142,7 +142,13 @@ export interface StepEntry {
 // Kept a type, not a value array: `src/ipc/types.ts` re-exports this module
 // type-only, and dependency-cruiser forbids the renderer importing anything
 // runtime out of `electron/`. Each side lists the providers it needs to iterate.
-export type ProviderId = 'claude' | 'codex' | 'grok';
+// `claude-vertex` is not a separate CLI and has no log directory of its own: it
+// is Claude Code pointed at Google's Vertex AI, writing into the same
+// `~/.claude/projects` tree. It is a separate account against a separate quota,
+// so it gets its own column rather than being summed into `claude`. It has no
+// entry in the provider status list for the same reason — there is nothing
+// separate for the user to install or be missing.
+export type ProviderId = 'claude' | 'claude-vertex' | 'codex' | 'grok';
 
 /**
  * Four disjoint token counts. Each provider reports these differently — some

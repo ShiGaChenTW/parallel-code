@@ -6,10 +6,11 @@
 
 import type { ProviderId, TokenTotals, TokenUsagePathRow } from '../ipc/types';
 
-export const TOKEN_PROVIDERS: readonly ProviderId[] = ['claude', 'codex', 'grok'];
+export const TOKEN_PROVIDERS: readonly ProviderId[] = ['claude', 'claude-vertex', 'codex', 'grok'];
 
 export const PROVIDER_LABELS: Record<ProviderId, string> = {
   claude: 'Claude',
+  'claude-vertex': 'Claude (Vertex)',
   codex: 'Codex',
   grok: 'Grok',
 };

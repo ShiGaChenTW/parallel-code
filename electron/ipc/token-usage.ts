@@ -34,34 +34,43 @@ import type {
 } from './shared-types.js';
 import {
   ZERO_TOTALS,
-  accumulateMonotonic,
   addTotals,
   aggregateUsage,
   claudeProjectSlug,
+  claudeTotalsByPath,
+  createCodexDeltaState,
   foldClaudeLines,
   foldCodexLines,
   foldGrokLines,
+  isZeroTotals,
   matchKnownPath,
+  parseCodexSessionMeta,
   splitCompleteLines,
+  type ClaudeSeenRecord,
+  type CodexDeltaState,
   type UsageContribution,
 } from './token-usage-parse.js';
 
-const PROVIDERS: readonly ProviderId[] = ['claude', 'codex', 'grok'];
+/** Providers with a log location of their own, in scan order. `claude-vertex`
+ *  is absent deliberately: it comes out of the Claude scan, not a directory. */
+const PROVIDERS = ['claude', 'codex', 'grok'] as const satisfies readonly ProviderId[];
 
 /** Debounce before a rescan, matching the 200ms used by steps/handoff, doubled
  *  because an active agent appends to these files far more often than it
  *  rewrites `steps.json`. */
 const DEBOUNCE_MS = 400;
 
-/** Bytes of a codex rollout read from the front, to find `session_meta.cwd`.
- *  It is the first line of the file; 8 KB is several times its observed size. */
-const CODEX_HEAD_BYTES = 8 * 1024;
+/** Step size for the probe that reads a codex rollout's first line to find its
+ *  `session_meta`. R3 used a flat 8 KB on the belief that the first line was a
+ *  few hundred bytes; measured across all 261 rollouts on this machine the first
+ *  line runs 6.3 KB to 43.9 KB, because `base_instructions` is embedded in it,
+ *  and 232 of them — 89% — were therefore truncated mid-line and resolved no
+ *  working directory at all. One 64 KB step now covers every observed file. */
+const CODEX_HEAD_STEP_BYTES = 64 * 1024;
 
-/** Bytes of a codex rollout read from the end, to find the last cumulative
- *  `token_count`. Rollouts reach 50 MB+ and the counter is cumulative, so the
- *  tail is all that is ever needed. Sized well above the largest observed gap
- *  between consecutive token_count records. */
-const CODEX_TAIL_BYTES = 256 * 1024;
+/** Ceiling for that probe, so a rollout with no newline at all cannot pull the
+ *  whole file into memory. */
+const CODEX_HEAD_MAX_BYTES = 1024 * 1024;
 
 /** Chunk size for the append-oriented readers. Bounds peak memory when a file
  *  is read for the first time — a 24 MB transcript directory is normal. */
@@ -169,19 +178,23 @@ interface AppendState {
   remainder: string;
 }
 
-interface ClaudeFileState extends AppendState {
-  byPath: Map<string, TokenTotals>;
-}
+type ClaudeFileState = AppendState;
 
-interface CodexFileState {
-  size: number;
-  mtimeMs: number;
-  cwd: string | null;
-  /** Last cumulative reading, for restart detection. */
-  previous: TokenTotals | null;
-  /** Tokens counted before a counter restart. */
-  carried: TokenTotals;
-  total: TokenTotals;
+/**
+ * A rollout being followed incrementally.
+ *
+ * R3 read only the last 256 KB, because the cumulative counter meant the final
+ * record answered for the whole file. Per-event attribution ends that: the
+ * directory in force and the day are properties of individual events, so the
+ * events have to be walked. The file is append-only, so the walk is incremental
+ * and the cost is paid once per rollout rather than once per scan — and only for
+ * rollouts that belong to a worktree the app knows.
+ */
+interface CodexFileState extends AppendState {
+  /** Null until the head probe has run; `false` once it ran and found nothing. */
+  probed: boolean;
+  delta: CodexDeltaState;
+  byPath: Map<string, TokenTotals>;
 }
 
 interface GrokState extends AppendState {
@@ -192,10 +205,11 @@ interface GrokState extends AppendState {
 /** Per-file read state. Survives watcher restarts (the known-path set changes
  *  whenever a task opens or closes) so a re-subscribe costs nothing. */
 const claudeFiles = new Map<string, ClaudeFileState>();
-/** Dedupe keys per project directory. The duplicates are cross-file — resuming
- *  a session rewrites earlier assistant messages into a new transcript — so the
- *  set has to outlive any single file's state. */
-const claudeSeen = new Map<string, Set<string>>();
+/** Deduplicated records per project directory. The duplicates are cross-file —
+ *  resuming a session rewrites earlier assistant messages into a new transcript
+ *  — so the map has to outlive any single file's state. It holds the record and
+ *  not merely its key so that the last write for a key wins. */
+const claudeSeen = new Map<string, Map<string, ClaudeSeenRecord>>();
 const codexFiles = new Map<string, CodexFileState>();
 let grokState: GrokState | null = null;
 
@@ -208,6 +222,27 @@ export function resetTokenUsageState(): void {
   codexFiles.clear();
   grokState = null;
   skippedByProvider.clear();
+}
+
+/**
+ * Resolves a recorded directory against the app's worktrees.
+ *
+ * The existence check is what stops a deleted worktree being folded into a
+ * surviving ancestor; see `matchKnownPath`. Results are cached for the duration
+ * of one snapshot because the same handful of directories appears across
+ * thousands of records, and are dropped afterwards so a worktree created or
+ * removed between scans is noticed.
+ */
+function makeResolver(knownPaths: readonly string[]): (recorded: string) => string | null {
+  const exists = new Map<string, boolean>();
+  return (recorded) => {
+    let present = exists.get(recorded);
+    if (present === undefined) {
+      present = fs.existsSync(recorded);
+      exists.set(recorded, present);
+    }
+    return matchKnownPath(recorded, knownPaths, { candidateExists: present });
+  };
 }
 
 function addSkipped(provider: ProviderId, n: number): void {
@@ -228,7 +263,10 @@ function addSkipped(provider: ProviderId, n: number): void {
  * this affordable, and it also means transcripts for unrelated work are never
  * opened at all.
  */
-async function scanClaude(knownPaths: readonly string[]): Promise<{
+async function scanClaude(
+  knownPaths: readonly string[],
+  resolve: (recorded: string) => string | null,
+): Promise<{
   contributions: UsageContribution[];
   status: TokenUsageProviderStatus;
 }> {
@@ -288,41 +326,43 @@ async function scanClaude(knownPaths: readonly string[]): Promise<{
       for (const { file } of transcripts) claudeFiles.delete(file);
     }
 
-    const seen = claudeSeen.get(dir) ?? new Set<string>();
+    const seen = claudeSeen.get(dir) ?? new Map<string, ClaudeSeenRecord>();
     claudeSeen.set(dir, seen);
 
     for (const { file, stat } of transcripts) {
       let state = claudeFiles.get(file);
       if (!state) {
-        state = { ino: stat.ino, offset: 0, remainder: '', byPath: new Map() };
+        state = { ino: stat.ino, offset: 0, remainder: '' };
         claudeFiles.set(file, state);
       }
+      if (stat.size <= state.offset) continue;
 
-      if (stat.size > state.offset) {
-        const active = state;
-        try {
-          active.remainder = await readLineRange(
-            file,
-            active.offset,
-            stat.size,
-            active.remainder,
-            (lines) => {
-              const { byPath, skipped } = foldClaudeLines(lines, seen, known);
-              addSkipped('claude', skipped);
-              for (const [p, t] of byPath) {
-                active.byPath.set(p, addTotals(active.byPath.get(p) ?? ZERO_TOTALS, t));
-              }
-            },
-          );
-          active.offset = stat.size;
-        } catch (err) {
-          logWarn('token-usage', 'claude file read failed', { err: errMessage(err) });
-        }
+      const active = state;
+      try {
+        active.remainder = await readLineRange(
+          file,
+          active.offset,
+          stat.size,
+          active.remainder,
+          (lines) => addSkipped('claude', foldClaudeLines(lines, seen, known).skipped),
+        );
+        active.offset = stat.size;
+      } catch (err) {
+        logWarn('token-usage', 'claude file read failed', { err: errMessage(err) });
       }
+    }
 
-      for (const [recorded, t] of state.byPath) {
-        const target = matchKnownPath(recorded, knownPaths);
-        if (target !== null) contributions.push({ path: target, provider: 'claude', totals: t });
+    // Totals come off the directory's deduplicated record map rather than being
+    // accumulated per file, because a duplicate can be resolved only once every
+    // copy of it has been seen — and the copies live in different transcripts.
+    for (const [recorded, vendors] of claudeTotalsByPath(seen)) {
+      const target = resolve(recorded);
+      if (target === null) continue;
+      if (!isZeroTotals(vendors.anthropic)) {
+        contributions.push({ path: target, provider: 'claude', totals: vendors.anthropic });
+      }
+      if (!isZeroTotals(vendors.vertex)) {
+        contributions.push({ path: target, provider: 'claude-vertex', totals: vendors.vertex });
       }
     }
   }
@@ -359,22 +399,56 @@ async function listCodexRollouts(root: string): Promise<string[]> {
 }
 
 /**
+ * Reads a rollout's first line, however long it turns out to be.
+ *
+ * `session_meta` is line one and carries the working directory, the creation
+ * time and whether the session was forked. Its size is dominated by the model's
+ * base instructions, which grow with the CLI, so the probe grows with the file
+ * rather than assuming a size. It stops at the first newline, so a rollout that
+ * has resolved once costs one 64 KB read forever.
+ */
+async function readCodexSessionMeta(file: string, size: number) {
+  let text = '';
+  while (text.length < CODEX_HEAD_MAX_BYTES && text.length < size) {
+    const chunk = await readSlice(
+      file,
+      text.length,
+      Math.min(CODEX_HEAD_STEP_BYTES, size - text.length),
+    );
+    if (chunk.length === 0) break;
+    text += chunk;
+    const newline = text.indexOf('\n');
+    if (newline !== -1) return parseCodexSessionMeta(text.slice(0, newline));
+  }
+  return parseCodexSessionMeta(text);
+}
+
+/**
  * Two-phase read, because a rollout's working directory is inside the file.
  *
- * Phase one reads 8 KB from the front of any rollout whose directory is not
- * already cached — `session_meta` is line one — which costs about 2 MB across
- * the whole tree and, once cached, never repeats for that file. Phase two reads
- * 256 KB from the end, and only for rollouts that belong to a known worktree
- * and have changed since last time. The tail is enough because
- * `total_token_usage` is cumulative, so the last record in the file is the
- * answer for the entire file however large it has grown.
+ * Phase one probes the first line of any rollout not already classified, which
+ * costs one bounded read per rollout and, once cached, never repeats. Phase two
+ * follows the file incrementally — but only for rollouts whose session opened in
+ * a worktree the app knows, which on the machine this was built against is a
+ * small fraction of the 531 MB tree.
  *
- * The cost of this shape is that a rollout whose `cwd` changes mid-session
- * keeps the directory it was created in unless a `turn_context` happens to fall
- * inside the tail window. Sessions do not normally move, and the alternative is
- * re-reading half a gigabyte on every keystroke.
+ * R3 read the tail alone and took the last cumulative reading. That is the right
+ * answer for "what did this session cost" and the wrong one here, because a
+ * single cumulative number cannot be divided between two worktrees or two days.
+ * Following the events is what makes `cwd` changing mid-session mean something,
+ * and it is also what lets a forked rollout's replayed parent history be
+ * skipped instead of charged twice.
+ *
+ * What this shape still cannot see is a session that starts outside every known
+ * worktree and later moves into one; that file is never opened past its first
+ * line. Reading every rollout in full to catch it would mean half a gigabyte per
+ * scan, and a session that begins outside the app's own worktrees is not one the
+ * app dispatched.
  */
-async function scanCodex(knownPaths: readonly string[]): Promise<{
+async function scanCodex(
+  knownPaths: readonly string[],
+  resolve: (recorded: string) => string | null,
+): Promise<{
   contributions: UsageContribution[];
   status: TokenUsageProviderStatus;
 }> {
@@ -401,22 +475,36 @@ async function scanCodex(knownPaths: readonly string[]): Promise<{
     }
 
     let state = codexFiles.get(file);
+    if (state && (state.ino !== stat.ino || stat.size < state.offset)) {
+      // Rewritten in place or replaced. Deltas are only meaningful against the
+      // watermark that produced them, so the whole file's state goes.
+      state = undefined;
+      codexFiles.delete(file);
+    }
     if (!state) {
       state = {
-        size: -1,
-        mtimeMs: -1,
-        cwd: null,
-        previous: null,
-        carried: ZERO_TOTALS,
-        total: ZERO_TOTALS,
+        ino: stat.ino,
+        offset: 0,
+        remainder: '',
+        probed: false,
+        delta: createCodexDeltaState(),
+        byPath: new Map(),
       };
       codexFiles.set(file, state);
     }
 
-    if (state.cwd === null) {
+    if (!state.probed) {
       try {
-        const head = await readSlice(file, 0, CODEX_HEAD_BYTES);
-        state.cwd = foldCodexLines(splitCompleteLines(head).lines).cwd;
+        const meta = await readCodexSessionMeta(file, stat.size);
+        state.probed = true;
+        if (meta) {
+          state.delta.cwd = meta.cwd;
+          state.delta.sessionStartMs = meta.startedAtMs;
+          state.delta.inherited = meta.inherited;
+          // The probe read this rollout's own `session_meta`. A later one is the
+          // parent's, replayed, and must not be allowed to replace it.
+          state.delta.identified = true;
+        }
       } catch (err) {
         if (!isMissing(err)) {
           logWarn('token-usage', 'codex head read failed', { err: errMessage(err) });
@@ -425,36 +513,37 @@ async function scanCodex(knownPaths: readonly string[]): Promise<{
       }
     }
 
-    const target = state.cwd === null ? null : matchKnownPath(state.cwd, knownPaths);
-    if (target === null) continue;
+    // The probe decides whether this rollout is ours to read at all. It uses the
+    // raw known-path test rather than the existence-aware resolver, because a
+    // session recorded in a directory that has since been deleted still has to
+    // be read before it can be attributed — or not — per event.
+    if (state.delta.cwd === null || matchKnownPath(state.delta.cwd, knownPaths) === null) continue;
 
-    const changed = stat.size !== state.size || stat.mtimeMs !== state.mtimeMs;
-    if (changed) {
+    if (stat.size > state.offset) {
+      const active = state;
       try {
-        const from = Math.max(0, stat.size - CODEX_TAIL_BYTES);
-        const tail = await readSlice(file, from, stat.size - from);
-        // Drop the first line when we started mid-file: it is a fragment.
-        const raw = tail.split('\n');
-        const lines = from > 0 ? raw.slice(1) : raw;
-        const summary = foldCodexLines(lines);
-        addSkipped('codex', summary.skipped);
-        if (summary.cwd !== null) state.cwd = summary.cwd;
-        if (summary.totals !== null) {
-          const next = accumulateMonotonic(state.previous, state.carried, summary.totals);
-          state.previous = summary.totals;
-          state.carried = next.carried;
-          state.total = next.total;
-        }
-        state.size = stat.size;
-        state.mtimeMs = stat.mtimeMs;
+        active.remainder = await readLineRange(
+          file,
+          active.offset,
+          stat.size,
+          active.remainder,
+          (lines) => {
+            const { byPath, skipped } = foldCodexLines(lines, active.delta);
+            addSkipped('codex', skipped);
+            for (const [p, t] of byPath) {
+              active.byPath.set(p, addTotals(active.byPath.get(p) ?? ZERO_TOTALS, t));
+            }
+          },
+        );
+        active.offset = stat.size;
       } catch (err) {
-        logWarn('token-usage', 'codex tail read failed', { err: errMessage(err) });
+        logWarn('token-usage', 'codex read failed', { err: errMessage(err) });
       }
     }
 
-    const resolved = state.cwd === null ? null : matchKnownPath(state.cwd, knownPaths);
-    if (resolved !== null) {
-      contributions.push({ path: resolved, provider: 'codex', totals: state.total });
+    for (const [recorded, totals] of state.byPath) {
+      const target = resolve(recorded);
+      if (target !== null) contributions.push({ path: target, provider: 'codex', totals });
     }
   }
 
@@ -485,7 +574,10 @@ async function scanCodex(knownPaths: readonly string[]): Promise<{
  * usage line whose session record went with them must not be attributed by
  * guesswork.
  */
-async function scanGrok(knownPaths: readonly string[]): Promise<{
+async function scanGrok(
+  _knownPaths: readonly string[],
+  resolve: (recorded: string) => string | null,
+): Promise<{
   contributions: UsageContribution[];
   status: TokenUsageProviderStatus;
 }> {
@@ -539,7 +631,7 @@ async function scanGrok(knownPaths: readonly string[]): Promise<{
   }
 
   for (const [recorded, t] of state.byPath) {
-    const target = matchKnownPath(recorded, knownPaths);
+    const target = resolve(recorded);
     if (target !== null) contributions.push({ path: target, provider: 'grok', totals: t });
   }
 
@@ -565,8 +657,11 @@ export async function buildTokenUsageSnapshot(
   knownPaths: readonly string[],
 ): Promise<TokenUsageSnapshot> {
   const scanners: Record<
-    ProviderId,
-    (paths: readonly string[]) => Promise<{
+    (typeof PROVIDERS)[number],
+    (
+      paths: readonly string[],
+      resolve: (recorded: string) => string | null,
+    ) => Promise<{
       contributions: UsageContribution[];
       status: TokenUsageProviderStatus;
     }>
@@ -574,10 +669,11 @@ export async function buildTokenUsageSnapshot(
 
   const contributions: UsageContribution[] = [];
   const providers: TokenUsageProviderStatus[] = [];
+  const resolve = makeResolver(knownPaths);
 
   for (const provider of PROVIDERS) {
     try {
-      const result = await scanners[provider](knownPaths);
+      const result = await scanners[provider](knownPaths, resolve);
       contributions.push(...result.contributions);
       providers.push(result.status);
     } catch (err) {

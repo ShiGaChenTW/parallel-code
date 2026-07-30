@@ -85,6 +85,22 @@ describe('visibleProviderColumns', () => {
     expect(visibleProviderColumns([row({ codex: t(0) })])).toEqual([]);
   });
 
+  // Vertex-served Claude is a separate account against a separate quota, so it
+  // gets a column of its own — and, like every other provider, only once it has
+  // actually contributed. There are none on this machine, so the ordinary case
+  // is that the column never appears.
+  it('gives Vertex-served Claude its own labelled column beside Claude', () => {
+    const columns = visibleProviderColumns([row({ claude: t(10), 'claude-vertex': t(5) })]);
+    expect(columns.map((c) => c.provider)).toEqual(['claude', 'claude-vertex']);
+    expect(columns.map((c) => c.label)).toEqual(['Claude', 'Claude (Vertex)']);
+  });
+
+  it('shows no Vertex column when nothing was served by Vertex', () => {
+    expect(visibleProviderColumns([row({ claude: t(10) })]).map((c) => c.provider)).toEqual([
+      'claude',
+    ]);
+  });
+
   it('returns nothing for no rows', () => {
     expect(visibleProviderColumns([])).toEqual([]);
   });
