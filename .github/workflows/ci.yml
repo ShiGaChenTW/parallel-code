@@ -25,6 +25,12 @@ jobs:
       - name: Check static (typecheck + lint + dead code + architecture)
         run: npm run check:static
 
+      # Guards the renderer bundle against dependency-scale regressions. An
+      # unused monaco-editor import once cost 3.7 MB in the entry chunk with no
+      # failing check; knip could not see it because the import chain was live.
+      - name: Check bundle size
+        run: npm run check:bundle
+
       - name: Install Semgrep
         run: |
           pipx install semgrep
