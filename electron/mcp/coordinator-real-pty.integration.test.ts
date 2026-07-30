@@ -139,6 +139,155 @@ async function waitForCapture(
   return readCapture(capturePath);
 }
 
+/**
+ * Two sibling sub-tasks under one coordinator, both driven by real PTYs.
+ *
+ * The target runs with `--newline-submits`, modelling an agent whose line
+ * editor treats LF as Enter — precisely the agent wave P said it could not
+ * protect. Everything here is measured at the far end of a real pty, not
+ * asserted against a mock write.
+ */
+async function withRelayPair(
+  fn: (ctx: {
+    coordinator: Coordinator;
+    source: { id: string };
+    target: { id: string };
+    targetCapture: string;
+    sourceCapture: string;
+  }) => Promise<void>,
+): Promise<void> {
+  const repo = createRepo();
+  const captureDir = join(repo, '.captures');
+  const sourceCapture = join(captureDir, 'relay-source.jsonl');
+  const targetCapture = join(captureDir, 'relay-target.jsonl');
+  const command = createFakeCommand(repo, 'relay');
+  const coordinator = new Coordinator();
+  const created: string[] = [];
+
+  try {
+    coordinator.setWindow(mockWin);
+    coordinator.setDefaultProject('proj-1', repo);
+    coordinator.registerCoordinator('coord-1', 'proj-1', {
+      branchName: 'main',
+      worktreePath: repo,
+    });
+
+    coordinator.setCoordinatorSpawnDefaults('coord-1', command, [
+      '--profile',
+      'codex',
+      '--capture',
+      sourceCapture,
+    ]);
+    const source = await coordinator.createTask({
+      name: 'relay source',
+      prompt: 'Produce some multi-line output for the sibling task.',
+      coordinatorTaskId: 'coord-1',
+    });
+    created.push(source.id);
+
+    coordinator.setCoordinatorSpawnDefaults('coord-1', command, [
+      '--profile',
+      'codex',
+      '--capture',
+      targetCapture,
+      // No bracketed paste advertised, and LF submits. The worst case.
+      '--newline-submits',
+    ]);
+    const target = await coordinator.createTask({
+      name: 'relay target',
+      prompt: 'Wait for the coordinator.',
+      coordinatorTaskId: 'coord-1',
+    });
+    created.push(target.id);
+
+    // Wait for each assignment to actually land, matched by its own text — a
+    // bare "at least one record" check races with the second delivery and makes
+    // the later "exactly one relay submission" count unreliable.
+    await waitForCapture(sourceCapture, (items) =>
+      items.some((i) => i.payload.includes('Produce some multi-line output')),
+    );
+    await waitForCapture(targetCapture, (items) =>
+      items.some((i) => i.payload.includes('Wait for the coordinator')),
+    );
+
+    await fn({ coordinator, source, target, targetCapture, sourceCapture });
+  } finally {
+    for (const id of created) {
+      await coordinator.closeTask(id).catch(() => undefined);
+    }
+    rmSync(captureDir, { recursive: true, force: true });
+    rmSync(repo, { recursive: true, force: true });
+  }
+}
+
+describeRealPty('Coordinator real PTY relay delivery', () => {
+  it('delivers a multi-line relay body as exactly one submission on an LF-submits agent', async () => {
+    await withRelayPair(async ({ coordinator, source, target, targetCapture }) => {
+      // The source's scrollback is genuinely multi-line by now: banner, prompt
+      // marker, "working...", and the echo of its own assignment.
+      expect(coordinator.getTaskOutput(source.id)).toContain('\n');
+
+      const before = readCapture(targetCapture).length;
+      // Whether this writes straight through or lands in the pending-prompt
+      // FIFO is timing, not the property under test — either way it must reach
+      // the PTY as one submission, so the assertion is on what arrives.
+      await coordinator.relayToTask({
+        fromTaskId: source.id,
+        toTaskId: target.id,
+        source: 'output',
+        note: 'this is what the sibling has been doing',
+      });
+
+      const records = await waitForCapture(
+        targetCapture,
+        (items) =>
+          items.length > before &&
+          items.slice(before).some((i) => i.payload.includes('RELAY_BODY_JSON=')),
+      );
+      const delivered = records.slice(before);
+
+      // One submission. Not one per line of the relayed body.
+      expect(delivered).toHaveLength(1);
+
+      const payload = delivered[0].payload;
+      // Every fragment is under the one provenance header, because there is
+      // only one fragment.
+      expect(payload).toContain('Relayed by the coordinator agent through relay_to_task');
+      expect(payload).toContain('this is what the sibling has been doing');
+      expect(payload).not.toContain('\n');
+
+      // The multi-line source content survives, escaped and recoverable.
+      const body = JSON.parse(payload.slice(payload.indexOf('RELAY_BODY_JSON=') + 16)) as string;
+      expect(body).toContain('\n');
+    });
+  }, 30_000);
+
+  it('shows the hazard is real: a multi-line send_prompt splits on the same agent', async () => {
+    await withRelayPair(async ({ coordinator, target, targetCapture }) => {
+      // The control case. `send_prompt` preserves `\n` by design (wave P's D3,
+      // because SUB_TASK_PREAMBLE is multi-line), so on this agent a multi-line
+      // prompt arrives as several submissions and only the first carries the
+      // provenance header. That is the outcome relay_to_task has to avoid, and
+      // it is measured here rather than assumed.
+      const before = readCapture(targetCapture).length;
+      await coordinator.sendPrompt(target.id, 'first fragment\nsecond fragment\nthird fragment');
+
+      const records = await waitForCapture(
+        targetCapture,
+        (items) => items.slice(before).length >= 3,
+      );
+      const delivered = records.slice(before);
+
+      expect(delivered.length).toBeGreaterThan(1);
+      const unmarked = delivered.filter(
+        (item) => !item.payload.includes('[parallel-code]') && item.payload.trim(),
+      );
+      expect(unmarked.length).toBeGreaterThan(0);
+      expect(unmarked.some((item) => item.payload.includes('second fragment'))).toBe(true);
+    });
+  }, 30_000);
+});
+
 describeRealPty('Coordinator real PTY initial prompt delivery', () => {
   it.each(['codex', 'claude', 'gemini', 'copilot'])(
     'sends a new coordinated task assignment to a fake %s agent exactly once',

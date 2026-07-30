@@ -31,6 +31,7 @@ import {
 } from '../ipc/transcript.js';
 import type { Coordinator } from '../mcp/coordinator.js';
 import { validateBranchName } from '../mcp/validation.js';
+import { isRelaySourceKind, RELAY_SOURCE_KINDS } from '../shared/relay-payload.js';
 import type { ApiTaskDetail, LandSelfInput, SubtaskVerification } from '../mcp/types.js';
 
 // --- MCP log ring buffer ---
@@ -498,6 +499,50 @@ function handleSendPrompt(ctx: CoordinatorRouteContext, taskId: string): void {
     });
 }
 
+/**
+ * `relay_to_task`: copy one sub-task's output/diff into a sibling.
+ *
+ * Two ownership checks, not one. The path task ID is the *target* and goes
+ * through the shared `requireTask`, exactly like send_prompt. The source task ID
+ * arrives in the body, so it gets its own `requireTask` — without that, a
+ * coordinator could name any task in the workspace as a source and read its
+ * terminal contents out through a task it does own. The coordinator layer
+ * repeats the check (both ends under the same parent) for in-process callers
+ * that never touch this route.
+ */
+function handleRelayToTask(ctx: CoordinatorRouteContext, taskId: string): void {
+  ctx
+    .readBody()
+    .then(async (body) => {
+      if (typeof body.fromTaskId !== 'string' || !body.fromTaskId.trim())
+        return ctx.jsonReply(400, { error: 'fromTaskId must be a non-empty string' });
+      if (!isRelaySourceKind(body.source))
+        return ctx.jsonReply(400, {
+          error: `source must be one of ${RELAY_SOURCE_KINDS.join(', ')}`,
+        });
+      const note = validateRestRoleField(body.note, 'note');
+      if (typeof note === 'object') return ctx.jsonReply(400, note);
+      if (!ctx.requireTask(taskId)) return;
+      if (!ctx.requireTask(body.fromTaskId)) return;
+      mcpLog('info', `relay_to_task from=${body.fromTaskId} to=${taskId} source=${body.source}`);
+      const result = await ctx.orch.relayToTask({
+        fromTaskId: body.fromTaskId,
+        toTaskId: taskId,
+        source: body.source,
+        note,
+      });
+      mcpLog(
+        'info',
+        `relay_to_task OK to=${taskId} queued=${result.queued} truncated=${result.truncated}`,
+      );
+      ctx.jsonReply(200, { ok: true, ...result });
+    })
+    .catch((err) => {
+      mcpLog('error', `relay_to_task FAIL: ${String(err)}`);
+      ctx.jsonReply(500, { error: String(err) });
+    });
+}
+
 function handleWaitForIdle(ctx: CoordinatorRouteContext, taskId: string): void {
   ctx
     .readBody()
@@ -672,6 +717,7 @@ const COORDINATOR_TASK_ROUTES: Array<{
 }> = [
   { subpath: null, method: 'GET', handler: handleGetTaskStatus },
   { subpath: 'prompt', method: 'POST', handler: handleSendPrompt },
+  { subpath: 'relay', method: 'POST', handler: handleRelayToTask },
   { subpath: 'wait', method: 'POST', handler: handleWaitForIdle },
   { subpath: 'review-merge', method: 'POST', handler: handleReviewAndMerge },
   { subpath: 'diff', method: 'GET', handler: handleGetTaskDiff },

@@ -110,6 +110,35 @@ export const COORDINATOR_TOOLS: ToolDef[] = [
     },
   },
   {
+    // Deliberately absent from SUBTASK_TOOLS, and it must stay that way.
+    // `writeToAgent` has no per-caller authorisation, so a sub-task able to
+    // nominate an arbitrary target task could drive any task in the workspace.
+    // Relay stays hub-and-spoke: only the coordinator moves data, and only
+    // between sub-tasks it already owns.
+    name: 'relay_to_task',
+    description:
+      "Copy one sub-task's recent terminal output or git diff into another sub-task of yours, in a single call. The backend reads the source content itself, so you do not need to fetch and paste it. Both tasks must be sub-tasks of the same coordinator. The relayed content arrives labelled as quoted data from the source task, on one line, with newlines encoded — it is not delivered as if you had written it. Use send_prompt when you want to instruct a task in your own words.",
+    inputSchema: {
+      type: 'object',
+      properties: {
+        fromTaskId: { type: 'string', description: 'Task ID to copy content from.' },
+        toTaskId: { type: 'string', description: 'Task ID to deliver the copied content to.' },
+        source: {
+          type: 'string',
+          enum: ['output', 'diff'],
+          description:
+            "What to copy: 'output' for the source task's recent terminal output, 'diff' for its changed files and unified diff.",
+        },
+        note: {
+          type: 'string',
+          description:
+            'Optional one-line note in your own words explaining why you are relaying this. Delivered outside the quoted block so the target can tell your words from the copied content.',
+        },
+      },
+      required: ['fromTaskId', 'toTaskId', 'source'],
+    },
+  },
+  {
     name: 'wait_for_idle',
     description:
       "Wait until a task's agent becomes idle (sitting at its prompt). Returns when the agent is ready for the next instruction.",

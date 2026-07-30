@@ -136,3 +136,66 @@ describe('selectTools — role-based tool list', () => {
     }
   });
 });
+
+describe('relay_to_task — coordinator-only by construction', () => {
+  it('is offered to coordinators', () => {
+    expect(selectTools('', 'coordinator-xyz').map((t: ToolDef) => t.name)).toContain(
+      'relay_to_task',
+    );
+  });
+
+  it('is absent from SUBTASK_TOOLS, which still holds exactly two tools', () => {
+    // The invariant stated two ways, so a future edit cannot satisfy one and
+    // quietly break the other: relay is not in the list, and the list has not
+    // grown.
+    expect(SUBTASK_TOOLS.map((t: ToolDef) => t.name)).toStrictEqual(['land_self', 'signal_done']);
+    expect(SUBTASK_TOOLS.map((t: ToolDef) => t.name)).not.toContain('relay_to_task');
+  });
+
+  it('is not visible to a sub-task caller', () => {
+    // `writeToAgent` has no per-caller authorisation, so a sub-task able to
+    // nominate an arbitrary target task could drive any task in the workspace.
+    // An upward request (`ask_coordinator`) is a separate, later decision;
+    // sideways is never allowed.
+    expect(selectTools('task-abc', '').map((t: ToolDef) => t.name)).not.toContain('relay_to_task');
+  });
+
+  it('offers no tool at all that lets a sub-task address another task', () => {
+    const names = selectTools('task-abc', '').map((t: ToolDef) => t.name);
+    for (const forbidden of ['relay_to_task', 'send_prompt', 'send_to_task', 'ask_coordinator']) {
+      expect(names).not.toContain(forbidden);
+    }
+  });
+
+  it('requires both endpoints and the source kind', () => {
+    const relay = COORDINATOR_TOOLS.find((tool) => tool.name === 'relay_to_task');
+    expect(relay?.inputSchema.required).toStrictEqual(['fromTaskId', 'toTaskId', 'source']);
+  });
+
+  it('constrains source to output or diff', () => {
+    const relay = COORDINATOR_TOOLS.find((tool) => tool.name === 'relay_to_task');
+    const properties = relay?.inputSchema.properties as
+      | Record<string, Record<string, unknown>>
+      | undefined;
+    expect(properties?.source?.enum).toStrictEqual(['output', 'diff']);
+  });
+
+  it('declares the note as optional free text', () => {
+    const relay = COORDINATOR_TOOLS.find((tool) => tool.name === 'relay_to_task');
+    const properties = relay?.inputSchema.properties as
+      | Record<string, { type?: string }>
+      | undefined;
+    expect(properties?.note?.type).toBe('string');
+    expect(relay?.inputSchema.required).not.toContain('note');
+  });
+
+  it('tells the coordinator the relay is scoped to its own sub-tasks', () => {
+    const relay = COORDINATOR_TOOLS.find((tool) => tool.name === 'relay_to_task');
+    expect(relay?.description).toContain('sub-tasks of the same coordinator');
+  });
+
+  it('tells the coordinator the content arrives labelled as quoted data', () => {
+    const relay = COORDINATOR_TOOLS.find((tool) => tool.name === 'relay_to_task');
+    expect(relay?.description).toContain('quoted data');
+  });
+});
