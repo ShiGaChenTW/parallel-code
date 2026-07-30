@@ -15,7 +15,7 @@ import type {
   PersistedWindowState,
   Project,
 } from './types';
-import type { AgentDef } from '../ipc/types';
+import type { AgentDef, HulyIssue } from '../ipc/types';
 import { inferDockerSource } from '../lib/docker';
 import { DEFAULT_TERMINAL_FONT } from '../lib/fonts';
 import { isLookPreset } from '../lib/look';
@@ -163,6 +163,8 @@ function toPersistedTask(task: Task, agentDefs: AgentDef[], collapsed?: boolean)
     landingReason: task.landingReason,
     landingSummary: task.landingSummary,
     landedMetadata: task.landedMetadata,
+    hulyIssueId: task.hulyIssueId,
+    hulyIssueIdentifier: task.hulyIssueIdentifier,
   };
 }
 
@@ -210,6 +212,11 @@ export async function saveState(): Promise<void> {
     activeCustomThemeId: store.activeCustomThemeId ?? undefined,
     appearanceMode: store.appearanceMode !== 'dark' ? store.appearanceMode : undefined,
     locale: store.locale !== 'en' ? store.locale : undefined,
+    hulyProjectIdentifier: store.hulyProjectIdentifier || undefined,
+    // Cached so the picker renders instantly and still works offline. Refreshed
+    // on open when stale; never treated as authoritative.
+    hulyIssues: store.hulyIssues.length > 0 ? store.hulyIssues : undefined,
+    hulyIssuesFetchedAt: store.hulyIssuesFetchedAt || undefined,
     lightThemePreset:
       store.lightThemePreset !== 'islands-light' ? store.lightThemePreset : undefined,
     lightThemeCustomId: store.lightThemeCustomId ?? undefined,
@@ -380,6 +387,9 @@ interface LegacyPersistedState {
   activeCustomThemeId?: unknown;
   appearanceMode?: unknown;
   locale?: unknown;
+  hulyProjectIdentifier?: unknown;
+  hulyIssues?: unknown;
+  hulyIssuesFetchedAt?: unknown;
   lightThemePreset?: unknown;
   lightThemeCustomId?: unknown;
   darkThemePreset?: unknown;
@@ -549,6 +559,13 @@ export async function loadState(): Promise<void> {
       // Anything that is not a known locale falls back to English rather than
       // becoming the locale — persisted state is not trusted input.
       s.locale = isLocale(raw.locale) ? raw.locale : 'en';
+      s.hulyProjectIdentifier =
+        typeof raw.hulyProjectIdentifier === 'string' ? raw.hulyProjectIdentifier : '';
+      s.hulyIssues = Array.isArray(raw.hulyIssues) ? (raw.hulyIssues as HulyIssue[]) : [];
+      s.hulyIssuesFetchedAt =
+        typeof raw.hulyIssuesFetchedAt === 'number' && raw.hulyIssuesFetchedAt > 0
+          ? raw.hulyIssuesFetchedAt
+          : 0;
 
       // Restore appearance mode and per-mode theme preferences
       const savedMode = raw.appearanceMode;
@@ -699,6 +716,8 @@ export async function loadState(): Promise<void> {
           landingState: pt.landingState,
           landingReason: pt.landingReason,
           landingSummary: pt.landingSummary,
+          hulyIssueId: pt.hulyIssueId,
+          hulyIssueIdentifier: pt.hulyIssueIdentifier,
           landedMetadata: pt.landedMetadata,
         };
 
@@ -805,6 +824,8 @@ export async function loadState(): Promise<void> {
           landingState: pt.landingState,
           landingReason: pt.landingReason,
           landingSummary: pt.landingSummary,
+          hulyIssueId: pt.hulyIssueId,
+          hulyIssueIdentifier: pt.hulyIssueIdentifier,
           landedMetadata: pt.landedMetadata,
         };
 

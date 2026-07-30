@@ -137,3 +137,12 @@ export interface StepEntry {
   agent_id?: string;
   timestamp: string;
 }
+
+/** The subset of a Huly issue the app stores and renders. */
+export interface HulyIssue {
+  id: string;
+  identifier: string;
+  title: string;
+  status: string;
+  modifiedOn: number;
+}

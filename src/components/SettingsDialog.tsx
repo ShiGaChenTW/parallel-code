@@ -43,6 +43,7 @@ import {
   checkForUpdates,
 } from '../store/store';
 import { CustomAgentEditor } from './CustomAgentEditor';
+import { HulySettings } from './HulySettings';
 import { mod } from '../lib/platform';
 import { DEFAULT_DOCKER_IMAGE, PROJECT_DOCKERFILE_RELATIVE_PATH } from '../lib/docker';
 
@@ -823,6 +824,10 @@ export function SettingsDialog(props: SettingsDialogProps) {
               </span>
             </Show>
           </div>
+
+          <SettingsSection title="Huly">
+            <HulySettings />
+          </SettingsSection>
 
           <SettingsSection title={tr('Diagnostics')}>
             <SettingsCheckboxRow

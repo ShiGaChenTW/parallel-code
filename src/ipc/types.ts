@@ -16,6 +16,7 @@ export type {
   PrChecksOverall,
   PrChecksUpdatePayload,
   PtyOutput,
+  HulyIssue,
   StepEntry,
   WorktreeStatus,
 } from '../../electron/ipc/shared-types';

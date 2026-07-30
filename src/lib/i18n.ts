@@ -175,6 +175,19 @@ const ZH_TW: Record<string, string> = {
   Find: '尋找',
   'Notes...': '筆記…',
   'Commit message...': 'Commit 訊息…',
+
+  // Huly
+  'Start from a Huly issue': '從 Huly issue 開工',
+  'No issues loaded yet.': '尚未載入任何 issue。',
+  'Every issue already has a task.': '每一張 issue 都已經有任務了。',
+  'Showing cached issues — Huly unreachable.': '顯示快取的 issue —— 目前連不上 Huly。',
+  'Huly project': 'Huly 專案',
+  'Server URL': '伺服器網址',
+  // 'Workspace' and 'Token' stay English — they are the words Huly's own UI
+  // uses, so translating them would make the two screens disagree.
+  'Test connection': '測試連線',
+  'Clear credentials': '清除憑證',
+  'Connected.': '已連線。',
 };
 
 const CATALOGUES: Record<Locale, Record<string, string>> = {

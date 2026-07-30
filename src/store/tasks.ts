@@ -231,6 +231,9 @@ export interface CreateTaskOptions {
   coordinatorMode?: boolean;
   propagateSkipPermissions?: boolean;
   maxConcurrentTasks?: number;
+  /** Link to the Huly issue this task was started from, if any. */
+  hulyIssueId?: string;
+  hulyIssueIdentifier?: string;
 }
 
 export async function createTask(opts: CreateTaskOptions): Promise<string> {
@@ -369,6 +372,8 @@ export async function createTask(opts: CreateTaskOptions): Promise<string> {
           effectivePrompt
         : (effectivePrompt ?? undefined),
     savedInitialPrompt: initialPrompt ?? undefined,
+    hulyIssueId: opts.hulyIssueId,
+    hulyIssueIdentifier: opts.hulyIssueIdentifier,
     stepsEnabled: stepsEnabled || undefined,
     skipPermissions: skipPermissions ?? undefined,
     dockerMode: dockerMode ?? undefined,

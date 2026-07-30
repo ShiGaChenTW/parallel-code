@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { app, safeStorage } from 'electron';
 import { debug, warn, errMessage } from '../log.js';
+import type { HulyIssue } from './shared-types.js';
 
 /**
  * Huly read path: list issues from a Huly project so one can be turned into a
@@ -20,19 +21,12 @@ import { debug, warn, errMessage } from '../log.js';
  * apply. They are suppressed during connect so they do not drown the app log.
  */
 
+export type { HulyIssue };
+
 export interface HulyCredentials {
   url: string;
   workspace: string;
   token: string;
-}
-
-/** The subset of a Huly issue this app cares about. */
-export interface HulyIssue {
-  id: string;
-  identifier: string;
-  title: string;
-  status: string;
-  modifiedOn: number;
 }
 
 const CREDENTIALS_FILE = 'huly-credentials.enc';
