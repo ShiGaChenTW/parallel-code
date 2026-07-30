@@ -28,6 +28,13 @@ import {
   stopPlanWatcher,
   readPlanForWorktree,
 } from './plans.js';
+import {
+  hasCredentials as hulyHasCredentials,
+  saveCredentials as hulySaveCredentials,
+  clearCredentials as hulyClearCredentials,
+  listIssues as hulyListIssues,
+  testConnection as hulyTestConnection,
+} from './huly.js';
 import { startStepsWatcher, stopStepsWatcher, readStepsForWorktree } from './steps.js';
 import {
   initPrChecks,
@@ -492,6 +499,21 @@ export function registerAllHandlers(win: BrowserWindow): void {
     return killAgent(args.agentId);
   });
   ipcMain.handle(IPC.CountRunningAgents, () => countRunningAgents());
+
+  // --- Huly (read-only) ---
+  ipcMain.handle(IPC.HulyHasCredentials, () => hulyHasCredentials());
+  ipcMain.handle(IPC.HulySaveCredentials, (_e, args) => {
+    assertString(args.url, 'url');
+    assertString(args.workspace, 'workspace');
+    assertString(args.token, 'token');
+    hulySaveCredentials({ url: args.url, workspace: args.workspace, token: args.token });
+  });
+  ipcMain.handle(IPC.HulyClearCredentials, () => hulyClearCredentials());
+  ipcMain.handle(IPC.HulyTestConnection, () => hulyTestConnection());
+  ipcMain.handle(IPC.HulyListIssues, (_e, args) => {
+    assertString(args.projectIdentifier, 'projectIdentifier');
+    return hulyListIssues(args.projectIdentifier);
+  });
   ipcMain.handle(IPC.KillAllAgents, () => killAllAgents());
 
   // --- Agent commands ---
