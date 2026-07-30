@@ -17,7 +17,12 @@ export type {
   PrChecksUpdatePayload,
   PtyOutput,
   HulyIssue,
+  ProviderId,
   StepEntry,
+  TokenTotals,
+  TokenUsagePathRow,
+  TokenUsageProviderStatus,
+  TokenUsageSnapshot,
   WorktreeStatus,
 } from '../../electron/ipc/shared-types';
 

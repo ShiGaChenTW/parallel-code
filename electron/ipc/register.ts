@@ -37,6 +37,7 @@ import {
 } from './huly.js';
 import { startStepsWatcher, stopStepsWatcher, readStepsForWorktree } from './steps.js';
 import { startHandoffWatcher, stopHandoffWatcher, readHandoffForWorktree } from './handoff.js';
+import { startTokenUsageWatcher, stopTokenUsageWatcher } from './token-usage.js';
 import {
   initPrChecks,
   applyOfflineMode as applyPrChecksOfflineMode,
@@ -939,6 +940,18 @@ export function registerAllHandlers(win: BrowserWindow): void {
   ipcMain.handle(IPC.ReadHandoffContent, (_e, args) => {
     validatePath(args.worktreePath, 'worktreePath');
     return readHandoffForWorktree(args.worktreePath);
+  });
+
+  // --- AI CLI token usage (local log files only — no network) ---
+  // Re-invoked whenever the renderer's set of worktrees changes; the watcher
+  // keeps its cached read offsets, so re-seeding costs a directory listing.
+  ipcMain.handle(IPC.StartTokenUsageWatcher, (_e, args) => {
+    assertStringArray(args.worktreePaths, 'worktreePaths');
+    for (const p of args.worktreePaths) validatePath(p, 'worktreePath');
+    return startTokenUsageWatcher(win, args.worktreePaths);
+  });
+  ipcMain.handle(IPC.StopTokenUsageWatcher, () => {
+    stopTokenUsageWatcher();
   });
 
   // --- Ask about code ---
