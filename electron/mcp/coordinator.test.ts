@@ -7,6 +7,7 @@ import {
 } from './agent-frame-fixtures.js';
 import { handleMCPToolCall } from './server.js';
 import type { MCPClient } from './client.js';
+import { AUTOMATED_PROMPT_PROVENANCE } from '../shared/prompt-sanitise.js';
 import {
   setupCoordinatorHarness,
   mockExecFile,
@@ -40,6 +41,14 @@ import {
 
 const { Coordinator } = await setupCoordinatorHarness();
 const { removePreambleBlock } = await import('./preamble.js');
+
+/**
+ * What a coordinator-sent prompt looks like once it has been through
+ * sendPrompt: sanitised, and carrying the provenance header that tells the
+ * receiving agent the text was not typed by the human operator.
+ */
+const relayed = (text: string): string => `${AUTOMATED_PROMPT_PROVENANCE}\n${text}`;
+
 const getChangedFiles = mockGetChangedFiles;
 const getAllFileDiffs = mockGetAllFileDiffs;
 const getDiffBaseSha = mockGetDiffBaseSha;
@@ -141,7 +150,7 @@ describe('Coordinator registerCoordinator — idempotency', () => {
           },
         ],
       });
-      expect(coordinator.getTaskStatus(task.id)?.pendingPrompts).toEqual(['follow one']);
+      expect(coordinator.getTaskStatus(task.id)?.pendingPrompts).toEqual([relayed('follow one')]);
 
       const output = mockSubscribeToAgent.mock.calls[0]?.[1] as (encoded: string) => void;
       output(encode(READY_AGENT_FRAME_FIXTURES[0].frame));
@@ -154,7 +163,7 @@ describe('Coordinator registerCoordinator — idempotency', () => {
         .filter(([agentId, text]) => agentId === task.agentId && text !== '\r' && text !== '\x1b[I')
         .map(([, text]) => text);
       expect(textWrites[0]).toEqual(expect.stringContaining('do one'));
-      expect(textWrites[1]).toBe('follow one');
+      expect(textWrites[1]).toBe(relayed('follow one'));
       expect(coordinator.getTaskStatus(task.id)?.pendingPromptCount).toBeUndefined();
     } finally {
       vi.useRealTimers();
@@ -789,7 +798,7 @@ describe('Coordinator registerCoordinator — idempotency', () => {
         task.agentId,
         expect.stringContaining('do one'),
       );
-      expect(coordinator.getTaskStatus(task.id)?.pendingPrompts).toEqual(['follow one']);
+      expect(coordinator.getTaskStatus(task.id)?.pendingPrompts).toEqual([relayed('follow one')]);
 
       output(encode('claude redraw '.repeat(120)));
       output(encode(READY_AGENT_FRAME_FIXTURES[1].frame));
@@ -802,7 +811,7 @@ describe('Coordinator registerCoordinator — idempotency', () => {
         .filter(([agentId, text]) => agentId === task.agentId && text !== '\r' && text !== '\x1b[I')
         .map(([, text]) => text);
       expect(textWrites[0]).toEqual(expect.stringContaining('do one'));
-      expect(textWrites[1]).toBe('follow one');
+      expect(textWrites[1]).toBe(relayed('follow one'));
       expect(coordinator.getTaskStatus(task.id)?.pendingPrompt).toBeUndefined();
       expect(coordinator.getTaskStatus(task.id)?.pendingPromptCount).toBeUndefined();
     } finally {
@@ -965,8 +974,8 @@ describe('Coordinator registerCoordinator — idempotency', () => {
         .filter(([agentId, text]) => agentId === task.agentId && text !== '\r' && text !== '\x1b[I')
         .map(([, text]) => text);
       expect(textWrites[0]).toEqual(expect.stringContaining('do one'));
-      expect(textWrites[1]).toBe('follow one');
-      expect(textWrites[2]).toBe('follow two');
+      expect(textWrites[1]).toBe(relayed('follow one'));
+      expect(textWrites[2]).toBe(relayed('follow two'));
       expect(coordinator.getTaskStatus(task.id)?.pendingPrompt).toBeUndefined();
       expect(coordinator.getTaskStatus(task.id)?.pendingPromptCount).toBeUndefined();
     } finally {
@@ -1002,7 +1011,7 @@ describe('Coordinator registerCoordinator — idempotency', () => {
         .filter(([agentId, text]) => agentId === task.agentId && text !== '\r' && text !== '\x1b[I')
         .map(([, text]) => text);
       expect(textWrites[0]).toEqual(expect.stringContaining('do one'));
-      expect(textWrites[1]).toBe('follow one');
+      expect(textWrites[1]).toBe(relayed('follow one'));
       expect(coordinator.getTaskStatus(task.id)?.pendingPrompt).toBeUndefined();
       expect(coordinator.getTaskStatus(task.id)?.pendingPromptCount).toBeUndefined();
     } finally {
@@ -2254,8 +2263,8 @@ describe('Coordinator sendPrompt', () => {
     coordinator.markPromptDelivered('task-1');
     coordinator.setTaskControl('task-1', 'human');
     await expect(coordinator.sendPrompt('task-1', 'hello')).resolves.toEqual({ queued: true });
-    expect(coordinator.getTaskStatus('task-1')?.pendingPrompt).toBe('hello');
-    expect(coordinator.getTaskStatus('task-1')?.pendingPrompts).toEqual(['hello']);
+    expect(coordinator.getTaskStatus('task-1')?.pendingPrompt).toBe(relayed('hello'));
+    expect(coordinator.getTaskStatus('task-1')?.pendingPrompts).toEqual([relayed('hello')]);
   });
 
   it('flushes a queued prompt when the user activity lease clears', async () => {
@@ -2324,7 +2333,7 @@ describe('Coordinator sendPrompt', () => {
     const prompt = `continue with ${'火'.repeat(100)} 😀`;
     await expect(coordinator.sendPrompt('task-1', prompt)).resolves.toEqual({ queued: true });
 
-    expect(coordinator.getTaskStatus('task-1')?.pendingPrompts).toEqual([prompt]);
+    expect(coordinator.getTaskStatus('task-1')?.pendingPrompts).toEqual([relayed(prompt)]);
     expect(mockWriteToAgent).not.toHaveBeenCalledWith(expect.any(String), prompt);
   });
 
@@ -2335,7 +2344,7 @@ describe('Coordinator sendPrompt', () => {
     const statusPrompts = coordinator.getTaskStatus('task-1')?.pendingPrompts;
     statusPrompts?.push('mutated-outside');
 
-    expect(coordinator.getTaskStatus('task-1')?.pendingPrompts).toEqual(['queued-one']);
+    expect(coordinator.getTaskStatus('task-1')?.pendingPrompts).toEqual([relayed('queued-one')]);
   });
 
   it('reports the first pending prompt and queue count consistently', async () => {
@@ -2345,8 +2354,8 @@ describe('Coordinator sendPrompt', () => {
     await coordinator.sendPrompt('task-1', 'queued-two');
 
     expect(coordinator.getTaskStatus('task-1')).toMatchObject({
-      pendingPrompt: 'queued-one',
-      pendingPrompts: ['queued-one', 'queued-two'],
+      pendingPrompt: relayed('queued-one'),
+      pendingPrompts: [relayed('queued-one'), relayed('queued-two')],
       pendingPromptCount: 2,
     });
   });
@@ -2398,7 +2407,7 @@ describe('Coordinator sendPrompt', () => {
     await expect(coordinator.sendPrompt('task-1', 'queued-overflow')).rejects.toThrow(
       'Prompt queue full (32 pending)',
     );
-    expect(coordinator.getTaskStatus('task-1')?.pendingPrompts).toEqual(prompts);
+    expect(coordinator.getTaskStatus('task-1')?.pendingPrompts).toEqual(prompts.map(relayed));
     expect(coordinator.getTaskStatus('task-1')?.pendingPromptCount).toBe(32);
   });
 
@@ -2415,7 +2424,7 @@ describe('Coordinator sendPrompt', () => {
     await expect(coordinator.sendPrompt('task-1', 'queued-overflow')).rejects.toThrow(
       'Prompt queue full (32 pending)',
     );
-    expect(coordinator.getTaskStatus('task-1')?.pendingPrompts).toEqual(prompts);
+    expect(coordinator.getTaskStatus('task-1')?.pendingPrompts).toEqual(prompts.map(relayed));
     expect(coordinator.getTaskStatus('task-1')?.pendingPromptCount).toBe(32);
   });
 
@@ -2434,9 +2443,11 @@ describe('Coordinator sendPrompt', () => {
       await vi.advanceTimersByTimeAsync(500);
 
       await expect(sendPromise).resolves.toEqual({ queued: false });
-      expect(mockWriteToAgent).toHaveBeenCalledWith(task.agentId, prompt);
+      expect(mockWriteToAgent).toHaveBeenCalledWith(task.agentId, relayed(prompt));
       expect(mockWriteToAgent).toHaveBeenCalledWith(task.agentId, '\r');
-      const exactPromptWrites = mockWriteToAgent.mock.calls.filter(([, text]) => text === prompt);
+      const exactPromptWrites = mockWriteToAgent.mock.calls.filter(
+        ([, text]) => text === relayed(prompt),
+      );
       expect(exactPromptWrites).toHaveLength(1);
     } finally {
       vi.useRealTimers();
@@ -2509,8 +2520,8 @@ describe('Coordinator sendPrompt', () => {
       // Both prompts written in order, not interleaved.
       const textCalls = mockWriteToAgent.mock.calls
         .map((c) => c[1] as string)
-        .filter((t) => t === 'first' || t === 'second');
-      expect(textCalls).toEqual(['first', 'second']);
+        .filter((t) => t === relayed('first') || t === relayed('second'));
+      expect(textCalls).toEqual([relayed('first'), relayed('second')]);
     } finally {
       vi.useRealTimers();
     }
@@ -2532,21 +2543,20 @@ describe('Coordinator sendPrompt', () => {
 
       coordinator.setTaskControl('task-1', 'coordinator');
       await vi.advanceTimersByTimeAsync(100);
-      expect(coordinator.getTaskStatus('task-1')?.pendingPrompts).toEqual([
-        'second',
-        'third',
-        'fourth',
-      ]);
+      expect(coordinator.getTaskStatus('task-1')?.pendingPrompts).toEqual(
+        ['second', 'third', 'fourth'].map(relayed),
+      );
 
       for (let i = 0; i < 3; i += 1) {
         outputCb(encode(READY_AGENT_FRAME_FIXTURES[0].frame));
         await vi.advanceTimersByTimeAsync(100);
       }
 
+      const expectedWrites = prompts.map(relayed);
       const textCalls = mockWriteToAgent.mock.calls
         .map((c) => c[1] as string)
-        .filter((text) => prompts.includes(text));
-      expect(textCalls).toEqual(prompts);
+        .filter((text) => expectedWrites.includes(text));
+      expect(textCalls).toEqual(expectedWrites);
       expect(coordinator.getTaskStatus('task-1')).toMatchObject({
         pendingPrompt: undefined,
         pendingPrompts: undefined,
@@ -2574,7 +2584,9 @@ describe('Coordinator sendPrompt', () => {
       coordinator.setTaskControl('task-1', 'coordinator');
       await vi.advanceTimersByTimeAsync(100);
 
-      const bodyWrites = mockWriteToAgent.mock.calls.filter(([, data]) => data === 'queued');
+      const bodyWrites = mockWriteToAgent.mock.calls.filter(
+        ([, data]) => data === relayed('queued'),
+      );
       expect(bodyWrites).toHaveLength(1);
       expect(coordinator.getTaskStatus('task-1')?.pendingPrompts).toBeUndefined();
     } finally {
@@ -2600,7 +2612,7 @@ describe('Coordinator sendPrompt', () => {
       let failedBodyOnce = false;
       mockWriteToAgent.mockClear();
       mockWriteToAgent.mockImplementation((agentId: string, data: string) => {
-        if (data === 'queued' && !failedBodyOnce) {
+        if (data === relayed('queued') && !failedBodyOnce) {
           failedBodyOnce = true;
           throw new Error('pty body failed');
         }
@@ -2609,12 +2621,14 @@ describe('Coordinator sendPrompt', () => {
 
       coordinator.setTaskControl('task-1', 'coordinator');
       await vi.advanceTimersByTimeAsync(100);
-      expect(coordinator.getTaskStatus('task-1')?.pendingPrompts).toEqual(['queued']);
+      expect(coordinator.getTaskStatus('task-1')?.pendingPrompts).toEqual([relayed('queued')]);
 
       outputCb(encode(READY_AGENT_FRAME_FIXTURES[0].frame));
       await vi.advanceTimersByTimeAsync(200);
 
-      const bodyWrites = mockWriteToAgent.mock.calls.filter(([, data]) => data === 'queued');
+      const bodyWrites = mockWriteToAgent.mock.calls.filter(
+        ([, data]) => data === relayed('queued'),
+      );
       expect(bodyWrites).toHaveLength(2);
       expect(mockWriteToAgent).toHaveBeenCalledWith(expect.any(String), '\r');
       expect(coordinator.getTaskStatus('task-1')?.pendingPrompts).toBeUndefined();
@@ -3589,7 +3603,7 @@ describe('Coordinator hydrateTask — restart hydration', () => {
     });
 
     await expect(coordinator.sendPrompt('hydrated-1', 'hello')).resolves.toEqual({ queued: true });
-    expect(coordinator.getTaskStatus('hydrated-1')?.pendingPrompt).toBe('hello');
+    expect(coordinator.getTaskStatus('hydrated-1')?.pendingPrompt).toBe(relayed('hello'));
   });
 
   it('hydrateTask ignores human control until a restored initial prompt is delivered', async () => {
@@ -3607,7 +3621,7 @@ describe('Coordinator hydrateTask — restart hydration', () => {
     });
 
     await expect(coordinator.sendPrompt('hydrated-1', 'hello')).resolves.toEqual({ queued: true });
-    expect(coordinator.getTaskStatus('hydrated-1')?.pendingPrompts).toEqual(['hello']);
+    expect(coordinator.getTaskStatus('hydrated-1')?.pendingPrompts).toEqual([relayed('hello')]);
   });
 
   it('hydrateTask delivers restored initial prompt despite persisted human control', async () => {
@@ -3696,7 +3710,7 @@ describe('Coordinator setTaskControl — queued send until activity lease clears
     coordinator.markPromptDelivered('task-1');
     coordinator.setTaskControl('task-1', 'human');
     await expect(coordinator.sendPrompt('task-1', 'hello')).resolves.toEqual({ queued: true });
-    expect(coordinator.getTaskStatus('task-1')?.pendingPrompt).toBe('hello');
+    expect(coordinator.getTaskStatus('task-1')?.pendingPrompt).toBe(relayed('hello'));
   });
 
   it('sendPrompt is unblocked after setTaskControl coordinator', async () => {
@@ -3733,7 +3747,7 @@ describe('Coordinator setTaskControl — queued send until activity lease clears
 
       coordinator.setTaskControl('task-1', 'coordinator');
       await vi.advanceTimersByTimeAsync(70);
-      expect(mockWriteToAgent).toHaveBeenCalledWith(expect.any(String), 'hello');
+      expect(mockWriteToAgent).toHaveBeenCalledWith(expect.any(String), relayed('hello'));
       expect(resolved).toBe(false);
 
       await vi.advanceTimersByTimeAsync(2_100);
