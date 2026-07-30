@@ -149,6 +149,13 @@ export interface Task {
   propagateSkipPermissions?: boolean;
   coordinatedBy?: string;
   controlledBy?: 'coordinator' | 'human';
+  /** The one task this task depends on. A single parent, deliberately not an
+   *  array: it mirrors `coordinatedBy`'s shape, which is what keeps cycles out
+   *  of structural reach without a topological sort. Drives two things — the
+   *  branch this task forks from, and whether its agent may auto-start. Logic
+   *  lives in `src/lib/task-dependency.ts`; blocked-ness is derived from this
+   *  plus the dependency's `landingState`, never stored. */
+  dependsOnTaskId?: string;
   automationWriteInFlight?: boolean;
   mcpConfigPath?: string;
   mcpLaunchArgs?: string[];
@@ -216,6 +223,10 @@ export interface PersistedTask {
   propagateSkipPermissions?: boolean;
   coordinatedBy?: string;
   controlledBy?: 'coordinator' | 'human';
+  /** Optional, so old persisted state reads back as `undefined` and needs no
+   *  migration — `PersistedState` has no schema version and migrates by
+   *  existence checks. */
+  dependsOnTaskId?: string;
   mcpConfigPath?: string;
   preambleFileExistedBefore?: boolean;
   signalDoneReceived?: boolean;

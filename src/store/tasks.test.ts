@@ -154,7 +154,13 @@ import {
   toggleAITerminalLayout,
   createAgentRecord,
   selectActiveNeighborAfterRemoval,
+  clearTaskDependency,
 } from './tasks';
+import {
+  dependencyBlockMessage,
+  getDependencyBlock,
+  type DependencyTask,
+} from '../lib/task-dependency';
 import { getCoordinatorChildren } from './sidebar-order';
 import { recordMergedLines, recordTaskMerged } from './completion';
 import { markAgentSpawned, rescheduleTaskStatusPolling } from './taskStatus';
@@ -1365,5 +1371,213 @@ describe('pasteDelayMs', () => {
   it('caps at 500ms for a very large prompt', () => {
     const text = Array.from({ length: 100 }, (_, i) => `line ${i + 1}`).join('\n');
     expect(pasteDelayMs(text)).toBe(500);
+  });
+});
+
+// ─── Task dependency (C3) ─────────────────────────────────────────────────────
+
+describe('task dependency', () => {
+  const agentDef = {
+    id: 'agent-def',
+    name: 'Claude',
+    command: 'claude',
+    args: [],
+    resume_args: [],
+    skip_permissions_args: [],
+    description: 'Claude',
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    const harness = expectDefined(core.harness, 'mock store harness');
+    harness.reset(harness.state());
+    mockTasks = {};
+    mockAgents = {};
+    mockTaskOrder = [];
+    vi.mocked(getProjectPath).mockReturnValue('/repo');
+    vi.mocked(getProjectBranchPrefix).mockReturnValue('task');
+    vi.mocked(isProjectMissing).mockReturnValue(false);
+    vi.mocked(getCoordinatorChildren).mockReturnValue({ active: [], collapsed: [] });
+    // Set explicitly here rather than relying on an earlier describe:
+    // vi.clearAllMocks() wipes recorded calls but leaves implementations, so a
+    // suite that inherits one passes in-file and fails standalone.
+    mockInvoke.mockImplementation((channel: string) => {
+      if (channel === IPC.CreateTask) {
+        return Promise.resolve({
+          id: 'task-b',
+          branch_name: 'task/api',
+          worktree_path: '/repo/.worktrees/api',
+        });
+      }
+      return Promise.resolve(undefined);
+    });
+  });
+
+  function seedDependency(over: Record<string, unknown> = {}) {
+    mockTasks['task-a'] = {
+      agentIds: [],
+      shellAgentIds: [],
+      name: 'Schema migration',
+      projectId: 'proj-1',
+      branchName: 'task/schema',
+      gitIsolation: 'worktree',
+      ...over,
+    };
+    mockTaskOrder.push('task-a');
+  }
+
+  describe('declaring the edge derives the base branch', () => {
+    it("forks the worktree from the dependency's branch instead of the picked base", async () => {
+      seedDependency();
+
+      await createTask({
+        name: 'API',
+        agentDef,
+        projectId: 'proj-1',
+        gitIsolation: 'worktree',
+        baseBranch: 'main',
+        dependsOnTaskId: 'task-a',
+      });
+
+      expect(mockInvoke).toHaveBeenCalledWith(
+        IPC.CreateTask,
+        expect.objectContaining({ baseBranch: 'task/schema' }),
+      );
+      expect(mockInvoke).not.toHaveBeenCalledWith(
+        IPC.CreateTask,
+        expect.objectContaining({ baseBranch: 'main' }),
+      );
+    });
+
+    it('records the edge and the branch it actually forked from', async () => {
+      seedDependency();
+
+      await createTask({
+        name: 'API',
+        agentDef,
+        projectId: 'proj-1',
+        gitIsolation: 'worktree',
+        baseBranch: 'main',
+        dependsOnTaskId: 'task-a',
+      });
+
+      expect(mockTasks['task-b'].dependsOnTaskId).toBe('task-a');
+      expect(mockTasks['task-b'].baseBranch).toBe('task/schema');
+    });
+
+    it('falls back to the picked base when the dependency has no branch of its own', async () => {
+      seedDependency({ branchName: '', gitIsolation: 'none' });
+
+      await createTask({
+        name: 'API',
+        agentDef,
+        projectId: 'proj-1',
+        gitIsolation: 'worktree',
+        baseBranch: 'main',
+        dependsOnTaskId: 'task-a',
+      });
+
+      expect(mockInvoke).toHaveBeenCalledWith(
+        IPC.CreateTask,
+        expect.objectContaining({ baseBranch: 'main' }),
+      );
+    });
+
+    it('refuses a dependency that has gone away, before any worktree is created', async () => {
+      await expect(
+        createTask({
+          name: 'API',
+          agentDef,
+          projectId: 'proj-1',
+          gitIsolation: 'worktree',
+          baseBranch: 'main',
+          dependsOnTaskId: 'task-a',
+        }),
+      ).rejects.toThrow('no longer exists');
+
+      expect(mockInvoke).not.toHaveBeenCalledWith(IPC.CreateTask, expect.anything());
+    });
+  });
+
+  describe('a task with no dependsOnTaskId behaves exactly as before', () => {
+    it('passes the caller-picked base branch through untouched', async () => {
+      seedDependency();
+
+      await createTask({
+        name: 'API',
+        agentDef,
+        projectId: 'proj-1',
+        gitIsolation: 'worktree',
+        baseBranch: 'main',
+      });
+
+      expect(mockInvoke).toHaveBeenCalledWith(
+        IPC.CreateTask,
+        expect.objectContaining({ baseBranch: 'main' }),
+      );
+    });
+
+    it('leaves the field unset and the task unblocked', async () => {
+      await createTask({
+        name: 'API',
+        agentDef,
+        projectId: 'proj-1',
+        gitIsolation: 'worktree',
+        baseBranch: 'main',
+      });
+
+      expect(mockTasks['task-b'].dependsOnTaskId).toBeUndefined();
+      expect(getDependencyBlock('task-b', mockTasks as Record<string, DependencyTask>)).toBeNull();
+    });
+  });
+
+  describe('closing a dependency leaves the dependent blocked, not detached (決議 3)', () => {
+    beforeEach(() => {
+      seedDependency({ gitIsolation: 'direct' });
+      mockTasks['task-b'] = {
+        agentIds: [],
+        shellAgentIds: [],
+        name: 'API',
+        projectId: 'proj-1',
+        branchName: 'task/api',
+        gitIsolation: 'direct',
+        dependsOnTaskId: 'task-a',
+      };
+      mockTaskOrder.push('task-b');
+    });
+
+    it('keeps the edge — this deliberately does not follow the coordinator detach precedent', async () => {
+      await closeTask('task-a');
+
+      expect(mockTasks['task-b'].dependsOnTaskId).toBe('task-a');
+    });
+
+    it('reports the block with a reason the user can read', async () => {
+      await closeTask('task-a');
+      delete mockTasks['task-a']; // removeTaskFromStore's deferred deletion
+
+      const block = getDependencyBlock('task-b', mockTasks as Record<string, DependencyTask>);
+      expect(block).toEqual({
+        dependencyId: 'task-a',
+        dependencyName: undefined,
+        reason: 'missing',
+      });
+      expect(dependencyBlockMessage(expectDefined(block, 'dependency block')).text).toBe(
+        'Blocked — the task this one depends on was removed.',
+      );
+    });
+
+    it('is cleared by the explicit user action, not by anything automatic', () => {
+      clearTaskDependency('task-b');
+
+      expect(mockTasks['task-b'].dependsOnTaskId).toBeUndefined();
+      expect(saveState).toHaveBeenCalled();
+    });
+
+    it('does nothing when the task has no dependency to clear', () => {
+      clearTaskDependency('task-a');
+
+      expect(saveState).not.toHaveBeenCalled();
+    });
   });
 });

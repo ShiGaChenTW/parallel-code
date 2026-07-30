@@ -163,6 +163,7 @@ function toPersistedTask(task: Task, agentDefs: AgentDef[], collapsed?: boolean)
     propagateSkipPermissions: task.propagateSkipPermissions,
     coordinatedBy: task.coordinatedBy,
     controlledBy: task.controlledBy,
+    dependsOnTaskId: task.dependsOnTaskId,
     mcpConfigPath: task.mcpConfigPath,
     signalDoneReceived: task.signalDoneReceived,
     signalDoneAt: task.signalDoneAt,
@@ -734,6 +735,7 @@ export async function loadState(): Promise<void> {
           coordinatedBy: pt.coordinatedBy,
           controlledBy:
             pt.controlledBy ?? (pt.coordinatorMode || pt.coordinatedBy ? 'coordinator' : undefined),
+          dependsOnTaskId: pt.dependsOnTaskId,
           // Defer TerminalView spawn until StartMCPServer/hydrateTask complete —
           // the config file has a stale token from the previous session until then.
           mcpStartupStatus:
@@ -844,6 +846,7 @@ export async function loadState(): Promise<void> {
           coordinatedBy: pt.coordinatedBy,
           controlledBy:
             pt.controlledBy ?? (pt.coordinatorMode || pt.coordinatedBy ? 'coordinator' : undefined),
+          dependsOnTaskId: pt.dependsOnTaskId,
           mcpStartupStatus:
             pt.coordinatorMode || pt.coordinatedBy ? ('pending' as const) : undefined,
           mcpConfigPath: pt.mcpConfigPath,

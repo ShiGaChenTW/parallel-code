@@ -705,6 +705,21 @@ const ZH_TW: Record<string, string> = {
   'Rounded, with ligatures and Nerd Font icons': '圓角字形，含連字與 Nerd Font 圖示',
   'Conservative and broadly compatible': '保守通用，相容性最廣',
   'Calligraphic; easiest on the eyes over long sessions': '楷體風格，長時間閱讀最舒適',
+
+  // Task dependencies. "task" and "branch" stay untranslated inside sentences
+  // for the same reason "worktree" does above — this audience reads them as
+  // git/app vocabulary, not as English.
+  'Depends on': '依賴於',
+  'Nothing — start from the base branch': '無 —— 從 base branch 開始',
+  'Branches from {branch} instead, and waits for that task to land before starting.':
+    '改從 {branch} 分支，並等那個 task 落地後才開始。',
+  blocked: '受阻',
+  'Blocked — waiting for {task} to land.': '受阻 —— 等待 {task} 落地。',
+  'Blocked — the task this one depends on was removed.': '受阻 —— 它依賴的 task 已被移除。',
+  "Blocked — this task's dependency chain loops back on itself.":
+    '受阻 —— 這個 task 的依賴鏈繞回自己。',
+  'The agent starts on its own once it lands.': '一旦落地，agent 會自己開始。',
+  'Clear dependency and start now': '解除依賴並立即開始',
   // 'Retry' and 'Dismiss' are already in this catalogue above.
 };
 
