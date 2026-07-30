@@ -901,6 +901,14 @@ describe('onboarding progress persistence', () => {
     );
   });
 
+  /** The payload `saveState` handed to SaveAppState, found by channel rather
+   *  than by call index so the assertion does not depend on what else invoked. */
+  function savedPayload(): Record<string, unknown> {
+    const call = mockInvoke.mock.calls.find((args) => args[0] === IPC.SaveAppState);
+    if (!call) throw new Error('saveState did not invoke SaveAppState');
+    return JSON.parse(call[1].json);
+  }
+
   /** A `state.json` exactly as an older build wrote it: real usage history, but
    *  none of the three fields the onboarding stages added. */
   function legacyStateJson(taskIds: string[]): string {
@@ -985,10 +993,14 @@ describe('onboarding progress persistence', () => {
     setStore('mergedTaskTotal', 6);
     setStore('peakConcurrentTasks', 3);
     setStore('diffReviewed', true);
+    // `mockInvoke` has no default implementation and `vi.clearAllMocks()` does
+    // not restore one, so `saveState` needs its own resolved value or it awaits
+    // `undefined.catch`. Same idiom as every other save test in this file.
+    mockInvoke.mockResolvedValueOnce(undefined);
 
     await saveState();
 
-    const saved = JSON.parse(mockInvoke.mock.calls[0][1].json);
+    const saved = savedPayload();
     expect(saved.mergedTaskTotal).toBe(6);
     expect(saved.peakConcurrentTasks).toBe(3);
     expect(saved.diffReviewed).toBe(true);
@@ -998,10 +1010,11 @@ describe('onboarding progress persistence', () => {
     setStore('mergedTaskTotal', 0);
     setStore('peakConcurrentTasks', 0);
     setStore('diffReviewed', false);
+    mockInvoke.mockResolvedValueOnce(undefined);
 
     await saveState();
 
-    const saved = JSON.parse(mockInvoke.mock.calls[0][1].json);
+    const saved = savedPayload();
     expect(saved.mergedTaskTotal).toBeUndefined();
     expect(saved.peakConcurrentTasks).toBeUndefined();
     expect(saved.diffReviewed).toBeUndefined();

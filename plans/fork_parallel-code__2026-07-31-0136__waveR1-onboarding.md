@@ -1,7 +1,7 @@
 # R1：Onboarding 三階段漸進揭露
 
 **建立時間：** 2026-07-31 01:36
-**最後更新：** 2026-07-31 02:00
+**最後更新：** 2026-07-31 02:05
 **狀態：** 已完成（未 push）
 **分支：** `feat/onboarding`（從 `main @ 92b17b2` 分出）
 **worktree：** `/Users/scottchen/Documents/20_Projects/pc-feat-onboarding`
@@ -115,7 +115,15 @@ Coordinator 是 `NewTaskDialog` 裡的一個 checkbox，Arena 在 `SidebarFooter
 
 8. **`saveState` 對三個新欄位用 `|| undefined`。** 沿用檔案裡既有慣例，值還是 0／false 時整個欄位不寫進 `state.json`，新安裝的檔案內容維持不變。
 
-9. **測試踩到的坑（記下來免得下次再踩）：** `persistence.test.ts` 的 `beforeEach` 用 `setStore('tasks', {})` 清 task，但 solid store 對物件是 merge 不是 replace，key 其實沒被清掉，導致跨測試殘留 3 個 task 汙染階段判定。新的 describe 自帶一個用 `produce` 硬清的 `beforeEach`。
+9. **`persistence.test.ts` 有兩個會咬人的陷阱，兩個我都踩了，記下來給下一個人。**
+
+   **陷阱一 —— `setStore('tasks', {})` 不會清空。** solid store 對物件是 merge 不是 replace，key 其實沒被清掉，導致跨測試殘留 3 個 task 汙染階段判定（階段被判成 3 而不是 2）。新的 describe 自帶一個用 `produce` 硬清 `s.tasks` / `s.agents` 的 `beforeEach`。
+
+   **陷阱二 —— `mockInvoke` 沒有預設 implementation，而 `vi.clearAllMocks()` 不會幫你補回來。** `clearAllMocks` 只清 calls 不清 implementation，所以檔案裡任何一個 `mockResolvedValue`（非 `Once`）會黏住，讓後面的測試「剛好」有回傳值可用。我最初的兩個 save 測試就是靠這個黏性才過的：整份檔案跑 78/78 全綠，單獨跑 `-t "onboarding progress persistence"` 就炸 `Cannot read properties of undefined (reading 'catch')` —— `saveState` 對 `invoke()` 的回傳值接 `.catch`，而它拿到 `undefined`。
+
+   修法就是檔案自己的既有慣例：每個 save 測試在 `await saveState()` 前自己下一次 `mockInvoke.mockResolvedValueOnce(undefined)`。順手把斷言從 `mockInvoke.mock.calls[0][1].json` 改成用 channel 找的 `savedPayload()` helper，這樣連「SaveAppState 一定是第 0 通呼叫」這個隱含假設也一併拿掉。
+
+   **教訓：** 「整檔綠」不等於「測試成立」。新增測試要同時驗 `npx vitest run <file> -t "<describe>"`，否則寫出來的是對檔案執行順序的斷言，不是對程式碼的斷言。
 
 ## 結束摘要
 
