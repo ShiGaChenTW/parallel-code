@@ -1,5 +1,10 @@
 export type PtyOutput =
-  | { type: 'Data'; data: string } // base64-encoded
+  // Raw PTY bytes. Sent as a Node Buffer from the main process; Electron's
+  // structured clone delivers it to the renderer as a Uint8Array, which is
+  // what xterm's write() already accepts — so no encoding step is needed.
+  // (getAgentScrollback() still returns base64: its consumers are the remote
+  // HTTP/WS JSON surface and the MCP coordinator, where a string is correct.)
+  | { type: 'Data'; data: Uint8Array }
   | {
       type: 'Exit';
       data: { exit_code: number | null; signal: string | null; last_output: string[] };

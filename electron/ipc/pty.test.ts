@@ -95,6 +95,8 @@ import {
   projectImageTag,
   resolveProjectDockerfile,
   spawnAgent,
+  subscribeToAgent,
+  unsubscribeFromAgent,
   validateCommand,
 } from './pty.js';
 
@@ -750,14 +752,63 @@ describe('spawnAgent session reattach', () => {
     expect(mockPtySpawn).toHaveBeenCalledTimes(1);
     expect(proc.resume).toHaveBeenCalled();
     expect(proc.resize).toHaveBeenCalledWith(90, 30);
+    // Raw bytes, not base64: the renderer receives a Uint8Array via structured
+    // clone and hands it straight to xterm's write().
     expect(win.webContents.send).toHaveBeenCalledWith('channel:channel-2', {
       type: 'Data',
-      data: Buffer.from('before reload', 'utf8').toString('base64'),
+      data: Buffer.from('before reload', 'utf8'),
     });
     expect(win.webContents.send).toHaveBeenLastCalledWith('channel:channel-2', {
       type: 'Data',
-      data: Buffer.from('after reload', 'utf8').toString('base64'),
+      data: Buffer.from('after reload', 'utf8'),
     });
+  });
+
+  it('sends raw bytes to the renderer but base64 to subscribers', () => {
+    const win = createMockWindow();
+    const agentId = 'agent-encoding-split';
+    spawnAgent(
+      win,
+      buildSpawnArgs({
+        agentId,
+        command: 'claude',
+        args: [],
+        dockerMode: false,
+        onOutput: { __CHANNEL_ID__: 'channel-split' },
+      }),
+    );
+    const proc = mockPtySpawn.mock.results[0].value as ReturnType<typeof mockPtySpawn>;
+
+    // No subscriber yet: the renderer still gets its bytes.
+    proc.emitData('alpha');
+    expect(win.webContents.send).toHaveBeenLastCalledWith('channel:channel-split', {
+      type: 'Data',
+      data: Buffer.from('alpha', 'utf8'),
+    });
+
+    // With a subscriber attached, the same flush must ALSO produce base64 —
+    // remote WS/MCP transports need a string. This guards the encoding-split
+    // contract, not the `subscribers.size > 0` fast path: skipping that work when
+    // nobody is listening has no observable effect, so no behavioural test can
+    // detect its removal (verified by mutation — forcing the branch open keeps
+    // this suite green). The guard is a performance choice, not a correctness one.
+    const received: string[] = [];
+    const cb = (encoded: string): void => {
+      received.push(encoded);
+    };
+    expect(subscribeToAgent(agentId, cb)).toBe(true);
+
+    proc.emitData('beta');
+    expect(win.webContents.send).toHaveBeenLastCalledWith('channel:channel-split', {
+      type: 'Data',
+      data: Buffer.from('beta', 'utf8'),
+    });
+    expect(received).toEqual([Buffer.from('beta', 'utf8').toString('base64')]);
+
+    // After unsubscribing, no further base64 is produced.
+    unsubscribeFromAgent(agentId, cb);
+    proc.emitData('gamma');
+    expect(received).toHaveLength(1);
   });
 
   it('reattaches before validating the launch command', () => {

@@ -339,17 +339,23 @@ function attachPtyOutputHandlers(
       `[docker] command: ${innerCmd}\r\n` +
       `[docker] waiting for container to start…\x1b[0m\r\n\r\n`;
     console.warn(`[docker] spawning container ${containerName} — image=${image} cmd=${innerCmd}`);
-    send({ type: 'Data', data: Buffer.from(banner, 'utf8').toString('base64') });
+    send({ type: 'Data', data: Buffer.from(banner, 'utf8') });
   }
 
   const flush = () => {
     if (batchSize === 0) return;
     const batch = Buffer.concat(batchChunks);
-    const encoded = batch.toString('base64');
-    send({ type: 'Data', data: encoded });
+    // Raw bytes to the renderer: structured clone delivers a Uint8Array, which
+    // xterm's write() takes directly. No encode/decode pair on the hot path.
+    send({ type: 'Data', data: batch });
     session.scrollback.write(batch);
-    for (const sub of session.subscribers) {
-      sub(encoded);
+    if (session.subscribers.size > 0) {
+      // ponytail: base64 only when a remote client or the coordinator is attached —
+      // their transports (WS JSON, MCP) need a string. Idle sessions pay nothing.
+      const encoded = batch.toString('base64');
+      for (const sub of session.subscribers) {
+        sub(encoded);
+      }
     }
     batchChunks = [];
     batchSize = 0;
@@ -434,8 +440,10 @@ export function spawnAgent(win: BrowserWindow, args: SpawnAgentArgs): void {
     if (args.cols > 0 && args.rows > 0) {
       existing.proc.resize(args.cols, args.rows);
     }
-    const scrollback = existing.scrollback.toBase64();
-    if (scrollback) {
+    // NOTE: length check, not truthiness — an empty Buffer is truthy, unlike the
+    // empty string this used to return.
+    const scrollback = existing.scrollback.read();
+    if (scrollback.length > 0) {
       sendToChannel(win, channelId, { type: 'Data', data: scrollback });
     }
     emitPtyEvent('spawn', args.agentId);
