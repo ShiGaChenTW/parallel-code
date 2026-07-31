@@ -159,5 +159,6 @@
   "AppendTranscriptEvent": "append_transcript_event",
   "ReadTranscript": "read_transcript",
   "ClearTranscripts": "clear_transcripts",
-  "SetAppIcon": "set_app_icon"
+  "SetAppIcon": "set_app_icon",
+  "SetWindowOpacity": "set_window_opacity"
 }

@@ -353,6 +353,7 @@ export interface PersistedState {
   darkThemePreset?: LookPreset;
   darkThemeCustomId?: string | null;
   appIcon?: AppIconId;
+  windowOpacity?: number;
   coordinatorModeEnabled?: boolean;
   coordinatorNotificationDelayMs?: number;
   coordinatorControlHintDismissed?: boolean;
@@ -481,6 +482,7 @@ export interface AppStore {
   darkThemePreset: LookPreset;
   darkThemeCustomId: string | null;
   appIcon: AppIconId;
+  windowOpacity: number;
   coordinatorModeEnabled: boolean;
   coordinatorNotificationDelayMs: number;
   coordinatorControlHintDismissed: boolean;

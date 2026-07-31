@@ -48,6 +48,7 @@ import {
   setLightTheme,
   setDarkTheme,
   setAppIcon,
+  setWindowOpacity,
   setCoordinatorModeEnabled,
   setCoordinatorNotificationDelayMs,
   setDefaultStepsEnabled,
@@ -59,7 +60,13 @@ import {
 import { CustomAgentEditor } from './CustomAgentEditor';
 import { HulySettings } from './HulySettings';
 import { TokenUsageSection } from './TokenUsageSection';
-import { mod } from '../lib/platform';
+import { mod, rendererPlatform } from '../lib/platform';
+import {
+  MIN_WINDOW_OPACITY,
+  WINDOW_OPACITY_STEP,
+  isWindowOpacitySupported,
+  windowOpacityReadability,
+} from '../lib/window-opacity';
 import { DEFAULT_DOCKER_IMAGE, PROJECT_DOCKERFILE_RELATIVE_PATH } from '../lib/docker';
 
 interface SettingsDialogProps {
@@ -497,6 +504,101 @@ function AppIconSection() {
           }}
         </For>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Window opacity, or an explanation of its absence.
+ *
+ * Electron 40 implements `setOpacity` on macOS and Windows and documents it as
+ * doing nothing on Linux — and Linux is one of this app's two published targets.
+ * So the slider is not rendered there at all: a control that moves and changes
+ * nothing is worse than no control, and worse than a sentence saying why.
+ *
+ * The readability note is not decoration. Window opacity fades the glyphs along
+ * with everything else, which is not what transparency means in a terminal
+ * emulator — the same 80% that looks fine in iTerm2 costs real contrast here.
+ * `windowOpacityReadability` puts a WCAG number behind that rather than a vibe.
+ */
+function WindowOpacitySection() {
+  const supported = isWindowOpacitySupported(rendererPlatform);
+  const readability = () => windowOpacityReadability(store.windowOpacity);
+  return (
+    <div style={{ display: 'flex', 'flex-direction': 'column', gap: '10px' }}>
+      <div style={{ ...sectionLabelStyle, 'font-weight': '600' }}>{tr('Window opacity')}</div>
+      <Show
+        when={supported}
+        fallback={
+          <div style={{ 'font-size': '12px', color: theme.fgSubtle }}>
+            {tr(
+              'Not available on Linux — Electron implements window opacity on macOS only, so a slider here would do nothing.',
+            )}
+          </div>
+        }
+      >
+        <div style={{ 'font-size': '12px', color: theme.fgSubtle }}>
+          {tr(
+            'Fades the whole window, text included — the desktop shows through the terminals, not just behind them.',
+          )}
+        </div>
+        <div
+          style={{
+            display: 'flex',
+            'flex-direction': 'column',
+            gap: '8px',
+            padding: '8px 12px',
+            'border-radius': '8px',
+            background: theme.bgInput,
+            border: `1px solid ${theme.border}`,
+          }}
+        >
+          <div
+            style={{ display: 'flex', 'align-items': 'center', 'justify-content': 'space-between' }}
+          >
+            <span style={{ 'font-size': '14px', color: theme.fg }}>{tr('Opacity')}</span>
+            <span
+              style={{
+                'font-size': '13px',
+                color: theme.fgMuted,
+                'font-family': "'JetBrains Mono', monospace",
+                'min-width': '36px',
+                'text-align': 'right',
+              }}
+            >
+              {Math.round(store.windowOpacity * 100)}%
+            </span>
+          </div>
+          <input
+            type="range"
+            min={Math.round(MIN_WINDOW_OPACITY * 100)}
+            max="100"
+            step={Math.round(WINDOW_OPACITY_STEP * 100)}
+            value={Math.round(store.windowOpacity * 100)}
+            aria-label={tr('Window opacity')}
+            onInput={(e) => setWindowOpacity(Number(e.currentTarget.value) / 100)}
+            style={{ width: '100%', 'accent-color': theme.accent, cursor: 'pointer' }}
+          />
+          <div
+            style={{
+              display: 'flex',
+              'justify-content': 'space-between',
+              'font-size': '11px',
+              color: theme.fgSubtle,
+            }}
+          >
+            <span>{tr('More transparent')}</span>
+            <span>{tr('Opaque')}</span>
+          </div>
+        </div>
+        <Show when={readability() !== 'ok'}>
+          <div style={{ 'font-size': '12px', color: theme.fgMuted }}>
+            {tr(
+              'At this level, text over a bright desktop falls below the contrast the built-in themes are checked against.',
+            )}
+          </div>
+        </Show>
+      </Show>
     </div>
   );
 }
@@ -1438,6 +1540,8 @@ export function SettingsDialog(props: SettingsDialogProps) {
           </Show>
 
           <AppIconSection />
+
+          <WindowOpacitySection />
         </div>
       </Show>
 

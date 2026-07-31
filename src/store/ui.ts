@@ -7,6 +7,7 @@ import type { LookPreset, AppearanceMode } from '../lib/look';
 import { osIsDark } from '../lib/os-appearance';
 import type { CustomTheme } from '../lib/custom-theme';
 import type { AppIconId } from '../lib/app-icon';
+import { normalizeWindowOpacity } from '../lib/window-opacity';
 import { themeToCss } from '../lib/custom-theme';
 import type { PersistedWindowState, TaskViewportVisibility } from './types';
 import { invoke } from '../lib/ipc';
@@ -141,6 +142,24 @@ export function setDarkTheme(preset: LookPreset, customId: string | null): void 
 export function setAppIcon(id: AppIconId): void {
   setStore('appIcon', id);
   void invoke(IPC.SetAppIcon, { id }).catch(() => {});
+}
+
+/**
+ * Persist the window opacity and ask main to apply it to the live window.
+ *
+ * Normalized here as well as in main: this is the value that reaches state.json
+ * and is read back at the next launch, so it has to be a legal step whatever the
+ * slider handed over.
+ *
+ * Not awaited, for the same reason as `setAppIcon` — the setting is cosmetic and
+ * the value is stored either way, so a restart still lands on it. Settings only
+ * offers the control where Electron implements opacity, so main applying it is
+ * the expected case rather than a hope.
+ */
+export function setWindowOpacity(value: number): void {
+  const opacity = normalizeWindowOpacity(value);
+  setStore('windowOpacity', opacity);
+  void invoke(IPC.SetWindowOpacity, { opacity }).catch(() => {});
 }
 
 export async function saveCustomTheme(theme: CustomTheme): Promise<void> {

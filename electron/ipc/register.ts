@@ -49,6 +49,7 @@ import {
 } from './pr-checks.js';
 import { readCoverageSummary } from './coverage.js';
 import { applyAppIcon, isAppIconId, DEFAULT_APP_ICON } from './app-icon.js';
+import { applyWindowOpacity, normalizeWindowOpacity } from './window-opacity.js';
 import { startRemoteServer, getMCPLogs, type RemoteProject } from '../remote/server.js';
 import type { RemoteAttentionState } from '../remote/protocol.js';
 import { atomicWriteFileSync } from '../mcp/atomic.js';
@@ -840,6 +841,21 @@ export function registerAllHandlers(win: BrowserWindow): void {
     const id = isAppIconId(args?.id) ? args.id : DEFAULT_APP_ICON;
     const applied = applyAppIcon(win, id);
     if (!applied) logDebug('app-icon', 'not applied', { id, platform: process.platform });
+    return { applied };
+  });
+
+  // --- Window opacity ---
+  // `applied` is the honest answer, not a formality: Electron implements
+  // `setOpacity` on macOS and Windows only, and on Linux the call would return
+  // normally having done nothing. Settings withholds the control on unsupported
+  // platforms, so a false here means either a race with window teardown or a
+  // caller that got past that gate — both worth a debug line and neither worth
+  // an error dialog over a cosmetic setting.
+  ipcMain.handle(IPC.SetWindowOpacity, (_e, args) => {
+    const opacity = normalizeWindowOpacity(args?.opacity);
+    const applied = applyWindowOpacity(win, opacity);
+    if (!applied)
+      logDebug('window-opacity', 'not applied', { opacity, platform: process.platform });
     return { applied };
   });
 
