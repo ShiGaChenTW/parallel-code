@@ -7,6 +7,7 @@ import {
   sumTokenTotals,
   visibleProviderColumns,
 } from './token-usage-format';
+import { translate, type Locale } from './i18n';
 import type { TokenUsagePathRow } from '../ipc/types';
 
 const t = (input: number, output = 0, cacheRead = 0, cacheWrite = 0) => ({
@@ -107,9 +108,15 @@ describe('visibleProviderColumns', () => {
 });
 
 describe('describeProviders', () => {
+  /** What the component renders: every descriptor translated, then joined. */
+  const line = (locale: Locale, providers: Parameters<typeof describeProviders>[0]): string =>
+    describeProviders(providers)
+      .map((sentence) => translate(locale, sentence.text, sentence.params))
+      .join(' ');
+
   it('names the CLIs it read', () => {
     expect(
-      describeProviders([
+      line('en', [
         { provider: 'claude', present: true },
         { provider: 'codex', present: true },
         { provider: 'grok', present: true },
@@ -119,7 +126,7 @@ describe('describeProviders', () => {
 
   it('says a missing CLI is not installed rather than treating it as a fault', () => {
     expect(
-      describeProviders([
+      line('en', [
         { provider: 'claude', present: true },
         { provider: 'codex', present: false },
       ]),
@@ -128,7 +135,7 @@ describe('describeProviders', () => {
 
   it('calls out a genuine read failure separately', () => {
     expect(
-      describeProviders([
+      line('en', [
         { provider: 'claude', present: true },
         { provider: 'grok', present: true, error: 'EACCES' },
       ]),
@@ -137,7 +144,7 @@ describe('describeProviders', () => {
 
   it('handles nothing installed at all', () => {
     expect(
-      describeProviders([
+      line('en', [
         { provider: 'claude', present: false },
         { provider: 'codex', present: false },
         { provider: 'grok', present: false },
@@ -146,6 +153,25 @@ describe('describeProviders', () => {
   });
 
   it('handles an empty provider list', () => {
-    expect(describeProviders([])).toBe('No usage logs have been read yet.');
+    expect(line('en', [])).toBe('No usage logs have been read yet.');
+  });
+
+  it('returns descriptors, not a finished string, so the locale decides word order', () => {
+    // The whole point of the descriptor: English puts the provider list first
+    // in "Codex not installed", zh-TW puts it last. A concatenated string could
+    // not have done this.
+    expect(
+      line('zh-TW', [
+        { provider: 'claude', present: true },
+        { provider: 'codex', present: false },
+      ]),
+    ).toBe('正在讀取 Claude。 未安裝 Codex。');
+  });
+
+  it('keeps vendor names out of the translated text, so they never get renamed', () => {
+    expect(describeProviders([{ provider: 'grok', present: true, error: 'EACCES' }])).toEqual([
+      { text: 'No AI CLI logs found.', params: {} },
+      { text: 'Could not read {providers}.', params: { providers: 'Grok' } },
+    ]);
   });
 });

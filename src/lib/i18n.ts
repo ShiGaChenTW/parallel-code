@@ -721,6 +721,92 @@ const ZH_TW: Record<string, string> = {
   'The agent starts on its own once it lands.': '一旦落地，agent 會自己開始。',
   'Clear dependency and start now': '解除依賴並立即開始',
   // 'Retry' and 'Dismiss' are already in this catalogue above.
+
+  // Settings explanatory copy. Everything below is a sentence rather than a
+  // label, and belongs to a section added after the i18n wave: the transcript
+  // switch, the AI usage table, Diagnostics, Updates, Docker and Coordinator.
+  // Each one was either wrapped in `tr()` with no entry here, or never wrapped
+  // at all, and the English fallback made those two look identical on screen.
+  //
+  // "transcript" stays English inside these sentences for the same reason
+  // "worktree" does: it names an on-disk artefact the user can go and look at
+  // (`transcripts/<taskId>.jsonl`), and a translated name would not match the
+  // directory. So do `token`, `IPC`, `pty`, `PR` and `commit` — this audience
+  // reads them in English, and rendering them in Chinese costs a beat.
+  'Record session transcripts': '記錄工作階段 transcript',
+  'Write a timestamped record of each task — agent starts and exits, step updates, attention changes, merges, PR check results and commits — to transcripts/<taskId>.jsonl in the application data directory, so a task can be reviewed after a restart. Nothing leaves your machine. Known secret shapes (API keys, tokens, private key headers) are masked before anything is written, but a transcript quotes your source code and instructions, so treat it as sensitive: masking catches shapes, not meaning. Kept for 30 days or 5000 events per task, whichever comes first.':
+    '為每個任務寫下附時間戳的記錄 —— agent 的啟動與結束、步驟更新、待處理狀態變化、合併、PR 檢查結果與 commit —— ' +
+    '存到應用程式資料目錄下的 transcripts/<taskId>.jsonl，重新啟動後仍然回得去看。所有內容都留在你自己的機器上。' +
+    '符合已知格式的機密（API key、token、私鑰標頭）會在寫入前先遮蔽，但 transcript 會引用你的原始碼與指令，' +
+    '請當成敏感資料看待：遮蔽擋得住格式，擋不住語意。保留 30 天，或每個任務 5000 筆事件，先到者為準。',
+  'Clear transcripts': '清除 transcript',
+  'Deletes every recorded transcript from disk. Cannot be undone.':
+    '把已經記錄下來的 transcript 全部從磁碟刪掉。此動作無法復原。',
+  // English inflects for count, so the call site picks between two whole
+  // sentences. zh-TW has no plural form, so both land on the same shape.
+  'Deleted 1 transcript': '已刪除 1 份 transcript',
+  'Deleted {count} transcripts': '已刪除 {count} 份 transcript',
+  'Could not delete transcripts': '無法刪除 transcript',
+  'No events recorded for this task yet.': '這個任務還沒有記錄到任何事件。',
+  'Session transcripts are off. Turn on Settings → Privacy → Record session transcripts to start recording this task.':
+    '工作階段 transcript 目前是關閉的。到「設定 → 隱私 → 記錄工作階段 transcript」打開，才會開始記錄這個任務。',
+  'Content matching a known secret shape was masked before this was written':
+    '這段內容符合已知的機密格式，寫入前已經遮蔽',
+  Handoff: '交接',
+  Timeline: '時間軸',
+  '{count} event': '{count} 筆事件',
+  '{count} events': '{count} 筆事件',
+  '{count} event · {masked} with redacted content': '{count} 筆事件 · 其中 {masked} 筆內容被遮蔽',
+  '{count} events · {masked} with redacted content': '{count} 筆事件 · 其中 {masked} 筆內容被遮蔽',
+
+  // AI usage. Provider names (Claude, Codex, Grok, Antigravity) are vendor
+  // names and stay as they are; only the sentences around them are translated.
+  'AI Usage': 'AI 用量',
+  'Token counts read from the log files the AI CLIs already write on this machine. No network request is made, so this works with offline mode on.':
+    'token 數字直接讀自 AI CLI 本來就會寫在這台機器上的紀錄檔。過程中不發出任何網路請求，所以離線模式開著也能用。',
+  Total: '總計',
+  'All worktrees': '所有 worktree',
+  'No usage logs have been read yet.': '還沒有讀到任何用量紀錄。',
+  'Reading {providers}.': '正在讀取 {providers}。',
+  'No AI CLI logs found.': '找不到任何 AI CLI 的紀錄檔。',
+  '{providers} not installed.': '未安裝 {providers}。',
+  'Could not read {providers}.': '無法讀取 {providers}。',
+
+  // Editor and Ask about Code. Both placeholders name real commands and a real
+  // environment variable, so only the words around them move.
+  'e.g. code, cursor, zed, subl': '例如 code、cursor、zed、subl',
+  'Enter your MINIMAX_API_KEY (stored in memory only)':
+    '輸入你的 MINIMAX_API_KEY（僅存放在記憶體中）',
+
+  // Docker. The path is a `<code>` element rather than a string, so the
+  // sentence is rendered from segments and the slot lands where zh-TW wants it.
+  'Projects with a {path} will use a project-specific image instead.':
+    '專案裡如果有 {path}，就改用該專案專屬的 image。',
+
+  // Diagnostics.
+  'Emit debug-level logs to the developer console. Verbose logs may include file paths, branch names, commit messages, IPC channel activity, and pty lifecycle events. Review the contents before sharing.':
+    '把 debug 等級的記錄輸出到開發者主控台。詳細記錄可能包含檔案路徑、branch 名稱、commit 訊息、' +
+    'IPC channel 活動，以及 pty 生命週期事件。分享前請先檢查內容。',
+
+  // Updates. Each of these carried its value by concatenation before, which
+  // pinned the version number to the front of the sentence in every language.
+  'Version {version} is available. Use the update button in the sidebar to install.':
+    '{version} 版可以更新了。用側欄的更新按鈕安裝。',
+  'Downloading update… {percent}%': '正在下載更新… {percent}%',
+  'Version {version} is downloaded. Use the update button in the sidebar to restart & install.':
+    '{version} 版已經下載完成。用側欄的更新按鈕重新啟動並安裝。',
+  'Update check failed: {error}': '檢查更新失敗：{error}',
+
+  // Themes.
+  '+ Create New': '+ 新增',
+
+  // Coordinator. The feature name itself stays English — see the note beside
+  // 'View MCP logs' above.
+  'Enable the Coordinator option when creating tasks. Coordinators can spawn sub-tasks, send prompts, and merge branches automatically via MCP tools. Requires app restart to fully disable.':
+    '在建立任務時顯示 Coordinator 選項。Coordinator 可以透過 MCP 工具自動開子任務、送出 prompt、合併 branch。' +
+    '要完全停用需要重新啟動應用程式。',
+  'How long the coordinator waits before firing a notification after a sub-task completes. Default: 60s. Failed sub-tasks use max(10s, delay ÷ 4).':
+    'coordinator 在子任務完成後要等多久才發出通知。預設 60 秒。失敗的子任務改用 max(10s, delay ÷ 4)。',
 };
 
 const CATALOGUES: Record<Locale, Record<string, string>> = {

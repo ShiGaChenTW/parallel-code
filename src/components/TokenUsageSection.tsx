@@ -24,6 +24,12 @@ import {
 export function TokenUsageSection() {
   const rows = () => tokenUsage().paths;
   const columns = () => visibleProviderColumns(rows());
+  // `describeProviders` is pure and cannot read the locale, so it hands back
+  // one descriptor per sentence and the translating happens here.
+  const providerSummary = () =>
+    describeProviders(tokenUsage().providers)
+      .map((sentence) => tr(sentence.text, sentence.params))
+      .join(' ');
 
   const cellStyle = {
     padding: '5px 8px',
@@ -50,9 +56,7 @@ export function TokenUsageSection() {
       <Show
         when={rows().length > 0}
         fallback={
-          <div style={{ color: theme.fgMuted, 'font-size': '12px' }}>
-            {describeProviders(tokenUsage().providers)}
-          </div>
+          <div style={{ color: theme.fgMuted, 'font-size': '12px' }}>{providerSummary()}</div>
         }
       >
         <div style={{ 'overflow-x': 'auto' }}>
@@ -151,9 +155,7 @@ export function TokenUsageSection() {
           </table>
         </div>
 
-        <div style={{ color: theme.fgMuted, 'font-size': '11px' }}>
-          {describeProviders(tokenUsage().providers)}
-        </div>
+        <div style={{ color: theme.fgMuted, 'font-size': '11px' }}>{providerSummary()}</div>
       </Show>
     </div>
   );

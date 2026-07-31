@@ -6,6 +6,7 @@ import {
   transcriptEmptyMessage,
   transcriptSummaryLine,
 } from './transcript-timeline';
+import { translate, type Locale } from './i18n';
 import type { TranscriptEvent } from '../ipc/types';
 
 function event(over: Partial<TranscriptEvent> = {}): TranscriptEvent {
@@ -92,18 +93,31 @@ describe('transcriptEmptyMessage', () => {
 });
 
 describe('transcriptSummaryLine', () => {
+  /** What the pane renders: the descriptor translated into `locale`. */
+  const line = (locale: Locale, events: Parameters<typeof transcriptSummaryLine>[0]): string => {
+    const summary = transcriptSummaryLine(events);
+    return summary === null ? '' : translate(locale, summary.text, summary.params);
+  };
+
   it('says nothing when there is nothing', () => {
-    expect(transcriptSummaryLine([])).toBe('');
+    expect(transcriptSummaryLine([])).toBeNull();
+    expect(line('en', [])).toBe('');
   });
 
   it('counts events, singular and plural', () => {
-    expect(transcriptSummaryLine([event()])).toBe('1 event');
-    expect(transcriptSummaryLine([event(), event()])).toBe('2 events');
+    expect(line('en', [event()])).toBe('1 event');
+    expect(line('en', [event(), event()])).toBe('2 events');
   });
 
   it('surfaces how many rows were masked', () => {
-    expect(transcriptSummaryLine([event({ redacted: ['jwt'] }), event()])).toBe(
+    expect(line('en', [event({ redacted: ['jwt'] }), event()])).toBe(
       '2 events · 1 with redacted content',
+    );
+  });
+
+  it('translates, because the count is a slot rather than a concatenated number', () => {
+    expect(line('zh-TW', [event({ redacted: ['jwt'] }), event()])).toBe(
+      '2 筆事件 · 其中 1 筆內容被遮蔽',
     );
   });
 });
