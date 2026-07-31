@@ -28,7 +28,7 @@ vi.mock('./core', async () => {
 
 vi.mock('./focus', () => ({}));
 vi.mock('./notification', () => ({ showNotification: vi.fn() }));
-vi.mock('./projects', () => ({ pickAndAddProject: vi.fn() }));
+vi.mock('./projects', () => ({ startAddProject: vi.fn() }));
 vi.mock('./tasks', () => ({ reorderTask: vi.fn() }));
 
 import { jumpToTask } from './navigation';

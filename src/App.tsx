@@ -31,6 +31,7 @@ import { CLOSE_DIALOG_BUTTONS, resolveCloseChoice } from './lib/close-decision';
 import { Sidebar } from './components/Sidebar';
 import { TilingLayout } from './components/TilingLayout';
 import { NewTaskDialog } from './components/NewTaskDialog';
+import { AddProjectFlow } from './components/AddProjectFlow';
 import { WindowTitleBar } from './components/WindowTitleBar';
 import { FocusModeTaskIndicators } from './components/FocusModeTaskIndicators';
 import { theme } from './lib/theme';
@@ -974,6 +975,10 @@ function App() {
             open={store.showNewTaskDialog}
             onClose={() => toggleNewTaskDialog(false)}
           />
+          {/* Mounted here, not in Sidebar: the sidebar can be collapsed while
+              the TilingLayout empty state or `toggleNewTaskDialog` starts an
+              add. */}
+          <AddProjectFlow />
         </main>
         <Show when={store.showHelpDialog}>
           <HelpDialog open={store.showHelpDialog} onClose={() => toggleHelpDialog(false)} />

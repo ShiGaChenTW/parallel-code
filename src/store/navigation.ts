@@ -1,7 +1,7 @@
 import { store, setStore } from './core';
 import { getTaskFocusedPanel, setTaskFocusedPanel } from './focused-panel';
 import { showNotification } from './notification';
-import { pickAndAddProject } from './projects';
+import { startAddProject } from './projects';
 import { reorderTask } from './tasks';
 
 const AI_TERMINAL_PREFIX = 'ai-terminal:';
@@ -77,7 +77,7 @@ export function toggleNewTaskDialog(show?: boolean): void {
   const shouldShow = show ?? !store.showNewTaskDialog;
   if (shouldShow && store.projects.length === 0) {
     showNotification('Add a project first');
-    pickAndAddProject();
+    startAddProject();
     return;
   }
   if (!shouldShow) {

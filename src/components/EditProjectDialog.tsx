@@ -4,14 +4,42 @@ import { Dialog } from './Dialog';
 import { updateProject, PASTEL_HUES, isProjectMissing, relinkProject } from '../store/store';
 import { sanitizeBranchPrefix, toBranchName } from '../lib/branch-name';
 import { theme, sectionLabelStyle } from '../lib/theme';
-import type { Project, TerminalBookmark, GitIsolationMode } from '../store/types';
+import type {
+  Project,
+  ProjectDraft,
+  ProjectSettings,
+  TerminalBookmark,
+  GitIsolationMode,
+} from '../store/types';
 import { SegmentedButtons } from './SegmentedButtons';
 import { ImportWorktreesDialog } from './ImportWorktreesDialog';
 import { CloseIcon } from './icons';
 import { RemoveProjectConfirm } from './RemoveProjectConfirm';
 
+/**
+ * One dialog, two modes.
+ *
+ * Edit mode is the original: a `project` that already exists, saved straight to
+ * the store through `updateProject`. Create mode is driven by `draft` — a
+ * folder the user picked for a project that does not exist yet — and the
+ * dialog never writes it. It hands the collected settings back through
+ * `onCreate` and lets the caller decide, which is the whole reason Cancel can
+ * be a genuine no-op: there is no store write on this component's create path
+ * to undo.
+ *
+ * `draft` and `project` are never both meaningful; `draft` wins, and edit-only
+ * affordances read `editing()` rather than `props.project` so a stray both-set
+ * caller degrades to create mode instead of pointing Remove or Import at a
+ * project the user is not looking at.
+ */
 interface EditProjectDialogProps {
   project: Project | null;
+  /** Set for create mode: a project that has not been created yet. */
+  draft?: ProjectDraft | null;
+  /** Create mode only. Called with the collected settings when Save is pressed. */
+  onCreate?: (settings: ProjectSettings) => void;
+  /** Create mode only. Called when the user wants to re-pick the folder. */
+  onChangePath?: () => void;
   onClose: () => void;
 }
 
@@ -78,20 +106,33 @@ export function EditProjectDialog(props: EditProjectDialogProps) {
   const [confirmRemove, setConfirmRemove] = createSignal(false);
   let nameRef!: HTMLInputElement;
 
-  // Sync signals when project prop changes
+  /** The project being edited, or null in create mode. Everything keyed on a
+   *  project id reads this rather than `props.project`. */
+  const editing = (): Project | null => (props.draft ? null : props.project);
+  /** What the form is showing — a real project or an uncreated draft. Both
+   *  carry the four fields the shared parts of the form read. */
+  const subject = (): Project | ProjectDraft | null => props.draft ?? props.project;
+  const isCreate = () => Boolean(props.draft);
+
+  // Sync signals when the subject changes — a different project to edit, or a
+  // draft whose folder was just re-picked.
   createEffect(() => {
-    const p = props.project;
+    const p = subject();
     if (!p) return;
+    // A draft carries only name/path/colour/isGitRepo, so the rest fall back to
+    // the same defaults the `?? …` reads elsewhere in the app already assume.
+    const existing = editing();
     setName(p.name);
     setSelectedHue(hueFromColor(p.color));
-    setBranchPrefix(sanitizeBranchPrefix(p.branchPrefix ?? 'task'));
-    setDeleteBranchOnClose(p.deleteBranchOnClose ?? true);
-    setDefaultGitIsolation(p.defaultGitIsolation ?? 'worktree');
-    setDefaultBaseBranch(p.defaultBaseBranch ?? '');
-    setCoverageReportPath(p.coverageReportPath ?? '');
-    setBookmarks(p.terminalBookmarks ? [...p.terminalBookmarks] : []);
+    setBranchPrefix(sanitizeBranchPrefix(existing?.branchPrefix ?? 'task'));
+    setDeleteBranchOnClose(existing?.deleteBranchOnClose ?? true);
+    setDefaultGitIsolation(existing?.defaultGitIsolation ?? 'worktree');
+    setDefaultBaseBranch(existing?.defaultBaseBranch ?? '');
+    setCoverageReportPath(existing?.coverageReportPath ?? '');
+    setBookmarks(existing?.terminalBookmarks ? [...existing.terminalBookmarks] : []);
     setNewCommand('');
     setConfirmRemove(false);
+    setShowImportDialog(false);
     requestAnimationFrame(() => nameRef?.focus());
   });
 
@@ -113,30 +154,42 @@ export function EditProjectDialog(props: EditProjectDialogProps) {
 
   const canSave = () => name().trim().length > 0;
 
-  function handleSave() {
-    if (!canSave() || !props.project) return;
-    const sanitizedPrefix = sanitizeBranchPrefix(branchPrefix());
-    updateProject(props.project.id, {
+  /** The one place the form's fields become a value, so create and edit cannot
+   *  collect different things. */
+  function collectSettings(): ProjectSettings {
+    return {
       name: name().trim(),
       color: `hsl(${selectedHue()}, 70%, 75%)`,
-      branchPrefix: sanitizedPrefix,
+      branchPrefix: sanitizeBranchPrefix(branchPrefix()),
       deleteBranchOnClose: deleteBranchOnClose(),
       defaultGitIsolation: defaultGitIsolation(),
       defaultBaseBranch: defaultBaseBranch() || undefined,
       coverageReportPath: coverageReportPath().trim() || undefined,
       terminalBookmarks: bookmarks(),
-    });
+    };
+  }
+
+  function handleSave() {
+    if (!canSave()) return;
+    if (isCreate()) {
+      props.onCreate?.(collectSettings());
+      props.onClose();
+      return;
+    }
+    const project = props.project;
+    if (!project) return;
+    updateProject(project.id, collectSettings());
     props.onClose();
   }
 
   return (
     <Dialog
-      open={props.project !== null}
+      open={subject() !== null}
       onClose={props.onClose}
       width="480px"
       panelStyle={{ gap: '20px' }}
     >
-      <Show when={props.project}>
+      <Show when={subject()}>
         {(project) => (
           <>
             <h2
@@ -147,7 +200,7 @@ export function EditProjectDialog(props: EditProjectDialogProps) {
                 'font-weight': '600',
               }}
             >
-              {tr('Edit Project')}
+              {isCreate() ? tr('Add Project') : tr('Edit Project')}
             </h2>
 
             {/* Path */}
@@ -172,25 +225,39 @@ export function EditProjectDialog(props: EditProjectDialogProps) {
               >
                 {project().path}
               </div>
+              {/* Import Worktrees — edit only. Importing attaches each worktree
+                  to the project as a task, so it needs a project that exists;
+                  in create mode there is no id to attach to. Nothing is lost:
+                  `AddProjectFlow` runs the same scan right after Save, and the
+                  button is still here next time the project is opened. */}
+              <Show when={editing()}>
+                <button
+                  type="button"
+                  onClick={() => setShowImportDialog(true)}
+                  style={{
+                    padding: '3px 10px',
+                    background: theme.bgInput,
+                    border: `1px solid ${theme.border}`,
+                    'border-radius': '6px',
+                    color: theme.fgMuted,
+                    cursor: 'pointer',
+                    'font-size': '11px',
+                    'flex-shrink': '0',
+                  }}
+                >
+                  {tr('Import Worktrees')}
+                </button>
+              </Show>
+              {/* Change — works in both modes. The folder is the one field that
+                  cannot be typed, and re-picking it re-detects `isGitRepo`,
+                  which decides whether the git-only fields below are shown. */}
               <button
                 type="button"
-                onClick={() => setShowImportDialog(true)}
-                style={{
-                  padding: '3px 10px',
-                  background: theme.bgInput,
-                  border: `1px solid ${theme.border}`,
-                  'border-radius': '6px',
-                  color: theme.fgMuted,
-                  cursor: 'pointer',
-                  'font-size': '11px',
-                  'flex-shrink': '0',
+                onClick={() => {
+                  const project = editing();
+                  if (project) void relinkProject(project.id);
+                  else props.onChangePath?.();
                 }}
-              >
-                {tr('Import Worktrees')}
-              </button>
-              <button
-                type="button"
-                onClick={() => relinkProject(project().id)}
                 style={{
                   padding: '3px 10px',
                   background: theme.bgInput,
@@ -206,57 +273,63 @@ export function EditProjectDialog(props: EditProjectDialogProps) {
               </button>
             </div>
 
-            <Show when={isProjectMissing(project().id)}>
-              <div
-                style={{
-                  display: 'flex',
-                  'align-items': 'center',
-                  gap: '10px',
-                  padding: '10px 14px',
-                  'border-radius': '8px',
-                  background: `color-mix(in srgb, ${theme.warning} 10%, transparent)`,
-                  border: `1px solid color-mix(in srgb, ${theme.warning} 30%, transparent)`,
-                  color: theme.warning,
-                  'font-size': '13px',
-                }}
-              >
-                <span style={{ flex: '1' }}>{tr('This folder no longer exists.')}</span>
-                <button
-                  type="button"
-                  onClick={async () => {
-                    const ok = await relinkProject(project().id);
-                    if (ok) props.onClose();
-                  }}
-                  style={{
-                    padding: '5px 12px',
-                    background: theme.bgInput,
-                    border: `1px solid ${theme.border}`,
-                    'border-radius': '6px',
-                    color: theme.fg,
-                    cursor: 'pointer',
-                    'font-size': '13px',
-                    'flex-shrink': '0',
-                  }}
-                >
-                  {tr('Re-link')}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setConfirmRemove(true)}
-                  style={{
-                    padding: '5px 12px',
-                    background: 'transparent',
-                    border: `1px solid color-mix(in srgb, ${theme.error} 40%, transparent)`,
-                    'border-radius': '6px',
-                    color: theme.error,
-                    cursor: 'pointer',
-                    'font-size': '13px',
-                    'flex-shrink': '0',
-                  }}
-                >
-                  {tr('Remove')}
-                </button>
-              </div>
+            {/* Missing-folder banner — edit only. Both of its actions are keyed
+                on a project id, and a draft's folder was picked seconds ago. */}
+            <Show when={editing()}>
+              {(existing) => (
+                <Show when={isProjectMissing(existing().id)}>
+                  <div
+                    style={{
+                      display: 'flex',
+                      'align-items': 'center',
+                      gap: '10px',
+                      padding: '10px 14px',
+                      'border-radius': '8px',
+                      background: `color-mix(in srgb, ${theme.warning} 10%, transparent)`,
+                      border: `1px solid color-mix(in srgb, ${theme.warning} 30%, transparent)`,
+                      color: theme.warning,
+                      'font-size': '13px',
+                    }}
+                  >
+                    <span style={{ flex: '1' }}>{tr('This folder no longer exists.')}</span>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const ok = await relinkProject(existing().id);
+                        if (ok) props.onClose();
+                      }}
+                      style={{
+                        padding: '5px 12px',
+                        background: theme.bgInput,
+                        border: `1px solid ${theme.border}`,
+                        'border-radius': '6px',
+                        color: theme.fg,
+                        cursor: 'pointer',
+                        'font-size': '13px',
+                        'flex-shrink': '0',
+                      }}
+                    >
+                      {tr('Re-link')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setConfirmRemove(true)}
+                      style={{
+                        padding: '5px 12px',
+                        background: 'transparent',
+                        border: `1px solid color-mix(in srgb, ${theme.error} 40%, transparent)`,
+                        'border-radius': '6px',
+                        color: theme.error,
+                        cursor: 'pointer',
+                        'font-size': '13px',
+                        'flex-shrink': '0',
+                      }}
+                    >
+                      {tr('Remove')}
+                    </button>
+                  </div>
+                </Show>
+              )}
             </Show>
 
             {/* Name */}
@@ -284,7 +357,7 @@ export function EditProjectDialog(props: EditProjectDialogProps) {
             </div>
 
             {/* Branch prefix — git projects only */}
-            <Show when={props.project?.isGitRepo !== false}>
+            <Show when={project().isGitRepo !== false}>
               <div style={{ display: 'flex', 'flex-direction': 'column', gap: '8px' }}>
                 <label style={sectionLabelStyle}>
                   {tr('Branch prefix')}
@@ -374,7 +447,7 @@ export function EditProjectDialog(props: EditProjectDialogProps) {
             </div>
 
             {/* Git-specific settings — hidden for non-git projects */}
-            <Show when={props.project?.isGitRepo !== false}>
+            <Show when={project().isGitRepo !== false}>
               {/* Close cleanup preference */}
               <label
                 style={{
@@ -666,19 +739,27 @@ export function EditProjectDialog(props: EditProjectDialogProps) {
                   opacity: canSave() ? '1' : '0.4',
                 }}
               >
-                {tr('Save')}
+                {isCreate() ? tr('Create') : tr('Save')}
               </button>
             </div>
-            <ImportWorktreesDialog
-              open={showImportDialog()}
-              project={project()}
-              onClose={() => setShowImportDialog(false)}
-            />
-            <RemoveProjectConfirm
-              projectId={confirmRemove() ? project().id : null}
-              onDone={() => setConfirmRemove(false)}
-              onRemoved={() => props.onClose()}
-            />
+            {/* Both are keyed on a project id, so neither is reachable in
+                create mode — the buttons that open them are edit-only too. */}
+            <Show when={editing()}>
+              {(existing) => (
+                <>
+                  <ImportWorktreesDialog
+                    open={showImportDialog()}
+                    project={existing()}
+                    onClose={() => setShowImportDialog(false)}
+                  />
+                  <RemoveProjectConfirm
+                    projectId={confirmRemove() ? existing().id : null}
+                    onDone={() => setConfirmRemove(false)}
+                    onRemoved={() => props.onClose()}
+                  />
+                </>
+              )}
+            </Show>
           </>
         )}
       </Show>

@@ -5,6 +5,7 @@ import type { AppStore } from './types';
 
 export const [store, setStore] = createStore<AppStore>({
   projects: [],
+  pendingProjectDraft: null,
   lastProjectId: null,
   lastAgentId: null,
   taskOrder: [],

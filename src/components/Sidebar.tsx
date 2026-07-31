@@ -1,9 +1,8 @@
 import { createSignal, createEffect, createMemo, onMount, onCleanup, For, Show } from 'solid-js';
 import type { JSX } from 'solid-js';
-import { errMessage } from '../lib/log';
 import {
   store,
-  pickAndAddProject,
+  startAddProject,
   toggleNewTaskDialog,
   setActiveTask,
   toggleSidebar,
@@ -23,7 +22,6 @@ import {
   setProjectsCollapsed,
   uncollapseTask,
   isProjectMissing,
-  showNotification,
 } from '../store/store';
 import { tr } from '../store/i18n';
 import type { Project } from '../store/types';
@@ -36,7 +34,6 @@ import {
 import { ConnectPhoneModal } from './ConnectPhoneModal';
 import { RemoveProjectConfirm } from './RemoveProjectConfirm';
 import { EditProjectDialog } from './EditProjectDialog';
-import { ImportWorktreesDialog } from './ImportWorktreesDialog';
 import { SidebarFooter } from './SidebarFooter';
 import { IconButton } from './IconButton';
 import { UpdateButton } from './UpdateButton';
@@ -47,9 +44,6 @@ import { theme } from '../lib/theme';
 import { sf } from '../lib/fontScale';
 import { mod } from '../lib/platform';
 import { abbreviateHomePath } from '../lib/path';
-import { invoke } from '../lib/ipc';
-import { IPC } from '../../electron/ipc/channels';
-import type { ImportableWorktree } from '../ipc/types';
 import { shouldAnimateTaskAppearance } from '../lib/reducedMotion';
 
 const DRAG_THRESHOLD = 5;
@@ -217,10 +211,6 @@ export function Sidebar() {
   const [confirmRemove, setConfirmRemove] = createSignal<string | null>(null);
   const [editingProject, setEditingProject] = createSignal<Project | null>(null);
   const [showConnectPhone, setShowConnectPhone] = createSignal(false);
-  const [importProject, setImportProject] = createSignal<Project | null>(null);
-  const [initialImportCandidates, setInitialImportCandidates] = createSignal<
-    ImportableWorktree[] | null
-  >(null);
   const [dragFromIndex, setDragFromIndex] = createSignal<number | null>(null);
   const [dragFromTaskId, setDragFromTaskId] = createSignal<string | null>(null);
   const [dropTargetIndex, setDropTargetIndex] = createSignal<number | null>(null);
@@ -347,27 +337,11 @@ export function Sidebar() {
     });
   });
 
-  async function handleAddProject() {
-    const projectId = await pickAndAddProject();
-    if (!projectId) return;
-
-    const project = store.projects.find((entry) => entry.id === projectId) ?? null;
-    if (!project) return;
-    if (project.isGitRepo === false) return;
-
-    try {
-      const candidates = await invoke<ImportableWorktree[]>(IPC.ListImportableWorktrees, {
-        projectRoot: project.path,
-      });
-      if (candidates.length > 0) {
-        setInitialImportCandidates(candidates);
-        setImportProject(project);
-      }
-    } catch (err) {
-      console.error('Failed to scan importable worktrees:', err);
-      showNotification(`Couldn't scan existing worktrees: ${errMessage(err)}`);
-    }
-  }
+  // Adding a project is a two-step flow now, owned by `AddProjectFlow` at the
+  // app root: `startAddProject` only opens the folder picker and parks a draft,
+  // and nothing is created until the dialog that raises is saved. The
+  // worktree-import scan that used to live here moved with it, so it still
+  // runs — and now for every entry point, not just this button.
 
   function computeDropIndex(clientY: number, fromIdx: number): number {
     if (!taskListRef) return fromIdx;
@@ -582,7 +556,7 @@ export function Sidebar() {
                   <path d="M7.75 2a.75.75 0 0 1 .75.75V7h4.25a.75.75 0 0 1 0 1.5H8.5v4.25a.75.75 0 0 1-1.5 0V8.5H2.75a.75.75 0 0 1 0-1.5H7V2.75A.75.75 0 0 1 7.75 2Z" />
                 </svg>
               }
-              onClick={() => handleAddProject()}
+              onClick={() => void startAddProject()}
               title={tr('Add project')}
               size="sm"
             />
@@ -712,7 +686,7 @@ export function Sidebar() {
           fallback={
             <button
               class="icon-btn"
-              onClick={() => handleAddProject()}
+              onClick={() => void startAddProject()}
               style={{
                 background: 'transparent',
                 border: `1px solid ${theme.border}`,
@@ -943,15 +917,6 @@ export function Sidebar() {
         <ConnectPhoneModal open={showConnectPhone()} onClose={() => setShowConnectPhone(false)} />
 
         <EditProjectDialog project={editingProject()} onClose={() => setEditingProject(null)} />
-        <ImportWorktreesDialog
-          open={importProject() !== null}
-          project={importProject()}
-          initialCandidates={initialImportCandidates()}
-          onClose={() => {
-            setImportProject(null);
-            setInitialImportCandidates(null);
-          }}
-        />
 
         {/* Confirm remove project dialog */}
         <RemoveProjectConfirm projectId={confirmRemove()} onDone={() => setConfirmRemove(null)} />

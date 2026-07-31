@@ -13,7 +13,7 @@ import {
 import { tr } from '../store/i18n';
 import {
   store,
-  pickAndAddProject,
+  startAddProject,
   closeTerminal,
   setTaskViewportVisibility,
   taskNeedsAttention,
@@ -488,7 +488,7 @@ export function TilingLayout() {
                         </div>
                       </div>
                       <button
-                        onClick={() => pickAndAddProject()}
+                        onClick={() => void startAddProject()}
                         style={{
                           background: theme.bgElevated,
                           border: `1px solid ${theme.border}`,

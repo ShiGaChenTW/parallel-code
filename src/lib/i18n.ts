@@ -416,6 +416,10 @@ const ZH_TW: Record<string, string> = {
   'Link your first project to get started': '連結你的第一個專案就能開始',
   'No projects linked yet.': '尚未連結任何專案。',
   'Edit Project': '編輯專案',
+  // The same dialog as 'Edit Project', opened on a folder that is not a project
+  // yet. Its primary button reads 'Create' where editing reads 'Save'.
+  'Add Project': '新增專案',
+  Create: '建立',
   'Project path not found': '找不到專案路徑',
   'Re-link': '重新連結',
   'Select a project': '選擇專案',
