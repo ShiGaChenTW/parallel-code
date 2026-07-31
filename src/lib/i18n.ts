@@ -892,6 +892,21 @@ const ZH_TW: Record<string, string> = {
   '{providers} not installed.': '未安裝 {providers}。',
   'Could not read {providers}.': '無法讀取 {providers}。',
 
+  // Per-task prompt history card. `Prompt` stays English throughout, as the
+  // header of this catalogue records and as 'Copy Prompt' and 'No prompts sent'
+  // already do. 'scrolled out' is the row's own state, not a sentence, so it
+  // stays lower-case and short enough to sit at the end of a row.
+  'Show prompt history': '顯示 prompt 紀錄',
+  'Hide prompt history': '隱藏 prompt 紀錄',
+  'Prompt History': 'Prompt 紀錄',
+  'Nothing sent in this task yet. Every prompt you submit shows up here, newest first, and clicking one scrolls the terminal back to it.':
+    '這個任務還沒送出任何 prompt。之後你送出的每一段 prompt 都會出現在這裡，最新的在最上面，點一下就會把終端機捲回當時的位置。',
+  'Click to scroll the terminal to this prompt': '點擊把終端機捲到這段 prompt 的位置',
+  'This spot is no longer in the terminal buffer': '這個位置已經不在終端機的緩衝區裡了',
+  'scrolled out': '已捲出',
+  '(no readable text)': '（沒有可讀的文字）',
+  'closed agent': '已關閉的 agent',
+
   // Per-task token card — the same vocabulary as the settings table above,
   // scoped to a single worktree. `worktree` stays English here as it does
   // everywhere else in this catalogue, and so does `Token`: the two toggle

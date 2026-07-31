@@ -22,6 +22,12 @@ import { newStepEvents } from '../lib/transcript-events';
 import { nextPeakConcurrentTasks } from '../lib/onboarding';
 import { warn as logWarn } from '../lib/log';
 import { cleanTaskName } from '../lib/clean-task-name';
+import {
+  appendPromptEntry,
+  isRecordablePrompt,
+  nextPromptId,
+  type PromptOrigin,
+} from '../lib/prompt-history';
 import type {
   AgentDef,
   CreateTaskResult,
@@ -785,6 +791,10 @@ export async function sendPrompt(taskId: string, agentId: string, text: string):
   await new Promise((r) => setTimeout(r, pasteDelayMs(effectiveText)));
   await writeToAgentWhenReady(taskId, agentId, '\r');
   setStore('tasks', taskId, 'lastPrompt', text);
+  // `text`, not `effectiveText`: the steps instruction is machinery this task
+  // appended, not something the user asked for, and showing it back to them
+  // would make every first prompt look like a wall of boilerplate.
+  recordPromptHistory(taskId, agentId, text, 'composer');
   if (task && !hasPromptedAgent) {
     setStore('tasks', taskId, 'promptedAgentIds', [...promptedAgentIds, agentId]);
     if (isQueuedInitialPrompt) setStore('tasks', taskId, 'initialPrompt', undefined);
@@ -794,6 +804,45 @@ export async function sendPrompt(taskId: string, agentId: string, text: string):
 
 export function setLastPrompt(taskId: string, text: string): void {
   setStore('tasks', taskId, 'lastPrompt', text);
+}
+
+/**
+ * Append one submitted prompt to the task's history.
+ *
+ * Called from both submission paths — `sendPrompt` above for the prompt box,
+ * and `TaskAITerminal` for text typed straight into xterm — rather than only
+ * from `sendPrompt`, which is not the single funnel it looks like: a user
+ * typing into a TUI agent never touches it. Recording happens after the write
+ * succeeds, on the same line as `lastPrompt`, so the history never claims a
+ * prompt that a failed write never delivered.
+ *
+ * Returns the id of the entry it added, or undefined when the submission was
+ * not worth recording (see `isRecordablePrompt`) or the task is gone. The id is
+ * what the terminal anchors its marker to.
+ */
+export function recordPromptHistory(
+  taskId: string,
+  agentId: string,
+  text: string,
+  origin: PromptOrigin,
+): number | undefined {
+  const task = store.tasks[taskId];
+  if (!task) return undefined;
+  if (!isRecordablePrompt(text, origin)) return undefined;
+  const id = nextPromptId(task.promptHistory);
+  setStore(
+    'tasks',
+    taskId,
+    'promptHistory',
+    appendPromptEntry(task.promptHistory, {
+      id,
+      text: text.trim(),
+      agentId,
+      at: Date.now(),
+      origin,
+    }),
+  );
+  return id;
 }
 
 /** Flip a multi-agent task between side-by-side and tabbed AI terminals. */

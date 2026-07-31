@@ -5,6 +5,7 @@ import type { Locale } from '../lib/i18n';
 import type { KeyBinding } from '../lib/keybindings';
 import type { CustomTheme } from '../lib/custom-theme';
 import type { AppIconId } from '../lib/app-icon';
+import type { PromptHistoryEntry } from '../lib/prompt-history';
 
 /** A user override for a binding: partial key/modifiers to apply, or null to unbind. */
 export type KeybindingOverride = Partial<Pick<KeyBinding, 'key' | 'modifiers'>> | null;
@@ -143,6 +144,10 @@ export interface Task {
   shellAgentIds: string[];
   notes: string;
   lastPrompt: string;
+  /** Every prompt submitted in this task, oldest first — the list `lastPrompt`
+   *  is the tail of. Session-only: deliberately absent from `PersistedTask`,
+   *  because the terminal markers each entry navigates to die with the window. */
+  promptHistory?: PromptHistoryEntry[];
   promptedAgentIds?: string[];
   initialPrompt?: string; // auto-sends when agent is ready
   savedInitialPrompt?: string;

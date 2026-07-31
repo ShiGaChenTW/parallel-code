@@ -45,6 +45,7 @@ import { dataTransferToShellArgs, escapePath } from '../lib/terminalDrop';
 import { cleanCopiedTerminalText } from '../lib/copy-text';
 import { hasTerminalUserActivity, nextTerminalInputPending } from '../lib/terminalInputPending';
 import { computeWrappedPathLinks, createTerminalHttpLinkHandler } from '../lib/terminalLinks';
+import { createMarkerNav, type MarkerNavApi } from '../lib/terminalMarkerNav';
 import type { PtyOutput } from '../ipc/types';
 
 let windowUnloading = false;
@@ -150,9 +151,13 @@ interface TerminalViewProps {
    *  step index `i`; `jump(i)` scrolls the viewport so that marker is visible.
    *  Called with `undefined` on unmount so the consumer can reset its state — important
    *  on agent restart, where this component remounts but the parent does not. */
-  onStepNavReady?: (
-    api: { mark: (i: number) => void; jump: (i: number) => boolean } | undefined,
-  ) => void;
+  onStepNavReady?: (api: MarkerNavApi | undefined) => void;
+  /** Same API, keyed by prompt-history entry id instead of step index, so the
+   *  prompt history can scroll back to where each prompt was submitted. A
+   *  separate nav rather than a shared one: the two key spaces are unrelated
+   *  integers, and one map would have step 3 and prompt 3 fighting over an
+   *  anchor. Called with `undefined` on unmount, same as the step nav. */
+  onPromptNavReady?: (api: MarkerNavApi | undefined) => void;
   fontSize?: number;
   autoFocus?: boolean;
   initialCommand?: string;
@@ -495,26 +500,20 @@ export function TerminalView(props: TerminalViewProps) {
 
     // Step bookmarks — anchor each agent step to the current scrollback line so the
     // user can jump from the steps panel back to the terminal moment a step was written.
-    // Markers auto-track buffer truncation; once the marker scrolls past the scrollback
-    // limit xterm disposes it, in which case `jump` returns false so the caller can no-op.
-    // The map is owned by xterm and freed implicitly when term.dispose() runs in onCleanup.
-    const stepMarkers = new Map<number, IMarker>();
-    const stepNavApi = {
-      mark(i: number) {
-        if (!term || stepMarkers.has(i)) return;
-        const m = term.registerMarker(0);
-        if (m) stepMarkers.set(i, m);
-      },
-      jump(i: number): boolean {
-        if (!term) return false;
-        const m = stepMarkers.get(i);
-        if (!m || m.isDisposed) return false;
-        term.scrollToLine(m.line);
-        return true;
-      },
-    };
+    // Prompt bookmarks do the same for each submitted prompt. Both are keyed marker
+    // maps with identical rules, so both come from `createMarkerNav`; the maps are
+    // owned by xterm and freed implicitly when term.dispose() runs in onCleanup.
+    // Markers auto-track buffer truncation; once one scrolls past the scrollback limit
+    // xterm disposes it, after which `isAnchored` is false and `jump` returns false so
+    // the caller can say so rather than no-op.
+    const getTerm = () => term;
+    const stepNavApi = createMarkerNav(getTerm);
     props.onStepNavReady?.(stepNavApi);
     onCleanup(() => props.onStepNavReady?.(undefined));
+
+    const promptNavApi = createMarkerNav(getTerm);
+    props.onPromptNavReady?.(promptNavApi);
+    onCleanup(() => props.onPromptNavReady?.(undefined));
 
     // Scroll-bookmark overview: keep bookmark icon positions in sync with the
     // buffer. onRender fires per visual frame (on new output and on scroll), but

@@ -34,6 +34,11 @@ interface TaskTitleBarProps {
   pushSuccess: boolean;
   tokenUsageOpen: boolean;
   onToggleTokenUsage: () => void;
+  promptHistoryOpen: boolean;
+  /** Shown as a badge on the button, so the row says whether there is anything
+   *  to open before it is opened. */
+  promptHistoryCount: number;
+  onTogglePromptHistory: () => void;
   onTitleEditRef: (h: EditableTextHandle) => void;
 }
 
@@ -227,6 +232,45 @@ export function TaskTitleBar(props: TaskTitleBarProps) {
             row's established idiom for "does not apply to this task" is absence
             — merge and push already vanish for the same class of task — and a
             lone greyed-out control would be the only exception to it. */}
+        {/* Unlike the token button this one has no precondition: every task can
+            be prompted, so the control is always here and an empty list explains
+            itself in the card rather than by the button vanishing. */}
+        <div style={{ position: 'relative', display: 'inline-flex' }}>
+          <IconButton
+            icon={
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M1.75 3.5a.75.75 0 0 1 .75-.75h11a.75.75 0 0 1 0 1.5h-11a.75.75 0 0 1-.75-.75Zm0 4a.75.75 0 0 1 .75-.75h11a.75.75 0 0 1 0 1.5h-11a.75.75 0 0 1-.75-.75Zm.75 3.25a.75.75 0 0 0 0 1.5h6a.75.75 0 0 0 0-1.5h-6Z" />
+              </svg>
+            }
+            active={props.promptHistoryOpen}
+            onClick={() => props.onTogglePromptHistory()}
+            title={props.promptHistoryOpen ? tr('Hide prompt history') : tr('Show prompt history')}
+          />
+          <Show when={props.promptHistoryCount > 0}>
+            <span
+              style={{
+                position: 'absolute',
+                bottom: '-4px',
+                right: '-4px',
+                'min-width': '13px',
+                height: '13px',
+                padding: '0 3px',
+                'border-radius': '7px',
+                background: theme.bgElevated,
+                border: `1px solid ${theme.border}`,
+                color: theme.fgMuted,
+                'font-size': '9px',
+                'font-weight': '600',
+                'line-height': '11px',
+                'text-align': 'center',
+                'font-variant-numeric': 'tabular-nums',
+                'pointer-events': 'none',
+              }}
+            >
+              {props.promptHistoryCount}
+            </span>
+          </Show>
+        </div>
         <Show when={props.task.worktreePath}>
           <IconButton
             icon={
