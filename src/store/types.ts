@@ -79,6 +79,40 @@ export interface Project {
   isGitRepo?: boolean; // undefined treated as true for backward compat
 }
 
+/**
+ * A project the user has picked a folder for but has not created yet.
+ *
+ * Deliberately not a `Project`: it has no `id`, so nothing keyed on a project
+ * id — `removeProject`, `relinkProject`, worktree import, the missing-path
+ * register — can be pointed at it by accident. It lives in `pendingProjectDraft`
+ * and is the only thing the add-project flow writes until Save is pressed.
+ */
+export interface ProjectDraft {
+  /** Suggested name, the last path segment. */
+  name: string;
+  path: string;
+  color: string;
+  /** Detected at pick time via `IPC.CheckIsGitRepo`, never guessed. */
+  isGitRepo: boolean;
+}
+
+/**
+ * The fields the project dialog collects. Edit mode hands them to
+ * `updateProject`; create mode hands the same object to `commitPendingProject`,
+ * so the two paths cannot drift.
+ */
+export type ProjectSettings = Pick<
+  Project,
+  | 'name'
+  | 'color'
+  | 'branchPrefix'
+  | 'deleteBranchOnClose'
+  | 'defaultGitIsolation'
+  | 'defaultBaseBranch'
+  | 'coverageReportPath'
+  | 'terminalBookmarks'
+>;
+
 export interface Agent {
   id: string;
   taskId: string;
@@ -356,6 +390,9 @@ export interface RemoteAccess {
 
 export interface AppStore {
   projects: Project[];
+  /** Folder picked for a project that does not exist yet. Non-null exactly
+   *  while the add-project dialog is open; never persisted. */
+  pendingProjectDraft: ProjectDraft | null;
   lastProjectId: string | null;
   lastAgentId: string | null;
   taskOrder: string[];

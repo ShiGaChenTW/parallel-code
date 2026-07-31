@@ -3,7 +3,7 @@ import { openDialog } from '../lib/dialog';
 import { invoke } from '../lib/ipc';
 import { IPC } from '../../electron/ipc/channels';
 import { store, setStore } from './core';
-import type { Project } from './types';
+import type { Project, ProjectDraft, ProjectSettings } from './types';
 import { sanitizeBranchPrefix } from '../lib/branch-name';
 
 export const PASTEL_HUES = [0, 30, 60, 120, 180, 210, 260, 300, 330];
@@ -105,16 +105,82 @@ export function projectIsGitRepo(projectId: string): boolean {
   return getProject(projectId)?.isGitRepo !== false;
 }
 
-export async function pickAndAddProject(): Promise<string | null> {
+/** The name a freshly picked folder suggests: its last path segment. */
+export function projectNameFromPath(path: string): string {
+  const segments = path.split('/');
+  return segments[segments.length - 1] || path;
+}
+
+/**
+ * Ask for a folder and describe it, writing nothing.
+ *
+ * This is the half of the old `pickAndAddProject` that reads. Everything that
+ * writes now lives in `commitPendingProject`, which only the dialog's Save
+ * button reaches — that split is what makes cancelling a no-op rather than a
+ * create-then-undo. An undo was never available anyway: `removeProject` refuses
+ * to drop a project any task still references.
+ */
+export async function pickProjectDraft(): Promise<ProjectDraft | null> {
   const selected = await openDialog({ directory: true, multiple: false });
   if (!selected) return null;
   const path = selected as string;
 
   const isGitRepo = await invoke<boolean>(IPC.CheckIsGitRepo, { path });
 
-  const segments = path.split('/');
-  const name = segments[segments.length - 1] || path;
-  return addProject(name, path, isGitRepo);
+  return { name: projectNameFromPath(path), path, color: randomPastelColor(), isGitRepo };
+}
+
+/**
+ * Entry point for every "add a project" affordance.
+ *
+ * Opens the folder picker and parks the result in `pendingProjectDraft`, which
+ * is what makes the dialog appear. No project exists yet at this point.
+ */
+export async function startAddProject(): Promise<void> {
+  const draft = await pickProjectDraft();
+  if (!draft) return;
+  setStore('pendingProjectDraft', draft);
+}
+
+/** Discard the draft. Nothing was created, so there is nothing to clean up. */
+export function cancelAddProject(): void {
+  setStore('pendingProjectDraft', null);
+}
+
+/**
+ * Re-pick the folder for the pending draft.
+ *
+ * The create-mode counterpart to `relinkProject`, which cannot be used here
+ * because it edits a project by id and the draft has none. `isGitRepo` is
+ * re-detected so the git-only fields stay honest, and the colour is kept so
+ * re-picking does not silently reshuffle a swatch the user may have chosen.
+ */
+export async function changePendingProjectPath(): Promise<void> {
+  if (!store.pendingProjectDraft) return;
+  const picked = await pickProjectDraft();
+  if (!picked) return;
+  setStore('pendingProjectDraft', (prev) =>
+    prev ? { ...picked, color: prev.color } : { ...picked },
+  );
+}
+
+/**
+ * Turn the pending draft into a real project. The only write in this flow.
+ *
+ * Goes through `addProject` rather than pushing a project itself, so the
+ * `lastProjectId` side effect that selects the new project is the same one the
+ * old flow relied on. `updateProject` then applies the dialog's fields; every
+ * consumer reads these through `?? default`, so a draft saved untouched
+ * behaves exactly like a project added by the old one-step flow.
+ */
+export function commitPendingProject(settings: ProjectSettings): string | null {
+  const draft = store.pendingProjectDraft;
+  if (!draft) return null;
+
+  const id = addProject(settings.name, draft.path, draft.isGitRepo);
+  updateProject(id, settings);
+  setStore('pendingProjectDraft', null);
+  return id;
 }
 
 /** Check each project path and record which ones are missing. */
