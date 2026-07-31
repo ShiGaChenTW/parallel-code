@@ -5,6 +5,7 @@ import './arena-battle.css';
 import './arena-results.css';
 import './arena-history.css';
 import { Show, onMount } from 'solid-js';
+import { tr } from '../store/i18n';
 import { arenaStore } from './store';
 import { loadArenaPresets, loadArenaHistory } from './persistence';
 import { ConfigScreen } from './ConfigScreen';
@@ -44,10 +45,10 @@ export function ArenaOverlay(props: ArenaOverlayProps) {
             <path d="M3 3L13 13M9 12L12 9" />
             <path d="M13 3L3 13M4 9L7 12" />
           </svg>
-          AI Arena
+          {tr('AI Arena')}
         </div>
         <button class="arena-close-btn" onClick={handleClose}>
-          Close
+          {tr('Close')}
         </button>
       </div>
       <div class="arena-body" classList={{ 'arena-body-battle': arenaStore.phase === 'battle' }}>

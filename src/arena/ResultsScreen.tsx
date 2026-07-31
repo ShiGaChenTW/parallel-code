@@ -23,12 +23,22 @@ import type { ArenaMatch } from './types';
 import type { ChangedFile } from '../ipc/types';
 
 function formatTime(startTime: number, endTime: number | null): string {
-  if (endTime === null) return 'DNF';
+  if (endTime === null) return tr('DNF');
   return formatDuration(endTime - startTime);
 }
 
+/**
+ * Written as four literal `tr()` calls rather than indexing a translated array,
+ * because English ordinals are irregular where Chinese ones are not: only the
+ * first three need their own entry, and everything past them shares a template.
+ * Keeping each key a literal also keeps the coverage gate able to see them,
+ * which an array lookup would not.
+ */
 function rankLabel(index: number): string {
-  return ['1st', '2nd', '3rd', '4th'][index] ?? `${index + 1}th`;
+  if (index === 0) return tr('1st');
+  if (index === 1) return tr('2nd');
+  if (index === 2) return tr('3rd');
+  return tr('{rank}th', { rank: index + 1 });
 }
 
 export function ResultsScreen() {
@@ -66,6 +76,14 @@ export function ResultsScreen() {
     if (!isHistoryView() && !arenaStore.battleSaved) saveResults();
   });
 
+  /**
+   * Every string built in here is deliberately left in English. It is not UI
+   * copy: it is assembled into one prompt and handed to a coding agent through
+   * `setNewTaskPrefillPrompt`. The user sees it in the new-task textarea, but
+   * the reader that matters is the model, and translating an instruction
+   * changes what that model does. The section headings are structure the agent
+   * parses, not labels a person reads.
+   */
   async function openCompareTask() {
     const competitors = sorted();
     const prompt = arenaStore.prompt;
@@ -197,7 +215,9 @@ export function ResultsScreen() {
                   {formatTime(competitor.startTime, competitor.endTime)}
                 </div>
                 <Show when={competitor.exitCode !== null && competitor.exitCode !== 0}>
-                  <div class="arena-result-column-exit">exit {competitor.exitCode}</div>
+                  <div class="arena-result-column-exit">
+                    {tr('exit {code}', { code: competitor.exitCode ?? 0 })}
+                  </div>
                 </Show>
 
                 {/* Terminal output */}
@@ -218,7 +238,7 @@ export function ResultsScreen() {
                       >
                         &#9654;
                       </span>
-                      Terminal output
+                      {tr('Terminal output')}
                     </button>
                     <Show when={expandedOutputs()[competitor.id]}>
                       <pre class="arena-output-pre">{competitor.terminalOutput}</pre>
@@ -229,7 +249,7 @@ export function ResultsScreen() {
                 {/* Changed files */}
                 <Show when={competitor.worktreePath || competitor.branchName}>
                   <div class="arena-result-column-files">
-                    <span class="arena-section-label">Changed files</span>
+                    <span class="arena-section-label">{tr('Changed files')}</span>
                     <div class="arena-result-column-files-list">
                       <ChangedFilesList
                         worktreePath={competitor.worktreePath ?? ''}
@@ -250,7 +270,7 @@ export function ResultsScreen() {
 
                 {/* Star rating */}
                 <div class="arena-result-column-rating">
-                  <span class="arena-result-rating-label">Rate how it performed</span>
+                  <span class="arena-result-rating-label">{tr('Rate how it performed')}</span>
                   <div class="arena-result-column-stars">
                     <For each={[1, 2, 3, 4, 5]}>
                       {(star) => (
@@ -274,7 +294,7 @@ export function ResultsScreen() {
                   <div class="arena-result-column-merge">
                     <Show
                       when={merge.mergedId() !== competitor.id}
-                      fallback={<span class="arena-merge-badge">Merged</span>}
+                      fallback={<span class="arena-merge-badge">{tr('Merged')}</span>}
                     >
                       <button
                         class="arena-merge-btn"
@@ -296,7 +316,7 @@ export function ResultsScreen() {
                           <circle cx="8" cy="13" r="2" />
                           <path d="M4 6v1c0 2 4 4 4 4M12 6v1c0 2-4 4-4 4" />
                         </svg>
-                        {merge.merging() ? 'Merging...' : 'Merge'}
+                        {merge.merging() ? tr('Merging...') : tr('Merge')}
                       </button>
                     </Show>
                   </div>
@@ -344,7 +364,7 @@ export function ResultsScreen() {
           >
             <path d="M3 3h4v10H3zM9 3h4v10H9zM5 6H3M5 8H3M5 10H3M11 6H9M11 8H9M11 10H9" />
           </svg>
-          Compare All
+          {tr('Compare All')}
         </button>
         <Show when={!isHistoryView()}>
           <button class="arena-close-btn" onClick={() => void resetForRematch()}>
@@ -363,7 +383,7 @@ export function ResultsScreen() {
               <path d="M12 1v3h-3" />
               <path d="M4 15v-3h3" />
             </svg>
-            Rematch
+            {tr('Rematch')}
           </button>
           <button class="arena-close-btn" onClick={() => void resetForNewMatch()}>
             <svg
@@ -378,7 +398,7 @@ export function ResultsScreen() {
             >
               <path d="M8 3v10M3 8h10" />
             </svg>
-            New Match
+            {tr('New Match')}
           </button>
           <button class="arena-close-btn" onClick={() => setPhase('history')}>
             <svg
@@ -394,7 +414,7 @@ export function ResultsScreen() {
               <circle cx="8" cy="8" r="6" />
               <path d="M8 4.5V8l2.5 2.5" />
             </svg>
-            History
+            {tr('History')}
           </button>
         </Show>
         <Show when={isHistoryView()}>
@@ -411,7 +431,7 @@ export function ResultsScreen() {
             >
               <path d="M10 3L5 8l5 5" />
             </svg>
-            Back to History
+            {tr('Back to History')}
           </button>
         </Show>
       </div>

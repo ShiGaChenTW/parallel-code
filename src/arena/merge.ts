@@ -1,6 +1,7 @@
 import { createSignal } from 'solid-js';
 import { arenaStore, markBranchMerged } from './store';
 import { invoke } from '../lib/ipc';
+import { tr } from '../store/i18n';
 import { IPC } from '../../electron/ipc/channels';
 import type { BattleCompetitor } from './types';
 import { errMessage } from '../lib/log';
@@ -94,9 +95,13 @@ export function createMergeWorkflow() {
         { worktreePath: competitor.worktreePath },
       );
       if (status.conflicting_files.length > 0) {
-        setMergeError(`Conflicts in: ${status.conflicting_files.join(', ')}`);
+        setMergeError(tr('Conflicts in {files}', { files: status.conflicting_files.join(', ') }));
         return;
       }
+      // Not translated: this is a git commit message written into the
+      // repository's history, not UI copy. It is read by `git log` and by
+      // whoever reviews the branch later, and commit subjects in this project
+      // are English.
       const promptSnippet =
         arenaStore.prompt.slice(0, 60) + (arenaStore.prompt.length > 60 ? '...' : '');
       await invoke(IPC.MergeTask, {

@@ -1,5 +1,6 @@
 import { Show, createSignal, createUniqueId, untrack } from 'solid-js';
 import { Dialog } from '../components/Dialog';
+import { tr } from '../store/i18n';
 import { arenaStore } from './store';
 import type { BattleCompetitor } from './types';
 
@@ -17,6 +18,8 @@ export function CommitDialog(props: CommitDialogProps) {
     const p = arenaStore.prompt;
     return p.slice(0, 50) + (p.length > 50 ? '...' : '');
   };
+  // The default commit subject is not translated: it is written into git
+  // history rather than shown as UI copy, and commit subjects here are English.
   const [commitMsg, setCommitMsg] = createSignal(
     untrack(() => `arena: ${props.target.name} — ${promptSnippet()}`),
   );
@@ -37,10 +40,10 @@ export function CommitDialog(props: CommitDialogProps) {
     >
       <div class="arena-commit-dialog">
         <div id={titleId} class="arena-commit-title">
-          {props.target.name} has uncommitted changes
+          {tr('{name} has uncommitted changes', { name: props.target.name })}
         </div>
         <label class="arena-commit-label">
-          Commit message
+          {tr('Commit message')}
           <input
             class="arena-commit-input"
             type="text"
@@ -58,15 +61,15 @@ export function CommitDialog(props: CommitDialogProps) {
             disabled={!commitMsg().trim()}
             onClick={() => props.onCommitAndMerge(commitMsg())}
           >
-            Commit &amp; Merge
+            {tr('Commit & Merge')}
           </button>
           <Show when={props.hasCommitted}>
             <button class="arena-close-btn" onClick={() => props.onDiscardAndMerge()}>
-              Discard uncommitted &amp; Merge
+              {tr('Discard uncommitted & Merge')}
             </button>
           </Show>
           <button class="arena-close-btn" onClick={() => props.onCancel()}>
-            Cancel
+            {tr('Cancel')}
           </button>
         </div>
       </div>

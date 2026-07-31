@@ -15,6 +15,7 @@ import {
   deletePreset,
 } from './store';
 import { store, getProject } from '../store/store';
+import { tr } from '../store/i18n';
 import { invoke } from '../lib/ipc';
 import { IPC } from '../../electron/ipc/channels';
 import { saveArenaPresets } from './persistence';
@@ -136,8 +137,10 @@ export function ConfigScreen() {
 
   return (
     <div class="arena-config">
-      {/* Quick add tools */}
-      <span class="arena-section-label">Quick add</span>
+      {/* Quick add tools. The preset names and commands are vendor names and
+          shell strings — they are written verbatim into the competitor fields,
+          so they are deliberately not translated. */}
+      <span class="arena-section-label">{tr('Quick add')}</span>
       <div class="arena-tool-presets">
         <For each={TOOL_PRESETS}>
           {(tool) => (
@@ -153,18 +156,20 @@ export function ConfigScreen() {
       </div>
 
       {/* Competitors */}
-      <span class="arena-section-label">Competitors</span>
+      <span class="arena-section-label">{tr('Competitors')}</span>
       <div class="arena-competitors-grid">
         <For each={arenaStore.competitors}>
           {(competitor, index) => (
             <div class="arena-competitor-card" data-arena={index()}>
               <div class="arena-competitor-card-header">
-                <span class="arena-competitor-card-number">Competitor {index() + 1}</span>
+                <span class="arena-competitor-card-number">
+                  {tr('Competitor {number}', { number: index() + 1 })}
+                </span>
                 <button
                   class="arena-remove-btn"
                   disabled={arenaStore.competitors.length <= MIN_COMPETITORS}
                   onClick={() => removeCompetitor(competitor.id)}
-                  title="Remove competitor"
+                  title={tr('Remove competitor')}
                 >
                   <CloseIcon size={14} />
                 </button>
@@ -172,14 +177,14 @@ export function ConfigScreen() {
               <input
                 class="arena-competitor-input"
                 type="text"
-                placeholder="Name (e.g. Claude, Codex, Gemini)"
+                placeholder={tr('Name (e.g. Claude, Codex, Gemini)')}
                 value={competitor.name}
                 onInput={(e) => updateCompetitor(competitor.id, { name: e.currentTarget.value })}
               />
               <input
                 class="arena-competitor-input arena-command-input"
                 type="text"
-                placeholder={'Command — use {prompt} for the arena prompt'}
+                placeholder={tr('Command — use {prompt} for the arena prompt')}
                 value={competitor.command}
                 onInput={(e) => updateCompetitor(competitor.id, { command: e.currentTarget.value })}
               />
@@ -190,23 +195,23 @@ export function ConfigScreen() {
 
       <Show when={arenaStore.competitors.length < MAX_COMPETITORS}>
         <button class="arena-add-btn" onClick={() => addCompetitor()}>
-          + Add Competitor
+          {tr('+ Add Competitor')}
         </button>
       </Show>
 
       {/* Project */}
-      <span class="arena-section-label">Project</span>
+      <span class="arena-section-label">{tr('Project')}</span>
       <ProjectSelect
         value={store.projects.find((p) => p.path === arenaStore.cwd)?.id ?? null}
         onChange={(id) => setCwd(id ? (getProject(id)?.path ?? '') : '')}
-        placeholder="Select a project..."
+        placeholder={tr('Select a project...')}
       />
 
       {/* Prompt */}
-      <span class="arena-section-label">Prompt</span>
+      <span class="arena-section-label">{tr('Prompt')}</span>
       <textarea
         class="arena-prompt-area"
-        placeholder="Enter the coding task prompt that all competitors will receive..."
+        placeholder={tr('Enter the coding task prompt that all competitors will receive...')}
         value={arenaStore.prompt}
         onInput={(e) => setPrompt(e.currentTarget.value)}
       />
@@ -232,12 +237,12 @@ export function ConfigScreen() {
             <path d="M3 3L13 13M9 12L12 9" />
             <path d="M13 3L3 13M4 9L7 12" />
           </svg>
-          Fight!
+          {tr('Fight!')}
         </button>
       </div>
 
       {/* Presets */}
-      <span class="arena-section-label">Saved presets</span>
+      <span class="arena-section-label">{tr('Saved presets')}</span>
       <Show when={arenaStore.presets.length > 0}>
         <For each={arenaStore.presets}>
           {(preset) => (
@@ -248,7 +253,7 @@ export function ConfigScreen() {
               <button
                 class="arena-preset-delete-btn"
                 onClick={() => handleDeletePreset(preset.id)}
-                title="Delete preset"
+                title={tr('Delete preset')}
               >
                 x
               </button>
@@ -259,7 +264,7 @@ export function ConfigScreen() {
 
       <Show when={!showPresetSave()}>
         <button class="arena-preset-btn" onClick={() => setShowPresetSave(true)}>
-          Save current as preset
+          {tr('Save current as preset')}
         </button>
       </Show>
 
@@ -268,7 +273,7 @@ export function ConfigScreen() {
           <input
             class="arena-competitor-input"
             type="text"
-            placeholder="Preset name"
+            placeholder={tr('Preset name')}
             value={presetName()}
             onInput={(e) => setPresetName(e.currentTarget.value)}
             onKeyDown={(e) => {
@@ -277,17 +282,17 @@ export function ConfigScreen() {
             }}
           />
           <button class="arena-preset-btn" onClick={handleSavePreset}>
-            Save
+            {tr('Save')}
           </button>
           <button class="arena-preset-btn" onClick={() => setShowPresetSave(false)}>
-            Cancel
+            {tr('Cancel')}
           </button>
         </div>
       </Show>
 
       {/* History link */}
       <button class="arena-history-link" onClick={() => setPhase('history')}>
-        View match history
+        {tr('View match history')}
       </button>
     </div>
   );

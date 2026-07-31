@@ -51,6 +51,21 @@ const KEPT_IN_ENGLISH: readonly string[] = [
   // git vocabulary. The catalogue maps the plural heading 'Worktrees' to the
   // English singular for the same reason: the word itself does not translate.
   'Worktree',
+  // Feature name, on the same footing as 'Coordinator'. The onboarding entry in
+  // the catalogue already renders 'Arena' as 'Arena' inside its Chinese
+  // sentence, so translating the header here would contradict it.
+  'AI Arena',
+  // Developer vocabulary. The catalogue header names Prompt in the list of
+  // words this audience reads in English, and every Chinese entry that mentions
+  // it — 'Copy Prompt', 'No prompts sent' — leaves the word itself alone. A
+  // standalone section label is the same word.
+  'Prompt',
+  // Fighting-game HUD glyphs, not sentences. Both are drawn at display size by
+  // `arena-battle.css` / `arena-countdown.css` — between the battle panels and
+  // in the 3-2-1 countdown — carry no information the surrounding UI does not
+  // already give, and read the same to a Traditional Chinese audience.
+  'VS',
+  'GO!',
 ];
 
 /**

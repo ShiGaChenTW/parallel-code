@@ -824,6 +824,80 @@ const ZH_TW: Record<string, string> = {
     '要完全停用需要重新啟動應用程式。',
   'How long the coordinator waits before firing a notification after a sub-task completes. Default: 60s. Failed sub-tasks use max(10s, delay ÷ 4).':
     'coordinator 在子任務完成後要等多久才發出通知。預設 60 秒。失敗的子任務改用 max(10s, delay ÷ 4)。',
+
+  // AI Arena. The whole `src/arena/` tree shipped untranslated — it sits outside
+  // `src/components/`, so every earlier wave walked past it.
+  //
+  // Four terms in this section stay English and are on KEPT_IN_ENGLISH with
+  // their reasons: 'AI Arena' and 'Prompt' (feature name and developer
+  // vocabulary, matching 'Arena' in the onboarding note above), and 'VS'/'GO!'
+  // (fighting-game HUD glyphs, sized by CSS, carrying no information a reader
+  // needs the local language for).
+  //
+  // 'Merge' and 'Merging...' are not re-declared here: the catalogue already
+  // translates both, and the arena now reuses those entries rather than
+  // introducing a second reading of the same button.
+
+  // Config screen
+  'Quick add': '快速加入',
+  Competitors: '參賽者',
+  'Competitor {number}': '參賽者 {number}',
+  'Remove competitor': '移除參賽者',
+  'Name (e.g. Claude, Codex, Gemini)': '名稱（例如 Claude、Codex、Gemini）',
+  // `{prompt}` is the literal token the user types into their own command, and
+  // `buildCommand` substitutes it — so it survives translation verbatim. The
+  // catalogue test that compares placeholder sets enforces exactly that.
+  'Command — use {prompt} for the arena prompt': '指令 —— 用 {prompt} 代入競技場的 prompt',
+  '+ Add Competitor': '+ 新增參賽者',
+  'Select a project...': '選擇專案…',
+  'Enter the coding task prompt that all competitors will receive...':
+    '輸入所有參賽者都會收到的任務 prompt…',
+  'Fight!': '開戰！',
+  'Saved presets': '已儲存的預設組',
+  'Save current as preset': '把目前設定存成預設組',
+  'Preset name': '預設組名稱',
+  'Delete preset': '刪除預設組',
+  'View match history': '查看對戰紀錄',
+
+  // Battle screen
+  Stop: '停止',
+  'Failed to stop agent': '無法停止 agent',
+
+  // Commit dialog. `commit` stays English inside the sentence for the same
+  // reason the existing 'Commit message...' entry keeps it.
+  '{name} has uncommitted changes': '{name} 有尚未 commit 的變更',
+  'Commit message': 'Commit 訊息',
+  'Commit & Merge': 'Commit 並合併',
+  'Discard uncommitted & Merge': '捨棄未 commit 的變更並合併',
+
+  // Results screen. English ordinals are irregular and Chinese ones are not, so
+  // the first three are their own entries and the rest share one template.
+  '1st': '第 1 名',
+  '2nd': '第 2 名',
+  '3rd': '第 3 名',
+  '{rank}th': '第 {rank} 名',
+  DNF: '未完成',
+  'exit {code}': '結束碼 {code}',
+  'Terminal output': '終端機輸出',
+  'Changed files': '變更的檔案',
+  'Rate how it performed': '為表現評分',
+  Merged: '已合併',
+  'Compare All': '全部比較',
+  Rematch: '再戰一場',
+  'New Match': '開新對戰',
+  History: '對戰紀錄',
+  'Back to History': '返回對戰紀錄',
+
+  // History screen
+  Back: '返回',
+  'No matches yet. Go fight!': '還沒有任何對戰。去打一場吧！',
+  'View Results': '查看結果',
+  'Delete match and clean up worktrees': '刪除這場對戰並清理 worktree',
+  'Delete this match? Any remaining worktrees will be removed.':
+    '要刪除這場對戰嗎？殘留的 worktree 會一併移除。',
+
+  // Merge workflow
+  'Conflicts in {files}': '{files} 有衝突',
 };
 
 const CATALOGUES: Record<Locale, Record<string, string>> = {
