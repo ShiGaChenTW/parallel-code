@@ -181,7 +181,17 @@ function toPersistedTask(task: Task, agentDefs: AgentDef[], collapsed?: boolean)
   };
 }
 
-export async function saveState(): Promise<void> {
+/**
+ * Build the object `saveState` writes to disk.
+ *
+ * Split out from `saveState` so the key set is observable without performing
+ * IPC: `autosave-persistence-drift.test.ts` reads `Object.keys()` off the
+ * returned object to prove every persisted field is covered by
+ * `persistedSnapshot()`. Reading the keys off the object rather than off the
+ * serialized JSON matters — `JSON.stringify` drops keys whose value is
+ * `undefined`, and many fields here are written as `x || undefined`.
+ */
+export function buildPersistedState(): PersistedState {
   const persisted: PersistedState = {
     projects: store.projects.map((p) => ({ ...p })),
     lastProjectId: store.lastProjectId,
@@ -283,6 +293,12 @@ export async function saveState(): Promise<void> {
     if (!persisted.terminals) persisted.terminals = {};
     persisted.terminals[id] = { id: terminal.id, name: terminal.name };
   }
+
+  return persisted;
+}
+
+export async function saveState(): Promise<void> {
+  const persisted = buildPersistedState();
 
   await invoke(IPC.SaveAppState, { json: JSON.stringify(persisted) }).catch((e) =>
     console.warn('Failed to save state:', e),
