@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, session, shell } from 'electron';
+import { app, BrowserWindow, ipcMain, nativeTheme, session, shell } from 'electron';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
@@ -16,6 +16,9 @@ import { isWindowOpacitySupported, windowOpacityFromState } from './ipc/window-o
 import {
   WINDOW_BACKDROP_OPAQUE,
   WINDOW_BACKDROP_TRANSPARENT,
+  WINDOW_VISUAL_EFFECT_STATE,
+  applyWindowBlur,
+  effectiveWindowBlur,
   effectiveWindowOpacity,
   isWindowBlurSupported,
   windowBlurFromState,
@@ -109,15 +112,30 @@ function getIconPath(): string | undefined {
  * left the option unset, Electron's default white would mean "launched with blur
  * off" and "switched blur off" produced two different windows.
  *
+ * `visualEffectState` is the one member here that is *not* derived from the
+ * persisted setting, and it has to be handed over at construction because
+ * Electron gives it no setter (electron#25513). See `WINDOW_VISUAL_EFFECT_STATE`
+ * for why it is passed even when no material is set.
+ *
  * `undefined` on any failure: a profile whose state file cannot be read must
  * still get a window, and it gets the plain one.
  */
 function initialWindowChrome(): {
   opacity: number | undefined;
   vibrancy: WindowBlurMaterial | undefined;
+  visualEffectState: typeof WINDOW_VISUAL_EFFECT_STATE | undefined;
   backgroundColor: string | undefined;
 } {
-  const none = { opacity: undefined, vibrancy: undefined, backgroundColor: undefined };
+  const blurSupported = isWindowBlurSupported(process.platform);
+  // Not derived from state, so it survives an unreadable state file — the one
+  // appearance option that must not depend on the read below succeeding.
+  const visualEffectState = blurSupported ? WINDOW_VISUAL_EFFECT_STATE : undefined;
+  const none = {
+    opacity: undefined,
+    vibrancy: undefined,
+    visualEffectState,
+    backgroundColor: undefined,
+  };
   let state: string | null;
   try {
     state = loadAppState();
@@ -126,8 +144,12 @@ function initialWindowChrome(): {
     return none;
   }
 
-  const blurSupported = isWindowBlurSupported(process.platform);
-  const blur = blurSupported ? windowBlurFromState(state) : 'off';
+  // The OS accessibility flag outranks the stored setting: launching with a
+  // material while "Reduce transparency" is on would give a window macOS refuses
+  // to blur behind a page the CSS has already made see-through.
+  const blur = blurSupported
+    ? effectiveWindowBlur(windowBlurFromState(state), nativeTheme.prefersReducedTransparency)
+    : 'off';
   const storedOpacity = isWindowOpacitySupported(process.platform)
     ? windowOpacityFromState(state)
     : undefined;
@@ -138,12 +160,46 @@ function initialWindowChrome(): {
     // rather than a fainter one.
     opacity: storedOpacity === undefined ? undefined : effectiveWindowOpacity(storedOpacity, blur),
     vibrancy: blur === 'off' ? undefined : blur,
+    visualEffectState,
     backgroundColor: blurSupported
       ? blur === 'off'
         ? WINDOW_BACKDROP_OPAQUE
         : WINDOW_BACKDROP_TRANSPARENT
       : undefined,
   };
+}
+
+/**
+ * Re-apply the blur when macOS's "Reduce transparency" setting is toggled while
+ * the app is running.
+ *
+ * Without this the flag is only honoured at launch, and the two directions fail
+ * differently. Turning it *on* is survivable — the renderer's media query fires
+ * and repaints opaque over a still-vibrant window. Turning it *off* is not: the
+ * window was constructed opaque, so the CSS becomes translucent over a backdrop
+ * that has nothing behind it, which is the same hole this whole path exists to
+ * close. One listener makes both directions correct instead of one.
+ *
+ * State is re-read from disk rather than cached, for the same reason the IPC
+ * handlers take both settings in their payload: main holds no appearance state
+ * of its own, so there is nothing here that can drift from what the renderer
+ * believes. The read only happens on a system appearance change, which is a
+ * human-speed event.
+ */
+function watchReducedTransparency(): void {
+  if (!isWindowBlurSupported(process.platform)) return;
+  nativeTheme.on('updated', () => {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    try {
+      const stored = windowBlurFromState(loadAppState());
+      applyWindowBlur(
+        mainWindow,
+        effectiveWindowBlur(stored, nativeTheme.prefersReducedTransparency),
+      );
+    } catch (err) {
+      console.warn('[main] Failed to re-apply window blur after a theme change:', err);
+    }
+  });
 }
 
 function createWindow() {
@@ -155,6 +211,7 @@ function createWindow() {
     icon: getIconPath(),
     opacity: chrome.opacity,
     vibrancy: chrome.vibrancy,
+    visualEffectState: chrome.visualEffectState,
     backgroundColor: chrome.backgroundColor,
     frame: process.platform === 'darwin',
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : undefined,
@@ -224,6 +281,8 @@ function createWindow() {
   mainWindow.on('closed', () => {
     mainWindow = null;
   });
+
+  watchReducedTransparency();
 }
 
 app.whenReady().then(() => {

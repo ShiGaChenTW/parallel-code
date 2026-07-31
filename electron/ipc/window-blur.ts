@@ -50,6 +50,32 @@ export const WINDOW_BACKDROP_OPAQUE = '#0e1215';
 export const WINDOW_BACKDROP_TRANSPARENT = '#00000000';
 
 /**
+ * How the vibrancy material should track window activity.
+ *
+ * Unset means `followWindow`, which is Electron's documented default and the
+ * reason the effect looked broken: macOS desaturates an `NSVisualEffectView`
+ * into a flat grey panel the moment its window resigns key. For a tool that
+ * lives beside a browser and an editor, that is most of the time the window is
+ * on screen — so the material was only ever seen at its best in the instant
+ * after a click. `active` pins it to `NSVisualEffectStateActive`, which is what
+ * Safari's sidebar, Raycast and Arc all do, and it is the fix Electron itself
+ * points at: electron#46120 ("Maintain vibrancy effect in inactive windows") was
+ * closed as not-planned precisely because this option already exists.
+ *
+ * It is passed at construction unconditionally on macOS, not only when a
+ * material is set, and that is deliberate rather than sloppy. The option has no
+ * setter — electron#25513 is still open — and it is read when the vibrant NSView
+ * is first created, which for a window that launches with blur off happens later,
+ * inside a runtime `setVibrancy()`. Passing it only alongside a constructor
+ * `vibrancy` would give the correct behaviour to users who quit with blur on and
+ * `followWindow` to everyone who switched it on afterwards: the same setting,
+ * two appearances, decided by a history the user cannot see. Handing it over up
+ * front costs nothing when no material is ever set — nothing reads it — and is
+ * the only way to make the two paths agree.
+ */
+export const WINDOW_VISUAL_EFFECT_STATE = 'active' as const;
+
+/**
  * Whether this platform actually applies window blur.
  *
  * From Electron 40's `electron.d.ts`, not from memory: both `setVibrancy` and
@@ -93,6 +119,35 @@ export function windowBlurFromState(json: string | null): WindowBlur {
   } catch {
     return DEFAULT_WINDOW_BLUR;
   }
+}
+
+/**
+ * The blur to actually apply, given the setting and the OS accessibility flag.
+ *
+ * "Reduce transparency" is not a preference this app gets to weigh against its
+ * own taste. Apple's wording on `accessibilityDisplayShouldReduceTransparency`
+ * is imperative: "If this property is `true`, don't use semitransparent
+ * backgrounds in the user interface. For example, use only opaque windows."
+ *
+ * Honouring it is also a bug fix rather than politeness. macOS forces the
+ * vibrancy material off when the flag is set, but nothing told the renderer that
+ * — so the CSS still made `html`, `body`, `#root` and `.app-shell` transparent
+ * over a window backdrop that was `#00000000` because blur was nominally on. The
+ * user's reward for turning on an accessibility setting was a window with a hole
+ * in it. The renderer half is the `prefers-reduced-transparency` media query in
+ * `styles.css`, which Chromium derives from the same OS flag; this is the
+ * main-process half, and the two have to agree or the hole simply moves.
+ *
+ * The stored setting is deliberately not rewritten — same reasoning as
+ * `effectiveWindowOpacity`. Someone who turns the accessibility flag off again
+ * gets the material they chose back, rather than an app that quietly forgot.
+ *
+ * Kept a pure function of an explicitly passed boolean rather than reading
+ * `nativeTheme` here, so this module still imports nothing from `electron` at
+ * runtime and stays testable in the plain node environment.
+ */
+export function effectiveWindowBlur(blur: unknown, reducedTransparency: boolean): WindowBlur {
+  return reducedTransparency ? 'off' : normalizeWindowBlur(blur);
 }
 
 /**

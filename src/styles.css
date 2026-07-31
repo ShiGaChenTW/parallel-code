@@ -107,6 +107,42 @@ html[data-window-blur] #root::before {
   opacity: 0.75;
 }
 
+/* macOS "Reduce transparency" (System Settings > Accessibility > Display).
+   Apple's wording on the equivalent AppKit flag is imperative, not advisory:
+   "If this property is true, don't use semitransparent backgrounds in the user
+   interface. For example, use only opaque windows."
+
+   This is a bug fix before it is an accessibility feature. macOS forces the
+   vibrancy material off when the flag is set, but nothing above knows that — so
+   without this block the rules stand, `#root` is transparent, the veil is at
+   0.75, and there is nothing behind any of it. Turning on an accessibility
+   setting put a hole in the window.
+
+   Restoring rather than merely un-transparenting: `.app-shell` gets `var(--bg)`
+   back because App.tsx sets that inline and the rule above beat it with
+   `!important`, so only an equally weighted declaration can hand it back. The
+   veil is removed outright — at full opacity it would still be a second layer of
+   `var(--bg)` painting over the first, which is harmless but not free.
+
+   The main-process half is `effectiveWindowBlur()`, which withholds the material
+   from the window for the same flag. Chromium derives this media query from the
+   same OS setting, so the two cannot disagree about when to engage. */
+@media (prefers-reduced-transparency: reduce) {
+  html[data-window-blur],
+  html[data-window-blur] body,
+  html[data-window-blur] #root {
+    background: #0e1215;
+  }
+
+  html[data-window-blur] .app-shell {
+    background: var(--bg) !important;
+  }
+
+  html[data-window-blur] #root::before {
+    display: none;
+  }
+}
+
 body {
   font-family: var(--font-ui);
   color: var(--fg);
