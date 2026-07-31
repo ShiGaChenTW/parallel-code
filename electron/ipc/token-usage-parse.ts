@@ -410,21 +410,48 @@ export function parseCodexSessionMeta(line: string): CodexSessionMeta | null {
 }
 
 /**
- * How long after a rollout opens its replayed history is still arriving.
+ * How far apart two records can be and still belong to the same replayed burst.
  *
  * A forked or subagent rollout begins by writing its parent's entire history
  * into the new file, `token_count` records included — measured here, one 770
  * event rollout shared its first 761 events with its parent, so counting them
  * charges the parent's whole session a second time. The replay is one
- * synchronous burst at session creation; real turns take seconds. Sweeping the
- * window against the cross-file ground truth on all 49 forked rollouts on this
- * machine: 1s got 48 right, 2s and 5s got all 49, 10s started swallowing
- * genuine first turns on 27 of them. 2s is the smallest exact value, so drift
- * in either direction fails towards counting a copied record rather than
- * discarding a real one — the same bias the Claude reader takes with records
- * that have no id.
+ * synchronous burst at session creation; real turns take seconds.
+ *
+ * The boundary is the distance to the *previous* record, not the elapsed time
+ * since the session opened, because only the former is a local judgement. An
+ * elapsed-time window is a single point that ends the replay for good, so its
+ * error is never one record — it is every replayed record that follows. It also
+ * cannot survive a big parent history: the burst is as long as the history is,
+ * while the distance between two records inside it is a disk write.
+ *
+ * Measured over the 74 forked rollouts on this machine whose parent is also on
+ * disk, against a cross-file ground truth (the longest run of the child's
+ * leading records that appears contiguously in the parent — a fork replays from
+ * wherever in the parent it forked, not from the parent's first record):
+ *
+ *     gap inside a replay burst         6,609 gaps, p99 6 ms, max 85 ms
+ *     session start -> first replayed      48 files, max 157 ms
+ *     first gap that has to read as live   73 files, min 3,214 ms
+ *
+ * (74 files reach a first live record; the one at 765 ms carries no tokens at
+ * all, so nothing depends on which side of the boundary it falls.)
+ *
+ * Which way to err is the question the window got wrong. It took the smallest
+ * exactly-scoring value on the reasoning that erring small costs "one or two
+ * extra copied records" — true of a per-record test, false of a boundary that
+ * ends the replay for good. Priced on the two edges here, too small charges the
+ * rest of the burst (or all of it, if the very first record is missed) while
+ * too large drops a single live turn and the next multi-second gap ends the
+ * replay anyway. So this takes the *largest* exactly-scoring value instead:
+ * 750 ms is 8.8x the widest gap inside a real burst, 4.8x the widest gap from
+ * session start to the first replayed record, and still 4.3x under the fastest
+ * live turn that carries tokens. Everything from 200 ms to 750 ms scores 74/74;
+ * 1000 ms is the first value that does not. The window it replaces scored
+ * 73/74 at its own 2000 ms, with the widest real burst at 1,827 ms — 91% of the
+ * way to a cliff whose far side costs the remainder of the file.
  */
-export const CODEX_REPLAY_WINDOW_MS = 2000;
+export const CODEX_REPLAY_GAP_MS = 750;
 
 /** True componentwise. Codex's counters advance independently. */
 function totalsAtLeast(a: TokenTotals, b: TokenTotals): boolean {
@@ -469,7 +496,18 @@ export interface CodexDeltaState {
   sessionStartMs: number | null;
   /** Whether this rollout opens with a replay of a parent's history. */
   inherited: boolean;
-  /** Set once the replay window has been left behind. */
+  /**
+   * Clock of the last record placed in the replayed burst, and the reference
+   * the next record's gap is measured against. Null until one has been placed,
+   * when `sessionStartMs` stands in for it.
+   */
+  replayAtMs: number | null;
+  /**
+   * Set once a record has been seen that is positively live — nothing else
+   * ends the replay. A record that cannot be judged leaves this alone, which is
+   * the whole point: a rollout with one clockless line in its burst must not
+   * lose prefix removal for every line after it.
+   */
   pastReplay: boolean;
   /**
    * Whether the rollout's own `session_meta` has been read.
@@ -492,6 +530,7 @@ export function createCodexDeltaState(): CodexDeltaState {
     interleaved: false,
     sessionStartMs: null,
     inherited: false,
+    replayAtMs: null,
     pastReplay: false,
     identified: false,
   };
@@ -588,8 +627,13 @@ export function foldCodexLines(
     state.watermark = watermark;
     state.interleaved = interleaved;
 
-    if (isCodexReplayEvent(state, event)) continue;
-    state.pastReplay = true;
+    const place = placeCodexEvent(state, event);
+    // A record that was placed, or one that could not be placed but carries a
+    // clock, becomes the reference the next record is measured against. A
+    // record with no clock leaves the reference where it was.
+    if (place !== 'live') state.replayAtMs = event.atMs ?? state.replayAtMs;
+    if (place === 'replay') continue;
+    if (place === 'live') state.pastReplay = true;
 
     if (state.cwd === null || isZeroTotals(delta)) continue;
     byPath.set(state.cwd, addTotals(byPath.get(state.cwd) ?? ZERO_TOTALS, delta));
@@ -599,17 +643,32 @@ export function foldCodexLines(
 }
 
 /**
- * Whether this event belongs to the parent history a fork replayed into its own
- * file rather than to work this session did.
+ * Where one event sits: in the parent history a fork replayed into its own
+ * file, in the work this session actually did, or nowhere that can be told.
  *
- * Only the leading run counts: once one live event has been seen the session is
- * past its replay for good, so a later burst of fast turns is never mistaken
- * for one.
+ * `unjudgeable` is the reason this is three-valued rather than a predicate. A
+ * record with no readable clock says nothing about whether the replay has
+ * ended, and reading it as "live" made the two indistinguishable: one such
+ * record inside the burst ended prefix removal for the entire rest of the file.
+ * It is charged — the bias stays "rather count a copied record than drop a real
+ * one" — but it costs that one record and the burst carries on around it.
+ *
+ * Only the leading run counts: once one event has been positively placed as
+ * live the session is past its replay for good, so a later burst of fast turns
+ * is never mistaken for one.
  */
-function isCodexReplayEvent(state: CodexDeltaState, event: CodexTokenEvent): boolean {
-  if (!state.inherited || state.pastReplay) return false;
-  if (state.sessionStartMs === null || event.atMs === null) return false;
-  return event.atMs - state.sessionStartMs <= CODEX_REPLAY_WINDOW_MS;
+type CodexEventPlace = 'replay' | 'live' | 'unjudgeable';
+
+function placeCodexEvent(state: CodexDeltaState, event: CodexTokenEvent): CodexEventPlace {
+  if (!state.inherited || state.pastReplay) return 'live';
+  if (event.atMs === null) return 'unjudgeable';
+  // The burst's own last record if there is one, otherwise the moment the
+  // session opened. With neither there is nothing to measure against — this
+  // record is charged, and its clock is what the next one is judged by, so an
+  // unreadable `session_meta` timestamp costs one record instead of the file.
+  const previous = state.replayAtMs ?? state.sessionStartMs;
+  if (previous === null) return 'unjudgeable';
+  return event.atMs - previous <= CODEX_REPLAY_GAP_MS ? 'replay' : 'live';
 }
 
 // --------------------------------------------------------------------------
