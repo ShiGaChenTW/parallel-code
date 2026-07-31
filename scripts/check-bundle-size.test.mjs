@@ -8,8 +8,12 @@ import {
   entryChunkSize,
   formatReport,
   formatStartupBreakdown,
+  formatStylesheetBreakdown,
   preloadedChunkPaths,
   startupChunks,
+  startupStylesheets,
+  stylesheetPaths,
+  stylesheetSize,
 } from './check-bundle-size.mjs';
 
 /** Temp dirs created by fixtures, removed after each test. */
@@ -22,21 +26,29 @@ afterEach(() => {
 /**
  * Build a throwaway `dist/` whose files have exact byte sizes.
  *
- * @param {{ assets: Record<string, number>, preload?: string[], html?: string }} spec
- *   `assets` maps a file name under `assets/` to its byte size; `preload` lists
- *   the file names index.html should modulepreload.
+ * @param {{
+ *   assets: Record<string, number | string>,
+ *   preload?: string[],
+ *   stylesheets?: string[],
+ *   html?: string,
+ * }} spec
+ *   `assets` maps a file name under `assets/` to its byte size, or to literal
+ *   contents when a test needs to look inside the file; `preload` lists the file
+ *   names index.html should modulepreload and `stylesheets` the ones it should
+ *   link as a stylesheet.
  * @returns {string} path to the fixture dist directory
  */
-function makeDist({ assets, preload = [], html }) {
+function makeDist({ assets, preload = [], stylesheets = [], html }) {
   const dist = mkdtempSync(join(tmpdir(), 'bundle-gate-'));
   created.push(dist);
   mkdirSync(join(dist, 'assets'));
-  for (const [name, size] of Object.entries(assets)) {
-    writeFileSync(join(dist, 'assets', name), 'x'.repeat(size));
+  for (const [name, spec] of Object.entries(assets)) {
+    writeFileSync(join(dist, 'assets', name), typeof spec === 'number' ? 'x'.repeat(spec) : spec);
   }
-  const links = preload
-    .map((name) => `<link rel="modulepreload" crossorigin href="./assets/${name}">`)
-    .join('\n    ');
+  const links = [
+    ...preload.map((name) => `<link rel="modulepreload" crossorigin href="./assets/${name}">`),
+    ...stylesheets.map((name) => `<link rel="stylesheet" crossorigin href="./assets/${name}">`),
+  ].join('\n    ');
   writeFileSync(
     join(dist, 'index.html'),
     html ?? `<!doctype html><html><head>\n    ${links}\n  </head><body></body></html>`,
@@ -92,6 +104,28 @@ describe('check-bundle-size', () => {
     // entry chunk. A budget that would still pass at that size is not a gate.
     expect(BUDGETS['renderer entry chunk']).toBeLessThan(5_004_337);
   });
+
+  it('budgets CSS separately from JS rather than folding them into one number', () => {
+    // At 6% of the JS figure, render-blocking CSS could triple and move a
+    // combined number by ~3.5% — inside the noise of ordinary JS growth. The
+    // two only stay meaningful as two.
+    expect(BUDGETS['renderer startup CSS']).toBeDefined();
+    expect(BUDGETS['renderer startup CSS']).not.toBe(BUDGETS['renderer entry chunk']);
+  });
+
+  it('keeps the CSS budget above the size measured when the CSS gate was introduced', () => {
+    expect(BUDGETS['renderer startup CSS']).toBeGreaterThanOrEqual(78_513);
+  });
+
+  it('keeps the CSS budget tight enough to catch a dependency-scale stylesheet', () => {
+    // Measured, not guessed: pulling katex's and plyr's stylesheets into the
+    // eager entry produced 138,969 B of render-blocking CSS and this gate exits
+    // 1. A budget that would still pass at that size is not a gate.
+    //
+    // The same build left `dist total` green at 91.6% — which is why this budget
+    // had to exist separately rather than trusting the total to notice.
+    expect(BUDGETS['renderer startup CSS']).toBeLessThan(138_969);
+  });
 });
 
 describe('preloadedChunkPaths', () => {
@@ -134,6 +168,172 @@ describe('preloadedChunkPaths', () => {
 
   it('returns nothing when the build preloads nothing', () => {
     expect(preloadedChunkPaths('<!doctype html><html></html>')).toEqual([]);
+  });
+
+  it('reads a rel token from a multi-valued rel attribute', () => {
+    // `rel` is a space-separated token list. Matching it as a prefix would drop
+    // a chunk whenever the token is not written first — a silent undercount.
+    const html = `<link rel="preload modulepreload" href="./assets/a.js">`;
+    expect(preloadedChunkPaths(html)).toEqual(['assets/a.js']);
+  });
+
+  it('tolerates unquoted attribute values', () => {
+    expect(preloadedChunkPaths('<link rel=modulepreload href=./assets/a.js>')).toEqual([
+      'assets/a.js',
+    ]);
+  });
+});
+
+describe('stylesheetPaths', () => {
+  it('finds every stylesheet href as a dist-relative path', () => {
+    const html = `
+      <link rel="stylesheet" crossorigin href="./assets/index-C7g6y5J4.css">
+      <link rel="stylesheet" crossorigin href="./assets/theme-abc.css">
+    `;
+    expect(stylesheetPaths(html)).toEqual(['assets/index-C7g6y5J4.css', 'assets/theme-abc.css']);
+  });
+
+  it('ignores links that are not stylesheets', () => {
+    const html = `
+      <link rel="modulepreload" href="./assets/platform-abc.js">
+      <link rel="icon" type="image/svg+xml" href="./assets/logo-DGL6L7Tw.svg">
+      <link rel="preload" as="font" href="./assets/inter.woff2">
+      <link rel="stylesheet" crossorigin href="./assets/index-abc.css">
+    `;
+    expect(stylesheetPaths(html)).toEqual(['assets/index-abc.css']);
+  });
+
+  it('does not depend on attribute order or quote style', () => {
+    const html = `
+      <link crossorigin href='./assets/a.css' rel='stylesheet'>
+      <link href="./assets/b.css" rel="stylesheet">
+    `;
+    expect(stylesheetPaths(html)).toEqual(['assets/a.css', 'assets/b.css']);
+  });
+
+  it('normalises root-relative and bare hrefs', () => {
+    const html = `
+      <link rel="stylesheet" href="/assets/a.css">
+      <link rel="stylesheet" href="b.css">
+    `;
+    expect(stylesheetPaths(html)).toEqual(['assets/a.css', 'b.css']);
+  });
+
+  it('returns nothing when the document links no stylesheet', () => {
+    expect(stylesheetPaths('<!doctype html><html></html>')).toEqual([]);
+  });
+});
+
+describe('stylesheetSize (render-blocking CSS)', () => {
+  it('sums every stylesheet index.html links', () => {
+    const dist = makeDist({
+      assets: { 'index-a.js': 10, 'index-a.css': 78_304, 'theme-b.css': 4_000 },
+      stylesheets: ['index-a.css', 'theme-b.css'],
+    });
+    expect(stylesheetSize(dist)).toBe(82_304);
+  });
+
+  it('is not fooled by moving rules out of the entry stylesheet into a second link', () => {
+    // The CSS analogue of the platform-*.js hoist the JS measure was blind to:
+    // splitting the same rules across two <link>s costs the user exactly as much
+    // before first paint, so the number must not move.
+    const oneSheet = makeDist({
+      assets: { 'index-a.js': 10, 'index-a.css': 78_304 },
+      stylesheets: ['index-a.css'],
+    });
+    const twoSheets = makeDist({
+      assets: { 'index-a.js': 10, 'index-a.css': 40_000, 'split-b.css': 38_304 },
+      stylesheets: ['index-a.css', 'split-b.css'],
+    });
+    expect(stylesheetSize(twoSheets)).toBe(stylesheetSize(oneSheet));
+  });
+
+  it('counts inline <style> in index.html, which is render-blocking too', () => {
+    // Otherwise the cheapest way under the budget is to paste the rules into the
+    // document, which is strictly worse for the user: uncacheable and repeated
+    // on every load.
+    const dist = makeDist({
+      assets: { 'index-a.js': 10, 'index-a.css': 1_000 },
+      html: '<!doctype html><html><head><link rel="stylesheet" href="./assets/index-a.css"><style>body{color:red}</style></head><body></body></html>',
+    });
+    expect(stylesheetSize(dist)).toBe(1_000 + 'body{color:red}'.length);
+  });
+
+  it('ignores CSS that index.html does not link', () => {
+    // ArenaOverlay-*.css is emitted alongside a lazily-imported component and
+    // arrives with it, not before first paint. Counting it would turn this into
+    // "dist total" with extra steps.
+    const dist = makeDist({
+      assets: { 'index-a.js': 10, 'index-a.css': 78_304, 'ArenaOverlay-b.css': 18_502 },
+      stylesheets: ['index-a.css'],
+    });
+    expect(stylesheetSize(dist)).toBe(78_304);
+  });
+
+  it('does not follow url() references, so font files stay out', () => {
+    // 43 woff2 files totalling 576 KB are referenced from the entry stylesheet.
+    // The browser applies its own font strategy — unicode-range subsetting means
+    // it fetches one or two — so they are not a render-blocking cost.
+    const css = '@font-face{src:url(./inter-cyrillic-400-normal-obahsSVq.woff2)}';
+    const dist = makeDist({
+      assets: { 'index-a.js': 10, 'index-a.css': css, 'inter.woff2': 500_000 },
+      stylesheets: ['index-a.css'],
+    });
+    expect(stylesheetSize(dist)).toBe(css.length);
+  });
+
+  it('throws when index.html links a stylesheet that is not on disk', () => {
+    const dist = makeDist({
+      assets: { 'index-a.js': 10 },
+      stylesheets: ['gone.css'],
+    });
+    expect(() => stylesheetSize(dist)).toThrow(/gone\.css/);
+  });
+
+  it('throws when a counted stylesheet uses @import rather than undercounting it', () => {
+    // @import pulls in more render-blocking bytes that are not in the <link>
+    // list. The build inlines imports today, so this is an assumption, not a
+    // fact — and it fails loudly the day it stops holding.
+    const dist = makeDist({
+      assets: {
+        'index-a.js': 10,
+        'index-a.css': '@import url("./more.css");body{color:red}',
+        'more.css': 50_000,
+      },
+      stylesheets: ['index-a.css'],
+    });
+    expect(() => stylesheetSize(dist)).toThrow(/@import/);
+  });
+
+  it('reads zero when the build links no stylesheet at all', () => {
+    // Honest rather than defensive: no linked CSS means no render-blocking CSS.
+    // If a future build inlines it into JS instead, those bytes land in the
+    // entry-chunk budget, which is where they would then belong.
+    const dist = makeDist({ assets: { 'index-a.js': 10 } });
+    expect(stylesheetSize(dist)).toBe(0);
+  });
+});
+
+describe('startupStylesheets breakdown', () => {
+  it('lists each linked stylesheet with its size', () => {
+    const dist = makeDist({
+      assets: { 'index-a.js': 10, 'index-a.css': 78_304, 'theme-b.css': 4_000 },
+      stylesheets: ['index-a.css', 'theme-b.css'],
+    });
+    expect(startupStylesheets(dist)).toEqual([
+      { path: 'assets/index-a.css', size: 78_304, kind: 'stylesheet' },
+      { path: 'assets/theme-b.css', size: 4_000, kind: 'stylesheet' },
+    ]);
+  });
+
+  it('renders a breakdown so a failure names the stylesheet that grew', () => {
+    const lines = formatStylesheetBreakdown([
+      { path: 'assets/index-a.css', size: 78_304, kind: 'stylesheet' },
+      { path: 'index.html', size: 180, kind: 'inline <style>' },
+    ]);
+    expect(lines).toContain('assets/index-a.css');
+    expect(lines).toContain('78,304 B');
+    expect(lines).toContain('inline <style>');
   });
 });
 

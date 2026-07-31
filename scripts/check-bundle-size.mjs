@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/* global console, process */
+/* global console, process, Buffer */
 
 /**
  * Renderer bundle size gate.
@@ -39,6 +39,65 @@
  * is pulled in by a static import carrying 200+ bindings, not by a preload
  * heuristic, so disabling preload would drop the `<link>` hint while keeping the
  * import edge — a slower start and a prettier number.
+ *
+ * WHY CSS HAS ITS OWN BUDGET
+ *
+ * Fixing the JS measure left the same seam one layer out. `index.html` links a
+ * stylesheet — 78,304 B on the build that prompted this — and the browser will
+ * not paint until it has fetched and parsed it. Render-blocking, paid before the
+ * first frame, and until now covered only by `dist total`, where it was 0.43% of
+ * a figure already sitting at 85.3%. A stylesheet could have quadrupled and moved
+ * that gate by one and a half points. A budget that cannot react to the thing it
+ * nominally covers is not covering it.
+ *
+ * It is budgeted separately from JS rather than folded in, because the two grow
+ * for different reasons and at different scales. CSS grows with the number of
+ * components and themes; JS grows with dependencies. At 6% of the JS figure, CSS
+ * could triple inside a combined number and move it by ~3.5% — indistinguishable
+ * from ordinary JS churn. Two quantities that differ 16x in size only stay
+ * legible as two numbers.
+ *
+ * WHAT COUNTS AS RENDER-BLOCKING CSS
+ *
+ * Every stylesheet `index.html` links, plus any inline `<style>` in the document.
+ * The inline case is counted for the same reason the preloaded chunks are: if it
+ * were not, the cheapest route under the budget would be to paste the rules into
+ * the document, which is strictly worse for the user — uncacheable, and re-sent
+ * on every load. Same shape of bypass, closed at the same time.
+ *
+ * Three things are deliberately outside it:
+ *
+ *   - CSS emitted for lazily-imported components (`ArenaOverlay-*.css`, 18,502 B)
+ *     is not linked from `index.html`; it arrives with the component that needs
+ *     it. Same boundary as `import()`ed JS, drawn for the same reason.
+ *   - Font files reached through `url()` are not followed. 43 woff2 files
+ *     totalling 576 KB hang off `@font-face` rules in the entry stylesheet, but
+ *     the browser applies its own font strategy: `unicode-range` subsetting means
+ *     it fetches the one or two subsets a page actually uses, and text renders
+ *     without them. Counting all 576 KB as startup cost would be false by an
+ *     order of magnitude and would fight the earlier decision not to bundle CJK
+ *     font subsets.
+ *   - `@import`ed CSS is not resolved. It is also not ignored: a counted
+ *     stylesheet containing `@import` makes this gate throw. See below.
+ *
+ * THE @import ASSUMPTION
+ *
+ * `@import` pulls in further render-blocking bytes that never appear in the
+ * `<link>` list, so it is exactly the seam this change exists to close. The build
+ * has none today — lightningcss inlines imports — so resolving them would be
+ * dead code, and half-resolving them (relative paths, `layer()`, `supports()`,
+ * media-conditional imports, remote URLs that have no size on disk) would
+ * reintroduce the silent undercount in a more confident-looking form.
+ *
+ * So the assumption is asserted instead of assumed: find `@import` in a counted
+ * stylesheet and the gate fails loudly, naming the file. The assumption that has
+ * to break for this to fire is the build no longer inlining imports — a Vite or
+ * lightningcss config change, or a remote `@import` that cannot be inlined. When
+ * it fires, someone decides whether to inline it or teach this function to walk
+ * the graph; what they will not do is quietly measure the wrong number. The scan
+ * is a plain substring match on minified CSS, so a rule like `content: "@import"`
+ * would trip it too. That trade is on purpose: a false alarm is a five-minute
+ * conversation, a false negative is the bug this whole file exists to prevent.
  */
 
 import { readFileSync, readdirSync, statSync } from 'node:fs';
@@ -61,11 +120,94 @@ import { pathToFileURL } from 'node:url';
  *
  * Raising a budget is allowed — but do it in a commit that says why, so the
  * number keeps meaning something.
+ *
+ * `renderer startup CSS` was added 2026-07-31 at 120,000 B against a measured
+ * 78,513 B, and is sized from this repo's own history rather than from a round
+ * number. Source CSS under `src/` went 46,089 B -> 77,703 B between 2026-02-24
+ * and 2026-07-31 once the initial build-out settled — about 6.1 KB a month, and
+ * about 1.7 KB a month across the last three as the UI matured. The 41,487 B of
+ * headroom is therefore roughly seven months of growth at the historical rate and
+ * over two years at the current one. A gate that needs raising every quarter
+ * teaches people to raise it.
+ *
+ * The other end: 120,000 B is 1.53x today's render-blocking CSS, so it blocks any
+ * single addition that makes the user's pre-paint cost half again as large — full
+ * Bootstrap (~230 KB minified), un-purged Tailwind (megabytes), the complete Font
+ * Awesome CSS (~57 KB minified, landing at ~135 KB), the whole highlight.js theme
+ * set. It deliberately does not block one ~32 KB component stylesheet: that is
+ * indistinguishable from six months of ordinary feature growth, and a gate that
+ * cannot tell those apart should not pretend to.
+ *
+ * Note this leaves proportionally more slack than the JS budget (65% used against
+ * 82.5%). That is not inconsistency. Percentage-of-budget is the wrong yardstick
+ * across two quantities 16x apart in size; months-of-headroom is the right one,
+ * and by that measure the two are close.
+ *
+ * Verified by mutation, both directions, because either alone proves half the
+ * proposition.
+ *
+ * Bulk: importing katex's and plyr's stylesheets into the eager entry produces
+ * 138,969 B and this gate exits 1 — while `dist total` stayed green at 91.6%
+ * through the very same change. That is the whole reason this budget exists
+ * separately instead of being left to the total.
+ *
+ * Relocation: moving xterm's stylesheet out of the JS import chain and into a
+ * `<link rel="stylesheet">` in the source `index.html` produced a byte-identical
+ * entry stylesheet — same 78,304 B, same `C7g6y5J4` hash, still 130 xterm rules
+ * inside it — and this measure held at exactly 78,513 B. The reason is worth
+ * writing down: Vite merges *all* statically-reachable CSS into one stylesheet
+ * and emits separate CSS files only for `import()`ed chunks. So the multi-`<link>`
+ * case cannot currently be reached by moving code around, and the relocation
+ * bypass that bit the JS measure has no CSS equivalent today. The measure still
+ * sums every link rather than globbing `index-*.css`, and a fixture test pins
+ * that behaviour, because "the bundler happens not to do this" is a fact about
+ * this Vite version, not a property of the metric.
  */
 export const BUDGETS = {
   'renderer entry chunk': 1_500_000,
+  'renderer startup CSS': 120_000,
   'dist total': 18_000_000,
 };
+
+/**
+ * Value of attribute `name` on a single tag, or `undefined`. Handles double
+ * quotes, single quotes and no quotes.
+ *
+ * @param {string} tag e.g. `<link rel="stylesheet" href="./assets/index.css">`
+ * @param {string} name
+ * @returns {string | undefined}
+ */
+function attribute(tag, name) {
+  const match = new RegExp(`\\b${name}\\s*=\\s*("([^"]*)"|'([^']*)'|([^\\s"'>]+))`, 'i').exec(tag);
+  if (!match) return undefined;
+  return match[2] ?? match[3] ?? match[4];
+}
+
+/**
+ * Dist-relative hrefs of every `<link>` carrying `rel` token `rel`.
+ *
+ * One parser for both budgets on purpose. A link this misses is a file silently
+ * dropped from a measurement, which is the bug these gates exist to avoid rather
+ * than reproduce — so the tolerance (attribute order, quote style, href shape,
+ * `rel` as a space-separated token list) is worth having in exactly one place
+ * where it can be tested once and relied on twice.
+ *
+ * @param {string} html contents of `dist/index.html`
+ * @param {string} rel lowercase rel token, e.g. `'modulepreload'`
+ * @returns {string[]}
+ */
+function linkedHrefs(html, rel) {
+  const paths = [];
+  for (const [tag] of html.matchAll(/<link\b[^>]*>/gi)) {
+    const rels = (attribute(tag, 'rel') ?? '').toLowerCase().trim().split(/\s+/);
+    if (!rels.includes(rel)) continue;
+    const href = attribute(tag, 'href');
+    if (!href) continue;
+    const normalised = href.replace(/^\.?\//, '');
+    if (normalised) paths.push(normalised);
+  }
+  return paths;
+}
 
 /**
  * Dist-relative paths of every chunk `index.html` asks the browser to preload.
@@ -79,16 +221,18 @@ export const BUDGETS = {
  * @returns {string[]} e.g. `['assets/platform-B5eFPIUU.js']`
  */
 export function preloadedChunkPaths(html) {
-  const paths = [];
-  for (const [tag] of html.matchAll(/<link\b[^>]*>/gi)) {
-    if (!/\brel\s*=\s*["']?modulepreload\b/i.test(tag)) continue;
-    const href = /\bhref\s*=\s*("([^"]*)"|'([^']*)')/i.exec(tag);
-    if (!href) continue;
-    const value = href[2] ?? href[3] ?? '';
-    const normalised = value.replace(/^\.?\//, '');
-    if (normalised) paths.push(normalised);
-  }
-  return paths;
+  return linkedHrefs(html, 'modulepreload');
+}
+
+/**
+ * Dist-relative paths of every stylesheet `index.html` links — the CSS the
+ * browser must fetch and parse before it can paint.
+ *
+ * @param {string} html contents of `dist/index.html`
+ * @returns {string[]} e.g. `['assets/index-C7g6y5J4.css']`
+ */
+export function stylesheetPaths(html) {
+  return linkedHrefs(html, 'stylesheet');
 }
 
 /** @typedef {{ path: string, size: number, preloaded: boolean }} StartupChunk */
@@ -164,6 +308,82 @@ export function formatStartupBreakdown(chunks) {
   return lines.join('\n');
 }
 
+/** @typedef {{ path: string, size: number, kind: 'stylesheet' | 'inline <style>' }} StartupStyle */
+
+/**
+ * Every source of render-blocking CSS the document commits to: each stylesheet
+ * `index.html` links, then its inline `<style>` blocks as one entry.
+ *
+ * Throws rather than undercounts — on a linked stylesheet missing from disk, and
+ * on `@import` inside one. See the file header for why `@import` is asserted
+ * against instead of resolved.
+ *
+ * @param {string} distDir
+ * @returns {StartupStyle[]}
+ */
+export function startupStylesheets(distDir) {
+  const indexHtml = join(distDir, 'index.html');
+  let html;
+  try {
+    html = readFileSync(indexHtml, 'utf8');
+  } catch (err) {
+    throw new Error(`Cannot read ${indexHtml}: ${err.message}`);
+  }
+
+  const styles = [];
+  for (const path of stylesheetPaths(html)) {
+    // Size from stat, same as the JS side; contents only to assert on @import.
+    let size;
+    let css;
+    try {
+      size = statSync(join(distDir, path)).size;
+      css = readFileSync(join(distDir, path), 'utf8');
+    } catch {
+      throw new Error(`${indexHtml} links ${path}, but that file is not in ${distDir}`);
+    }
+    if (css.includes('@import')) {
+      throw new Error(
+        `${path} contains @import, which pulls in render-blocking CSS that is not in ` +
+          `index.html's link list — so this budget would undercount it. Inline the import ` +
+          `at build time, or teach startupStylesheets() to resolve the import graph.`,
+      );
+    }
+    styles.push({ path, size, kind: 'stylesheet' });
+  }
+
+  const inline = [...html.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style>/gi)].reduce(
+    (total, [, body]) => total + Buffer.byteLength(body),
+    0,
+  );
+  if (inline > 0) styles.push({ path: 'index.html', size: inline, kind: 'inline <style>' });
+
+  return styles;
+}
+
+/**
+ * Byte size of the CSS the renderer must parse before its first frame: every
+ * stylesheet `index.html` links, plus its inline `<style>` blocks.
+ */
+export function stylesheetSize(distDir) {
+  return startupStylesheets(distDir).reduce((total, style) => total + style.size, 0);
+}
+
+/**
+ * Human-readable composition of the CSS measurement, so a failure says which
+ * stylesheet grew instead of only that the total did.
+ *
+ * @param {StartupStyle[]} styles
+ */
+export function formatStylesheetBreakdown(styles) {
+  const lines = [
+    'note  "renderer startup CSS" = every stylesheet index.html links, inline included:',
+  ];
+  for (const style of styles) {
+    lines.push(`note    ${style.path}  ${style.size.toLocaleString()} B  (${style.kind})`);
+  }
+  return lines.join('\n');
+}
+
 /** Total byte size of every file under `dir`, recursively. */
 export function directorySize(dir) {
   let total = 0;
@@ -229,20 +449,24 @@ function main(argv) {
   const distDir = argv[2] ?? 'dist';
   let measured;
   let chunks;
+  let styles;
   try {
     chunks = startupChunks(distDir);
+    styles = startupStylesheets(distDir);
     measured = {
       'renderer entry chunk': chunks.reduce((total, chunk) => total + chunk.size, 0),
+      'renderer startup CSS': styles.reduce((total, style) => total + style.size, 0),
       'dist total': directorySize(distDir),
     };
   } catch (err) {
     console.error(`Cannot measure ${distDir}: ${err.message}`);
-    console.error('Run `npm run build:frontend` first.');
+    console.error('If dist/ is missing or stale, run `npm run build:frontend` first.');
     return 2;
   }
   const result = checkBudgets(measured, BUDGETS);
   console.log(formatReport(result));
   console.log(formatStartupBreakdown(chunks));
+  console.log(formatStylesheetBreakdown(styles));
   return result.ok ? 0 : 1;
 }
 
