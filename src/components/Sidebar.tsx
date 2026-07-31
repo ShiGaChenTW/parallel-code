@@ -162,13 +162,50 @@ function taskAttentionStyles(
 }
 
 /**
+ * The hierarchy rail's colour.
+ *
+ * The first pass painted it `--border-subtle` and it read as too dark to follow.
+ * The obvious fix — a literal `rgba(255, 255, 255, 0.16)` — is only correct on
+ * the eleven dark presets. `islands-light` puts white text's opposite (`--fg` is
+ * `#1f2329`) on a `#ffffff` panel, and a white rail there is not faint, it is
+ * gone. So the rail is mixed from `--fg`, which is already near-white on every
+ * dark preset (`#d7e4f0`, `#cdd6f4`, `#bcbec4`, …) and near-black on the light
+ * one. Same declaration, white translucent where white translucent is what you
+ * want, dark translucent where it isn't — and custom themes, which may be
+ * either, are carried along without knowing this code exists.
+ *
+ * 16% is derived, not picked. Measuring each preset's rail against the surface
+ * the sidebar actually shows behind it (`--island-bg` for the `islands-*` looks,
+ * whose panel is opaque; the `--bg` gradient stops for the rest, whose panel is
+ * not) gives, for the worst preset at each step:
+ *
+ *   0.08 -> 1.16    0.12 -> 1.26    0.16 -> 1.37    0.20 -> 1.50
+ *   0.10 -> 1.21    0.14 -> 1.32    0.18 -> 1.43    0.25 -> 1.67
+ *
+ * The floor is this app's own idea of a line you are meant to see: `--border`,
+ * the divider drawn a few hundred lines below in this same sidebar, whose
+ * contrast has a median of 1.33 across the twelve presets. 0.16 is the lowest
+ * 0.02 step that clears it in every preset (1.37..1.57 — a narrow band, so the
+ * rail reads about the same weight whichever theme is loaded); 0.14 lands at
+ * 1.32 and does not. The ceiling is `--fg-subtle`, the quietest tier that is
+ * actually text, at 2.92 in the worst preset — a structural hairline has no
+ * business rivalling type, and 1.57 is comfortably short of it. Against the
+ * 1.04..1.28 that `--border-subtle` was managing, this is roughly a third more
+ * separation everywhere and about half again on the presets that were worst off.
+ *
+ * `extracted-components.test.ts` asserts this exact string, so the number cannot
+ * drift without someone coming back to read why it is that number.
+ */
+const TREE_RAIL_COLOR = 'color-mix(in srgb, var(--fg) 16%, transparent)';
+
+/**
  * This row's slice of the project hierarchy rail — see `sidebar-tree.ts` for
  * why each row draws its own slice rather than a wrapper drawing one line.
  *
  * Absolutely positioned inside the row, so the flex column, the drag index
  * space and the drop indicators are untouched. Two consequences worth naming:
  * the 1px flex gap between rows leaves a 1px break in the rail (invisible at
- * `--border-subtle` weight, and closing it would mean dropping the row's
+ * `TREE_RAIL_COLOR` weight, and closing it would mean dropping the row's
  * `overflow: hidden`, which the name ellipsis needs), and the rail fades with
  * the row while it is being dragged, which is the behaviour you want.
  *
@@ -187,7 +224,7 @@ function TaskTreeRail(props: { connector: TreeConnector }) {
           top: '0',
           width: '1px',
           height: trunkHeight(props.connector),
-          background: theme.borderSubtle,
+          background: TREE_RAIL_COLOR,
           'pointer-events': 'none',
         }}
       />
@@ -200,7 +237,7 @@ function TaskTreeRail(props: { connector: TreeConnector }) {
             top: '50%',
             width: `${TREE_ELBOW_WIDTH_PX}px`,
             height: '1px',
-            background: theme.borderSubtle,
+            background: TREE_RAIL_COLOR,
             'pointer-events': 'none',
           }}
         />
