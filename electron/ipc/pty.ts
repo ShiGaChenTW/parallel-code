@@ -8,7 +8,7 @@ import type { BrowserWindow } from 'electron';
 import { RingBuffer } from '../remote/ring-buffer.js';
 import { resolveUserShell } from '../user-shell.js';
 import { ensureClaudeSandboxFiles, ensureSandboxExcludes } from './git.js';
-import { offlineMessage, isOfflineMode } from './offline.js';
+import { OfflineModeError, offlineMessage, isOfflineMode } from './offline.js';
 import { debug as logDebug } from '../log.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -230,6 +230,80 @@ function resolveWorktreeGitDirMount(startPath: string): string[] {
   }
 }
 
+export interface DockerRunGateInput {
+  /** Whether the offline switch is currently on. */
+  readonly offline: boolean;
+  /** Whether the image the task asked for is already on this machine. */
+  readonly imagePresentLocally: boolean;
+}
+
+export interface DockerRunGate {
+  /** False when the run must be refused before `docker` is invoked at all. */
+  readonly allowed: boolean;
+  /** Extra `docker run` flags that keep the daemon away from a registry. */
+  readonly extraRunArgs: readonly string[];
+}
+
+/**
+ * Whether a `docker run` may proceed while offline mode is on.
+ *
+ * `docker run <image>` pulls from a registry when the image is not present
+ * locally, so it belongs to the same family as `docker build`: a network
+ * round-trip the app starts by invoking local tooling. Unlike a build, though,
+ * it is only *sometimes* a network call — running an image that is already here
+ * sends nothing. Refusing that case would not protect anything; it would just
+ * make offline mode and Docker mode mutually exclusive, which is precisely the
+ * combination someone working air-gapped wants.
+ *
+ * So the gate refuses only the case that would actually reach out, and follows
+ * the `git remote set-head` precedent in `git.ts` for the rest: use what is on
+ * the machine, do not go to the network for the remainder.
+ *
+ * `--pull never` on the allowed path is not decoration. The probe and the spawn
+ * are two separate moments and the image can be removed in between; the flag
+ * makes the promise the daemon's own, rather than resting on the probe still
+ * being true a millisecond later.
+ *
+ * Pure on purpose — vitest runs `environment: 'node'`, and the shell-out that
+ * answers `imagePresentLocally` stays at the call site so the decision itself
+ * can be tested as a four-row truth table.
+ */
+export function gateDockerRun(input: DockerRunGateInput): DockerRunGate {
+  if (!input.offline) return { allowed: true, extraRunArgs: [] };
+  if (!input.imagePresentLocally) return { allowed: false, extraRunArgs: [] };
+  return { allowed: true, extraRunArgs: ['--pull', 'never'] };
+}
+
+/**
+ * Whether `image` is on this machine, answered synchronously.
+ *
+ * `spawnAgent` is synchronous, and making it async to accommodate this would
+ * ripple through `register.ts` and the MCP coordinator for no gain. The docker
+ * path already pays for one synchronous shell-out (`validateCommand('docker')`
+ * runs `which`), and this one is only reached while offline mode is on.
+ *
+ * Deliberately weaker than `dockerImageExists`: that one also compares the
+ * Dockerfile hash to catch a stale image, which the UI needs so it can offer a
+ * rebuild. The gate does not care about stale — a stale image still runs
+ * without touching the network. Presence is the whole question.
+ *
+ * `docker image ls` is a local daemon query. Any failure (no daemon, timeout)
+ * reads as "not present", which refuses the run — the honest answer when we
+ * cannot establish that starting the container stays local.
+ */
+function dockerImagePresentLocally(image: string): boolean {
+  try {
+    const stdout = execFileSync(
+      'docker',
+      ['image', 'ls', '--filter', `reference=${image}`, '--format', '{{.ID}}'],
+      { encoding: 'utf8', timeout: 5000 },
+    );
+    return stdout.trim() !== '';
+  } catch {
+    return false;
+  }
+}
+
 interface PtySpawnSpec {
   spawnCommand: string;
   spawnArgs: string[];
@@ -244,6 +318,7 @@ function buildPtySpawnSpec(
   cwd: string,
   spawnEnv: Record<string, string>,
   filteredEnv: Record<string, string>,
+  offlineRunArgs: readonly string[],
 ): PtySpawnSpec {
   const containerName = args.dockerMode ? `parallel-code-${args.agentId.slice(0, 12)}` : null;
 
@@ -265,6 +340,7 @@ function buildPtySpawnSpec(
       'run',
       '--rm',
       '-it',
+      ...offlineRunArgs,
       '--name',
       name,
       '--label',
@@ -465,6 +541,23 @@ export function spawnAgent(win: BrowserWindow, args: SpawnAgentArgs): void {
     validateCommand('docker');
   }
 
+  // Offline mode's last docker call site. The reattach branch above has already
+  // returned, so anything reaching here is a container that does not exist yet
+  // — and starting one whose image is missing makes the daemon pull it. Refuse
+  // before `docker` is invoked, the way `buildDockerImage` does, so the user
+  // gets a sentence instead of a registry timeout. Thrown rather than returned:
+  // spawnAgent's failures already surface as a thrown error the renderer prints
+  // into the terminal, so this needs no new channel to be seen.
+  let offlineRunArgs: readonly string[] = [];
+  if (args.dockerMode && isOfflineMode()) {
+    const gate = gateDockerRun({
+      offline: true,
+      imagePresentLocally: dockerImagePresentLocally(args.dockerImage || DOCKER_DEFAULT_IMAGE),
+    });
+    if (!gate.allowed) throw new OfflineModeError('docker-run');
+    offlineRunArgs = gate.extraRunArgs;
+  }
+
   cleanupExistingSession(args.agentId, existing);
 
   const filteredEnv = copyProcessEnv();
@@ -477,7 +570,7 @@ export function spawnAgent(win: BrowserWindow, args: SpawnAgentArgs): void {
     ensureSandboxExcludes(cwd);
   }
 
-  const spawnSpec = buildPtySpawnSpec(args, command, cwd, spawnEnv, filteredEnv);
+  const spawnSpec = buildPtySpawnSpec(args, command, cwd, spawnEnv, filteredEnv, offlineRunArgs);
 
   logDebug('pty', `spawn command ${args.agentId}`, {
     taskId: args.taskId,

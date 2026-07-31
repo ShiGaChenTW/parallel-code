@@ -4,66 +4,81 @@ import path from 'path';
 import type { BrowserWindow } from 'electron';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockExecFileSync, mockExecFile, mockChildProcessSpawn, mockPtySpawn, mockLogDebug } =
-  vi.hoisted(() => {
-    const mockExecFileSync = vi.fn((command: string, args?: string[]) => {
-      if (command === 'which' && args?.[0] === 'nonexistent-binary-xyz') {
-        throw new Error('not found');
-      }
-      return '';
-    });
+const {
+  mockExecFileSync,
+  defaultExecFileSync,
+  mockExecFile,
+  mockChildProcessSpawn,
+  mockPtySpawn,
+  mockLogDebug,
+} = vi.hoisted(() => {
+  // Named so a suite that stubs a different response can put this one back.
+  const defaultExecFileSync = (command: string, args?: string[]): string => {
+    if (command === 'which' && args?.[0] === 'nonexistent-binary-xyz') {
+      throw new Error('not found');
+    }
+    return '';
+  };
+  const mockExecFileSync = vi.fn(defaultExecFileSync);
 
-    const mockExecFile = vi.fn();
-    const mockChildProcessSpawn = vi.fn(() => ({
-      stdout: { on: vi.fn() },
-      stderr: { on: vi.fn() },
-      on: vi.fn(),
-    }));
+  const mockExecFile = vi.fn();
+  const mockChildProcessSpawn = vi.fn(() => ({
+    stdout: { on: vi.fn() },
+    stderr: { on: vi.fn() },
+    on: vi.fn(),
+  }));
 
-    const mockPtySpawn = vi.fn(
-      (_command: string, _args: string[], options: { cols: number; rows: number }) => {
-        let onDataHandler: ((data: string) => void) | undefined;
-        let onExitHandler:
-          | ((event: { exitCode: number; signal: number | undefined }) => void)
-          | undefined;
+  const mockPtySpawn = vi.fn(
+    (_command: string, _args: string[], options: { cols: number; rows: number }) => {
+      let onDataHandler: ((data: string) => void) | undefined;
+      let onExitHandler:
+        | ((event: { exitCode: number; signal: number | undefined }) => void)
+        | undefined;
 
-        const proc = {
-          cols: options.cols,
-          rows: options.rows,
-          write: vi.fn(),
-          resize: vi.fn((cols: number, rows: number) => {
-            proc.cols = cols;
-            proc.rows = rows;
-          }),
-          pause: vi.fn(),
-          resume: vi.fn(),
-          kill: vi.fn(() => {
-            onExitHandler?.({ exitCode: 0, signal: 15 });
-          }),
-          onData: vi.fn((handler: (data: string) => void) => {
-            onDataHandler = handler;
-          }),
-          onExit: vi.fn(
-            (handler: (event: { exitCode: number; signal: number | undefined }) => void) => {
-              onExitHandler = handler;
-            },
-          ),
-          emitData(data: string) {
-            onDataHandler?.(data);
+      const proc = {
+        cols: options.cols,
+        rows: options.rows,
+        write: vi.fn(),
+        resize: vi.fn((cols: number, rows: number) => {
+          proc.cols = cols;
+          proc.rows = rows;
+        }),
+        pause: vi.fn(),
+        resume: vi.fn(),
+        kill: vi.fn(() => {
+          onExitHandler?.({ exitCode: 0, signal: 15 });
+        }),
+        onData: vi.fn((handler: (data: string) => void) => {
+          onDataHandler = handler;
+        }),
+        onExit: vi.fn(
+          (handler: (event: { exitCode: number; signal: number | undefined }) => void) => {
+            onExitHandler = handler;
           },
-          emitExit(event: { exitCode: number; signal: number | undefined }) {
-            onExitHandler?.(event);
-          },
-        };
+        ),
+        emitData(data: string) {
+          onDataHandler?.(data);
+        },
+        emitExit(event: { exitCode: number; signal: number | undefined }) {
+          onExitHandler?.(event);
+        },
+      };
 
-        return proc;
-      },
-    );
+      return proc;
+    },
+  );
 
-    const mockLogDebug = vi.fn();
+  const mockLogDebug = vi.fn();
 
-    return { mockExecFileSync, mockExecFile, mockChildProcessSpawn, mockPtySpawn, mockLogDebug };
-  });
+  return {
+    mockExecFileSync,
+    defaultExecFileSync,
+    mockExecFile,
+    mockChildProcessSpawn,
+    mockPtySpawn,
+    mockLogDebug,
+  };
+});
 
 vi.mock('child_process', async () => {
   const actual = await vi.importActual<typeof import('child_process')>('child_process');
@@ -88,6 +103,7 @@ import {
   buildDockerImage,
   DOCKER_CONTAINER_HOME,
   dockerImageExists,
+  gateDockerRun,
   hashDockerfile,
   isDockerAvailable,
   killAgent,
@@ -99,7 +115,7 @@ import {
   unsubscribeFromAgent,
   validateCommand,
 } from './pty.js';
-import { setOfflineMode } from './offline.js';
+import { OfflineModeError, setOfflineMode } from './offline.js';
 
 let tempPaths: string[] = [];
 let agentCounter = 0;
@@ -1048,6 +1064,153 @@ describe('buildDockerImage with offline mode on', () => {
     expect(result.ok).toBe(false);
     expect(result.error).toContain('Offline mode is on');
     expect(result.error).toContain('Turn it off in Settings');
+  });
+});
+
+// `docker run <image>` pulls from a registry when the image is not on the
+// machine. That is a network round-trip the app starts by invoking local
+// tooling, which is exactly what the offline switch claims to cover — and it
+// was the one `docker` call site the original sweep missed, because the argv is
+// data handed to node-pty rather than a literal `spawn('docker', …)`.
+describe('gateDockerRun', () => {
+  it('leaves an online run exactly as it was, whether or not the image is local', () => {
+    expect(gateDockerRun({ offline: false, imagePresentLocally: false })).toEqual({
+      allowed: true,
+      extraRunArgs: [],
+    });
+    expect(gateDockerRun({ offline: false, imagePresentLocally: true })).toEqual({
+      allowed: true,
+      extraRunArgs: [],
+    });
+  });
+
+  it('refuses when offline and starting the container would have to pull the image', () => {
+    expect(gateDockerRun({ offline: true, imagePresentLocally: false })).toEqual({
+      allowed: false,
+      extraRunArgs: [],
+    });
+  });
+
+  it('allows an offline run against a local image, pinned so the daemon cannot pull', () => {
+    // Not decoration: the probe and the spawn are two moments, and the image can
+    // be removed in between. `--pull never` makes the promise structural rather
+    // than dependent on the probe still being true.
+    expect(gateDockerRun({ offline: true, imagePresentLocally: true })).toEqual({
+      allowed: true,
+      extraRunArgs: ['--pull', 'never'],
+    });
+  });
+});
+
+describe('spawnAgent docker mode — offline mode', () => {
+  beforeEach(() => setOfflineMode(false));
+  afterEach(() => {
+    setOfflineMode(false);
+    mockExecFileSync.mockImplementation(defaultExecFileSync);
+  });
+
+  /** Answer the local `docker image ls` probe without answering anything else. */
+  function stubImagePresence(present: boolean): void {
+    mockExecFileSync.mockImplementation((command: string, args?: string[]) => {
+      if (command === 'docker' && args?.[0] === 'image' && args?.[1] === 'ls') {
+        return present ? 'sha256:0123456789ab\n' : '';
+      }
+      return defaultExecFileSync(command, args);
+    });
+  }
+
+  it('never invokes docker run when the image is not on this machine', () => {
+    stubImagePresence(false);
+    setOfflineMode(true);
+
+    expect(() => spawnAgent(createMockWindow(), buildSpawnArgs())).toThrow();
+
+    expect(mockPtySpawn).not.toHaveBeenCalled();
+    const dockerRuns = mockExecFileSync.mock.calls.filter(
+      (c) => c[0] === 'docker' && (c[1] as string[] | undefined)?.[0] === 'run',
+    );
+    expect(dockerRuns).toHaveLength(0);
+  });
+
+  it('refuses with a legible reason naming the surface, not a registry timeout', () => {
+    stubImagePresence(false);
+    setOfflineMode(true);
+
+    try {
+      spawnAgent(createMockWindow(), buildSpawnArgs());
+      expect.unreachable('spawnAgent should have refused');
+    } catch (err) {
+      expect(err).toBeInstanceOf(OfflineModeError);
+      expect((err as OfflineModeError).surface).toBe('docker-run');
+      expect((err as OfflineModeError).code).toBe('ERR_OFFLINE_MODE');
+      expect((err as OfflineModeError).message).toContain('Offline mode is on');
+      expect((err as OfflineModeError).message).toContain('Turn it off in Settings');
+    }
+  });
+
+  it('probes the image the task actually asked for, not just the default', () => {
+    stubImagePresence(false);
+    setOfflineMode(true);
+
+    expect(() =>
+      spawnAgent(createMockWindow(), buildSpawnArgs({ dockerImage: 'my-own-image:v3' })),
+    ).toThrow(OfflineModeError);
+
+    const probe = mockExecFileSync.mock.calls.find(
+      (c) => c[0] === 'docker' && (c[1] as string[] | undefined)?.[0] === 'image',
+    );
+    expect(probe?.[1]).toContain('reference=my-own-image:v3');
+  });
+
+  it('still starts a container whose image is already here — that reaches no network', () => {
+    stubImagePresence(true);
+    setOfflineMode(true);
+
+    spawnAgent(createMockWindow(), buildSpawnArgs());
+
+    const { command, args } = getLastSpawnCall();
+    expect(command).toBe('docker');
+    expect(args[0]).toBe('run');
+    expect(getFlagValues(args, '--pull')).toEqual(['never']);
+  });
+
+  it('adds no --pull flag while the switch is off, so the argv is unchanged', () => {
+    spawnAgent(createMockWindow(), buildSpawnArgs());
+
+    const { args } = getLastSpawnCall();
+    expect(args).not.toContain('--pull');
+  });
+
+  it('does not probe docker at all while the switch is off', () => {
+    spawnAgent(createMockWindow(), buildSpawnArgs());
+
+    const probes = mockExecFileSync.mock.calls.filter(
+      (c) => c[0] === 'docker' && (c[1] as string[] | undefined)?.[0] === 'image',
+    );
+    expect(probes).toHaveLength(0);
+  });
+
+  it('does not gate a non-docker spawn — no container, no registry', () => {
+    stubImagePresence(false);
+    setOfflineMode(true);
+
+    expect(() =>
+      spawnAgent(createMockWindow(), buildSpawnArgs({ dockerMode: false })),
+    ).not.toThrow();
+    expect(getLastSpawnCall().command).toBe('claude');
+  });
+
+  it('does not gate a reattach — the container is already running', () => {
+    const agentId = nextAgentId();
+    const win = createMockWindow();
+    spawnAgent(win, buildSpawnArgs({ agentId }));
+    mockPtySpawn.mockClear();
+
+    stubImagePresence(false);
+    setOfflineMode(true);
+
+    expect(() => spawnAgent(win, buildSpawnArgs({ agentId, attachExisting: true }))).not.toThrow();
+    expect(mockPtySpawn).not.toHaveBeenCalled();
   });
 });
 

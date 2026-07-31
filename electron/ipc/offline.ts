@@ -4,7 +4,8 @@
 // Scope, deliberately: this gate covers network activity *Parallel Code
 // decides to start*, whether it does so directly (a `fetch`, a WebSocket) or
 // by invoking local tooling for a network round-trip (`gh`, `git push`,
-// `docker build`, the `claude` CLI for inline Q&A). It does NOT cover the
+// `docker build`, `docker run` against an image this machine does not have,
+// the `claude` CLI for inline Q&A). It does NOT cover the
 // network activity of the third-party AI CLIs you dispatch as agents — those
 // are tools you installed and authorised, they talk to their vendors under
 // their own configuration, and the app neither can nor should intercept them.
@@ -26,6 +27,7 @@ export const OUTBOUND_SURFACES = [
   'git-push',
   'git-remote-head',
   'docker-build',
+  'docker-run',
   'font-download',
 ] as const;
 
@@ -42,6 +44,8 @@ const SURFACE_MESSAGES: Record<OutboundSurface, string> = {
   'git-push': 'Offline mode is on, so the branch was not pushed to origin.',
   'git-remote-head': 'Offline mode is on, so the default branch was resolved from local refs only.',
   'docker-build': 'Offline mode is on, so the Docker image was not built.',
+  'docker-run':
+    'Offline mode is on, so the Docker container was not started — its image is not on this machine, and starting it would pull from a registry.',
   'font-download': 'Offline mode is on, so the terminal font was not downloaded.',
 };
 

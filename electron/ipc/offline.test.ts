@@ -85,6 +85,7 @@ describe('the documented surface count matches the code', () => {
     8: 'eight',
     9: 'nine',
     10: 'ten',
+    11: 'eleven',
   };
 
   it('has an English word available for the current count', () => {
