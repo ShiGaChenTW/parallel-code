@@ -4,6 +4,7 @@ import { ChangedFilesList } from '../components/ChangedFilesList';
 import { DiffViewerDialog } from '../components/DiffViewerDialog';
 import { fireAndForget } from '../lib/ipc';
 import { showNotification } from '../store/notification';
+import { tr } from '../store/i18n';
 import { IPC } from '../../electron/ipc/channels';
 import {
   arenaStore,
@@ -76,7 +77,7 @@ export function BattleScreen() {
 
   function handleStop(agentId: string) {
     fireAndForget(IPC.KillAgent, { agentId }, () => {
-      showNotification('Failed to stop agent');
+      showNotification(tr('Failed to stop agent'));
     });
   }
 
@@ -97,7 +98,7 @@ export function BattleScreen() {
             return (
               <>
                 <Show when={index() > 0}>
-                  <div class="arena-vs-badge">VS</div>
+                  <div class="arena-vs-badge">{tr('VS')}</div>
                 </Show>
                 <div class="arena-battle-panel" data-arena={index()}>
                   <div class="arena-battle-panel-header">
@@ -113,7 +114,7 @@ export function BattleScreen() {
                         <button
                           class="arena-stop-btn"
                           onClick={() => handleStop(agentId)}
-                          title="Stop"
+                          title={tr('Stop')}
                         >
                           <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
                             <rect x="3" y="3" width="10" height="10" rx="1" />

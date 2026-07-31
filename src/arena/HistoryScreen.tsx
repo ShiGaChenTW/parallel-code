@@ -4,6 +4,7 @@ import { saveArenaHistory } from './persistence';
 import { formatDuration } from './utils';
 import { confirm } from '../lib/dialog';
 import { invoke } from '../lib/ipc';
+import { tr } from '../store/i18n';
 import { IPC } from '../../electron/ipc/channels';
 
 function formatDate(iso: string): string {
@@ -17,7 +18,7 @@ function formatDate(iso: string): string {
 }
 
 function formatTimeMs(ms: number | null): string {
-  if (ms === null) return 'DNF';
+  if (ms === null) return tr('DNF');
   return formatDuration(ms);
 }
 
@@ -60,7 +61,7 @@ export function HistoryScreen() {
 
   async function handleDelete(e: Event, matchId: string) {
     e.stopPropagation();
-    const ok = await confirm('Delete this match? Any remaining worktrees will be removed.');
+    const ok = await confirm(tr('Delete this match? Any remaining worktrees will be removed.'));
     if (!ok) return;
     setDeleting(matchId);
     try {
@@ -94,13 +95,13 @@ export function HistoryScreen() {
           >
             <path d="M10 3L5 8l5 5" />
           </svg>
-          Back
+          {tr('Back')}
         </button>
       </div>
 
       <Show
         when={arenaStore.history.length > 0}
-        fallback={<div class="arena-history-empty">No matches yet. Go fight!</div>}
+        fallback={<div class="arena-history-empty">{tr('No matches yet. Go fight!')}</div>}
       >
         <For each={arenaStore.history}>
           {(match) => (
@@ -114,13 +115,13 @@ export function HistoryScreen() {
                 <span>{formatDate(match.date)}</span>
                 <div class="arena-history-row-actions">
                   <Show when={worktreeStatus()[match.id]}>
-                    <span class="arena-history-badge">View Results</span>
+                    <span class="arena-history-badge">{tr('View Results')}</span>
                   </Show>
                   <button
                     class="arena-history-delete-btn"
                     disabled={deleting() === match.id}
                     onClick={(e) => void handleDelete(e, match.id)}
-                    title="Delete match and clean up worktrees"
+                    title={tr('Delete match and clean up worktrees')}
                   >
                     <Show when={deleting() !== match.id} fallback={<span>...</span>}>
                       <svg

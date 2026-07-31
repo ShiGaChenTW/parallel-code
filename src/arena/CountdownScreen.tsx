@@ -1,4 +1,5 @@
 import { createSignal, onMount, onCleanup, createEffect } from 'solid-js';
+import { tr } from '../store/i18n';
 import { setPhase } from './store';
 
 export function CountdownScreen() {
@@ -35,7 +36,7 @@ export function CountdownScreen() {
         ref={textRef}
         class={`arena-countdown-text${count() === 0 ? ' arena-countdown-go' : ''}`}
       >
-        {count() > 0 ? count() : 'GO!'}
+        {count() > 0 ? count() : tr('GO!')}
       </div>
     </div>
   );
