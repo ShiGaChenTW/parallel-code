@@ -13,6 +13,7 @@ const core = vi.hoisted(() => ({
     | MockStoreHarness<{
         tasks: Record<string, MockTask>;
         agents: Record<string, unknown>;
+        taskGitStatus: Record<string, unknown>;
         taskOrder: string[];
         collapsedTaskOrder: string[];
         projects: { id: string; path: string }[];
@@ -34,6 +35,10 @@ type MockTask = {
 
 let mockTasks: Record<string, MockTask> = {};
 let mockAgents: Record<string, unknown> = {};
+// Mirrors AppStore.taskGitStatus. removeTaskFromStore's deferred deletion reads
+// it, so a mock store without it makes production code throw on a shape the
+// real store always has.
+let mockTaskGitStatus: Record<string, unknown> = {};
 let mockTaskOrder: string[] = [];
 let mockCollapsedTaskOrder: string[] = [];
 let mockProjects: { id: string; path: string }[] = [];
@@ -59,6 +64,12 @@ vi.mock('./core', async () => {
     },
     set agents(next) {
       mockAgents = next;
+    },
+    get taskGitStatus() {
+      return mockTaskGitStatus;
+    },
+    set taskGitStatus(next) {
+      mockTaskGitStatus = next;
     },
     get taskOrder() {
       return mockTaskOrder;
@@ -239,6 +250,7 @@ beforeEach(() => {
   harness.reset(harness.state());
   mockTasks = {};
   mockAgents = {};
+  mockTaskGitStatus = {};
   mockTaskOrder = [];
   mockCollapsedTaskOrder = [];
   mockProjects = [];
@@ -246,6 +258,22 @@ beforeEach(() => {
   mockInvoke.mockResolvedValue(undefined);
   mockSaveState.mockResolvedValue(undefined);
 });
+
+/**
+ * Run the phase-2 deletion that `removeTaskFromStore` defers behind
+ * REMOVE_ANIMATION_MS.
+ *
+ * Every describe that closes or merge-cleans a task installs fake timers, which
+ * keeps that timer inside the test that scheduled it. On real timers it instead
+ * fires ~300ms later — after the test returned and the mock store was reset — so
+ * the callback runs against a store the test no longer owns, and the throw
+ * surfaces as a worker-level unhandled error attributed to no test at all. Under
+ * load it can land during worker teardown, which turns the whole run non-zero
+ * while every test still reports as passing.
+ */
+function flushTaskRemoval(): void {
+  vi.runOnlyPendingTimers();
+}
 
 describe('updateTaskBranch', () => {
   it('clears an inferred PR URL when the branch changes', () => {
@@ -1071,6 +1099,14 @@ describe('closeTask — IPC cleanup ordering', () => {
     const harness = expectDefined(core.harness, 'mock store harness');
     harness.reset(harness.state());
     mockInvoke.mockResolvedValue(undefined);
+    // closeTask reaches removeTaskFromStore, which defers deletion behind a
+    // timer. Fake timers keep that timer owned by this test — see
+    // flushTaskRemoval.
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it('MCP_CoordinatedTaskClosed rejection is swallowed and task is still removed', async () => {
@@ -1081,6 +1117,7 @@ describe('closeTask — IPC cleanup ordering', () => {
       gitIsolation: 'direct', // skip DeleteTask to keep invoke sequence simple
       projectId: 'proj-1',
     };
+    mockTaskGitStatus['task-1'] = { dirty: true };
     mockInvoke.mockImplementation((channel: string) => {
       if (channel === IPC.MCP_CoordinatedTaskClosed) {
         return Promise.reject(new Error('backend gone'));
@@ -1090,8 +1127,11 @@ describe('closeTask — IPC cleanup ordering', () => {
 
     await closeTask('task-1');
 
-    // removeTaskFromStore marks 'removing' synchronously; setTimeout deletion is not awaited
+    // removeTaskFromStore marks 'removing' synchronously, then deletes on a timer.
     expect(mockTasks['task-1']?.closingStatus).toBe('removing');
+    flushTaskRemoval();
+    expect(mockTasks['task-1']).toBeUndefined();
+    expect(mockTaskGitStatus['task-1']).toBeUndefined();
   });
 
   it('MCP_CoordinatedTaskClosed resolves before removeTaskFromStore is called', async () => {
@@ -1125,6 +1165,9 @@ describe('closeTask — IPC cleanup ordering', () => {
     const removeIdx = order.indexOf('remove');
     expect(ipcIdx).toBeGreaterThanOrEqual(0);
     expect(removeIdx).toBeGreaterThan(ipcIdx);
+
+    flushTaskRemoval();
+    expect(mockTasks['task-1']).toBeUndefined();
   });
 
   it('MCP_CoordinatorDeregistered rejection is swallowed and coordinator is still removed', async () => {
@@ -1145,8 +1188,10 @@ describe('closeTask — IPC cleanup ordering', () => {
 
     await closeTask('coord-1');
 
-    // removeTaskFromStore marks 'removing' synchronously; setTimeout deletion is not awaited
+    // removeTaskFromStore marks 'removing' synchronously, then deletes on a timer.
     expect(mockTasks['coord-1']?.closingStatus).toBe('removing');
+    flushTaskRemoval();
+    expect(mockTasks['coord-1']).toBeUndefined();
   });
 
   it('detaches coordinator children without clearing backend review state', async () => {
@@ -1181,6 +1226,11 @@ describe('closeTask — IPC cleanup ordering', () => {
     expect(mockTasks['child-1'].mcpStartupError).toBeUndefined();
     expect(mockTasks['child-1'].signalDoneReceived).toBe(true);
     expect(mockTasks['child-1'].needsReview).toBe(true);
+
+    // The detached child survives the coordinator's deferred deletion.
+    flushTaskRemoval();
+    expect(mockTasks['coord-1']).toBeUndefined();
+    expect(mockTasks['child-1']).toBeDefined();
   });
 });
 
@@ -1191,6 +1241,13 @@ describe('recordTaskMerged counts merges with cleanup, not closures', () => {
     harness.reset(harness.state());
     mockInvoke.mockResolvedValue(undefined);
     vi.mocked(getProjectPath).mockReturnValue('/repo');
+    // closeTask and merge-with-cleanup both reach removeTaskFromStore, which
+    // defers deletion behind a timer — see flushTaskRemoval.
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it('closing an unmerged task does NOT increment the counter', async () => {
@@ -1202,6 +1259,7 @@ describe('recordTaskMerged counts merges with cleanup, not closures', () => {
     };
 
     await closeTask('task-1');
+    flushTaskRemoval();
 
     expect(recordTaskMerged).not.toHaveBeenCalled();
   });
@@ -1224,6 +1282,7 @@ describe('recordTaskMerged counts merges with cleanup, not closures', () => {
     });
 
     await mergeTask('task-1', { cleanup: true });
+    flushTaskRemoval();
 
     expect(recordTaskMerged).toHaveBeenCalledTimes(1);
     expect(recordMergedLines).toHaveBeenCalledTimes(1);
@@ -1532,7 +1591,14 @@ describe('task dependency', () => {
   });
 
   describe('closing a dependency leaves the dependent blocked, not detached (決議 3)', () => {
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
     beforeEach(() => {
+      // closeTask reaches removeTaskFromStore, which defers deletion behind a
+      // timer — see flushTaskRemoval.
+      vi.useFakeTimers();
       seedDependency({ gitIsolation: 'direct' });
       mockTasks['task-b'] = {
         agentIds: [],
@@ -1548,13 +1614,17 @@ describe('task dependency', () => {
 
     it('keeps the edge — this deliberately does not follow the coordinator detach precedent', async () => {
       await closeTask('task-a');
+      flushTaskRemoval();
 
       expect(mockTasks['task-b'].dependsOnTaskId).toBe('task-a');
     });
 
     it('reports the block with a reason the user can read', async () => {
       await closeTask('task-a');
-      delete mockTasks['task-a']; // removeTaskFromStore's deferred deletion
+      // The dependency really is gone once removeTaskFromStore's deferred
+      // deletion runs — no need to simulate it by hand.
+      flushTaskRemoval();
+      expect(mockTasks['task-a']).toBeUndefined();
 
       const block = getDependencyBlock('task-b', mockTasks as Record<string, DependencyTask>);
       expect(block).toEqual({
