@@ -4,6 +4,12 @@ import { theme } from '../lib/theme';
 import { sf } from '../lib/fontScale';
 import type { MergeReadiness, MergeReadinessCheckStatus } from './merge-readiness';
 
+/**
+ * Catalogue keys for the summary line, kept as source text rather than
+ * translated here: this table is module-level and would freeze the locale it
+ * was first read in. `tr()` runs inside the component instead, so switching
+ * language re-renders the heading with no reload.
+ */
 const overallCopy: Record<MergeReadiness['overall'], { title: string; detail: string }> = {
   ready: { title: 'Ready to merge', detail: 'Known checks passed.' },
   attention: { title: 'Needs attention', detail: 'Review these items before merging.' },
@@ -25,6 +31,12 @@ function checkHelp(label: string): string | undefined {
     return 'Uses checks reported for a detected GitHub pull request. Pull requests are optional, and unavailable check data is neutral.';
   }
   return undefined;
+}
+
+/** `checkHelp` translated, or undefined so no `title` attribute is emitted. */
+function checkHelpText(label: string): string | undefined {
+  const help = checkHelp(label);
+  return help === undefined ? undefined : tr(help);
 }
 
 function statusColor(status: MergeReadinessCheckStatus | MergeReadiness['overall']): string {
@@ -62,10 +74,10 @@ export function MergeReadinessPanel(props: { readiness: MergeReadiness }) {
         aria-live="polite"
         style={{ display: 'flex', 'align-items': 'baseline', gap: '8px', 'margin-bottom': '8px' }}
       >
-        <strong title={overallHelp} style={{ color: color(), 'font-size': sf(13) }}>
-          {copy().title}
+        <strong title={tr(overallHelp)} style={{ color: color(), 'font-size': sf(13) }}>
+          {tr(copy().title)}
         </strong>
-        <span style={{ color: theme.fgMuted, 'font-size': sf(12) }}>{copy().detail}</span>
+        <span style={{ color: theme.fgMuted, 'font-size': sf(12) }}>{tr(copy().detail)}</span>
       </div>
       <div style={{ display: 'grid', gap: '5px' }}>
         <For each={props.readiness.checks}>
@@ -80,15 +92,17 @@ export function MergeReadinessPanel(props: { readiness: MergeReadiness }) {
               }}
             >
               <span
-                title={checkHelp(check.label)}
+                title={checkHelpText(check.label)}
                 style={{ color: statusColor(check.status), 'font-weight': '600' }}
               >
                 <span aria-hidden="true" style={{ display: 'inline-block', width: '16px' }}>
                   {statusSymbol(check.status)}
                 </span>
-                {check.label}
+                {tr(check.label)}
               </span>
-              <span style={{ color: theme.fgMuted }}>{check.detail}</span>
+              <span style={{ color: theme.fgMuted }}>
+                {tr(check.detail.text, check.detail.params)}
+              </span>
             </div>
           )}
         </For>

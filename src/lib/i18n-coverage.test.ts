@@ -66,6 +66,11 @@ const KEPT_IN_ENGLISH: readonly string[] = [
   // already give, and read the same to a Traditional Chinese audience.
   'VS',
   'GO!',
+  // git vocabulary, on the same footing as 'Worktree'. The catalogue already
+  // keeps the word English inside every sentence that mentions it — 'Push to
+  // Remote' is 'Push 到遠端', 'Pushing...' is '正在 push…' — so translating the
+  // bare button would be the one place the app called it something else.
+  'Push',
 ];
 
 /**
@@ -121,6 +126,53 @@ const DYNAMIC_TR_SOURCES: Readonly<Record<string, DynamicTrSource>> = {
         'Calligraphic; easiest on the eyes over long sessions',
       ],
       'src/lib/look.ts': ['light', 'dark', 'system'],
+    },
+  },
+  'src/components/MergeReadinessPanel.tsx': {
+    note: 'The summary heading is a lookup keyed by the overall status and the help tooltips are a lookup keyed by the check label; the row label and its detail sentence are descriptors from `merge-readiness.ts`, which is pure and cannot read the locale.',
+    keys: {
+      'src/components/MergeReadinessPanel.tsx': [
+        'Ready to merge',
+        'Known checks passed.',
+        'Needs attention',
+        'Review these items before merging.',
+        'Not ready to merge',
+        'Resolve merge blockers before continuing.',
+        'Checking merge readiness',
+        'Waiting for merge status.',
+        'Ready means every available check passed. Needs attention means a warning; Not ready means a merge-safety blocker; Checking means merge data is loading. This summary is advisory.',
+        'Checks the task branch for conflicts with its base branch, branch mismatch, committed changes, and local uncommitted changes.',
+        'Uses structured verification reported by land_self, such as tests or typechecking. Without a report this needs attention; opening the dialog never runs commands.',
+        'Uses checks reported for a detected GitHub pull request. Pull requests are optional, and unavailable check data is neutral.',
+      ],
+      'src/components/merge-readiness.ts': [
+        'Merge safety',
+        'Verification',
+        'PR checks',
+        'Checking merge safety…',
+        'Worktree has a detached HEAD.',
+        "Worktree is on '{current}', expected '{expected}'.",
+        '{count} conflicting file must be resolved.',
+        '{count} conflicting files must be resolved.',
+        'No committed changes are available to merge.',
+        'Merge safety could not be checked.',
+        '{branch} is {count} commit ahead. Rebase recommended.',
+        '{branch} is {count} commits ahead. Rebase recommended.',
+        'Uncommitted changes will be excluded.',
+        'Branch is mergeable.',
+        'No verification was reported.',
+        '{name} failed',
+        '{name} failed — {reason}',
+        '{name} blocked',
+        '{name} blocked — {reason}',
+        '{count} check passed.',
+        '{count} checks passed.',
+        'No PR checks available.',
+        '{pending} pending, {passing} passing.',
+        '{pending} pending, {passing} passing, {failing} failing.',
+        '{failing} failing, {passing} passing.',
+        '{failing} failing, {passing} passing, {pending} pending.',
+      ],
     },
   },
   'src/components/Sidebar.tsx': {

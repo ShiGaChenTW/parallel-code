@@ -505,6 +505,23 @@ const ZH_TW: Record<string, string> = {
     '使用偵測到的 GitHub pull request 所回報的檢查。PR 為選用，取不到檢查資料時視為中性。',
   'Uses structured verification reported by land_self, such as tests or typechecking. Without a report this needs attention; opening the dialog never runs commands.':
     '使用 land_self 回報的結構化驗證，例如測試或型別檢查。沒有回報時需要人工確認；開啟此對話框不會執行任何指令。',
+  'Ready means every available check passed. Needs attention means a warning; Not ready means a merge-safety blocker; Checking means merge data is loading. This summary is advisory.':
+    '「可以合併」表示所有可用的檢查都通過；「需要處理」表示有警告；「尚未可合併」表示有合併安全性的阻礙；' +
+    '「正在檢查合併就緒狀態」表示合併資料還在載入。這份摘要僅供參考。',
+
+  // The merge-readiness rows. Every sentence below is a descriptor built by
+  // `merge-readiness.ts`, which is pure and cannot read the locale — the panel
+  // translates them. `HEAD`, `commit`, `branch`, `worktree` and `PR` stay
+  // English, as they do everywhere else in this catalogue.
+  Verification: '驗證',
+  'Checking merge safety…': '正在檢查合併安全性…',
+  'Worktree has a detached HEAD.': 'worktree 處於 detached HEAD 狀態。',
+  'No committed changes are available to merge.': '沒有已 commit 的變更可以合併。',
+  'Merge safety could not be checked.': '無法檢查合併安全性。',
+  'Uncommitted changes will be excluded.': '未 commit 的變更不會被納入。',
+  'Branch is mergeable.': '這個 branch 可以合併。',
+  'No verification was reported.': '沒有回報任何驗證結果。',
+  'No PR checks available.': '沒有可用的 PR 檢查。',
   'Delete branch and worktree after merge': '合併後刪除 branch 與 worktree',
   'Commit or stash changes before rebasing': 'rebase 前請先 commit 或 stash 變更',
   'Rebase with AI': '用 AI 執行 rebase',
@@ -662,6 +679,56 @@ const ZH_TW: Record<string, string> = {
   '{count} changed files.': '{count} 個變更檔案。',
   '{count} changed files, {uncommitted} uncommitted.':
     '{count} 個變更檔案，{uncommitted} 個未 commit。',
+
+  // Merge and push dialogs. These two shipped with only their titles wrapped,
+  // so the body read as English inside a Chinese frame — and the line below the
+  // commit list read "合併 task/-b3d1ec into main:", half of one language and
+  // half of the other in a single sentence. Each is now one entry with the
+  // values in `{name}` slots, so the translation owns the word order.
+  //
+  // zh-TW has no plural form, so each English singular/plural pair maps to the
+  // same sentence; the pair exists for English grammar, not as plural
+  // machinery.
+  'Merge {branch} into {base}:': '把 {branch} 合併進 {base}：',
+  "Worktree is on '{current}', expected '{expected}'.":
+    "worktree 目前在 '{current}'，預期應該是 '{expected}'。",
+  '{count} conflicting file must be resolved.': '有 {count} 個檔案衝突，必須先解決。',
+  '{count} conflicting files must be resolved.': '有 {count} 個檔案衝突，必須先解決。',
+  '{branch} is {count} commit ahead. Rebase recommended.':
+    '{branch} 領先 {count} 個 commit，建議先 rebase。',
+  '{branch} is {count} commits ahead. Rebase recommended.':
+    '{branch} 領先 {count} 個 commit，建議先 rebase。',
+  '{name} failed': '{name} 未通過',
+  '{name} failed — {reason}': '{name} 未通過 —— {reason}',
+  '{name} blocked': '{name} 受阻',
+  '{name} blocked — {reason}': '{name} 受阻 —— {reason}',
+  '{count} check passed.': '{count} 項檢查通過。',
+  '{count} checks passed.': '{count} 項檢查通過。',
+  '{pending} pending, {passing} passing.': '{pending} 項待處理、{passing} 項通過。',
+  '{pending} pending, {passing} passing, {failing} failing.':
+    '{pending} 項待處理、{passing} 項通過、{failing} 項失敗。',
+  '{failing} failing, {passing} passing.': '{failing} 項失敗、{passing} 項通過。',
+  '{failing} failing, {passing} passing, {pending} pending.':
+    '{failing} 項失敗、{passing} 項通過、{pending} 項待處理。',
+  "Worktree has a detached HEAD — merging '{branch}' would discard work.":
+    "worktree 處於 detached HEAD —— 合併 '{branch}' 會捨棄目前的工作。",
+  "The worktree is on '{current}' but this task tracks '{expected}'.":
+    "worktree 目前在 '{current}'，但這個任務追蹤的是 '{expected}'。",
+  "Use '{branch}'": "改用 '{branch}'",
+  'Nothing to merge: this branch has no committed changes compared to {branch}.':
+    '沒有東西可以合併：這個 branch 相對於 {branch} 沒有任何已 commit 的變更。',
+  'Checking for conflicts with {branch}...': '正在檢查與 {branch} 的衝突…',
+  '{branch} has {count} new commit. Rebase onto {branch} first.':
+    '{branch} 有 {count} 個新 commit，請先 rebase 到 {branch}。',
+  '{branch} has {count} new commits. Rebase onto {branch} first.':
+    '{branch} 有 {count} 個新 commit，請先 rebase 到 {branch}。',
+  'Conflicts detected with {branch} ({count} file):':
+    '偵測到與 {branch} 的衝突（{count} 個檔案）：',
+  'Conflicts detected with {branch} ({count} files):':
+    '偵測到與 {branch} 的衝突（{count} 個檔案）：',
+  'Rebase onto {branch} to resolve conflicts.': 'rebase 到 {branch} 以解決衝突。',
+  'Rebase onto {branch}': 'rebase 到 {branch}',
+  'Push branch {branch} to remote?': '要把 branch {branch} push 到遠端嗎？',
 
   // Onboarding — progressive disclosure. "worktree", "Coordinator" and "Arena"
   // stay in English: the first is git vocabulary this audience reads
@@ -931,6 +998,12 @@ export const COLON_LABEL_KEYS: readonly string[] = [
   // Sentence introducing a list
   'The worktree will be removed but the branch will be kept:',
   'This action cannot be undone. The following will be permanently deleted:',
+  // The merge dialog's two list intros. Both end the string at the colon and
+  // concatenate nothing after it — the commit log and the changed-files list
+  // follow as sibling elements, and the conflicting paths follow as a <ul>.
+  'Merge {branch} into {base}:',
+  'Conflicts detected with {branch} ({count} file):',
+  'Conflicts detected with {branch} ({count} files):',
 ];
 
 /**
