@@ -214,10 +214,14 @@ function TranscriptClearRow() {
     setResult(null);
     try {
       const removed = await clearTranscripts();
+      // Two whole sentences rather than translated words glued around a number.
+      // The concatenation this replaces pinned the count to the middle of the
+      // sentence in every language, which is what the placeholder syntax exists
+      // to undo.
       setResult(
         removed === 1
           ? tr('Deleted 1 transcript')
-          : `${tr('Deleted')} ${removed} ${tr('transcripts')}`,
+          : tr('Deleted {count} transcripts', { count: removed }),
       );
     } catch {
       setResult(tr('Could not delete transcripts'));
@@ -322,7 +326,9 @@ function CustomThemeCard(props: {
         onClick={() => props.onSelect()}
       >
         <span class="settings-theme-title">{props.customTheme.name}</span>
-        <span class="settings-theme-desc">{props.customTheme.description || 'Custom theme'}</span>
+        <span class="settings-theme-desc">
+          {props.customTheme.description || tr('Custom theme')}
+        </span>
       </button>
       <button
         type="button"
@@ -741,7 +747,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
                   type="text"
                   value={store.editorCommand}
                   onInput={(e) => setEditorCommand(e.currentTarget.value)}
-                  placeholder="e.g. code, cursor, zed, subl"
+                  placeholder={tr('e.g. code, cursor, zed, subl')}
                   style={{
                     flex: '1',
                     background: theme.taskPanelBg,
@@ -829,7 +835,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
                   <input
                     type="password"
                     onInput={(e) => setMinimaxApiKey(e.currentTarget.value)}
-                    placeholder="Enter your MINIMAX_API_KEY (stored in memory only)"
+                    placeholder={tr('Enter your MINIMAX_API_KEY (stored in memory only)')}
                     style={{
                       flex: '1',
                       background: theme.taskPanelBg,
@@ -846,8 +852,12 @@ export function SettingsDialog(props: SettingsDialogProps) {
               </Show>
               <span style={{ 'font-size': '11px', color: theme.fgSubtle }}>
                 {store.askCodeProvider === 'minimax'
-                  ? 'Uses MiniMax M2.7 (204K context) via the OpenAI-compatible API — no Claude Code CLI required.'
-                  : 'Uses the claude CLI to answer questions about selected code. Requires Claude Code to be installed.'}
+                  ? tr(
+                      'Uses MiniMax M2.7 (204K context) via the OpenAI-compatible API — no Claude Code CLI required.',
+                    )
+                  : tr(
+                      'Uses the claude CLI to answer questions about selected code. Requires Claude Code to be installed.',
+                    )}
               </span>
             </div>
           </div>
@@ -905,17 +915,34 @@ export function SettingsDialog(props: SettingsDialogProps) {
                   />
                 </label>
                 <span style={{ 'font-size': '12px', color: theme.fgSubtle }}>
-                  Docker image used when "Run in Docker container" is enabled for a task. The agent
-                  runs inside the container with only the project directory mounted.
+                  {tr(
+                    'Docker image used when "Run in Docker container" is enabled for a task. The agent runs inside the container with only the project directory mounted.',
+                  )}
                 </span>
                 <div style={{ 'font-size': '11px', color: theme.fgMuted, 'margin-top': '4px' }}>
-                  Projects with a{' '}
-                  <code
-                    style={{ 'font-family': "'JetBrains Mono', monospace", 'font-size': '11px' }}
+                  {/* The path is a styled <code> element, not a string, so the
+                      sentence renders from segments and the translation decides
+                      which side of it the path falls on. */}
+                  <For
+                    each={trParts(
+                      'Projects with a {path} will use a project-specific image instead.',
+                    )}
                   >
-                    {PROJECT_DOCKERFILE_RELATIVE_PATH}
-                  </code>{' '}
-                  will use a project-specific image instead.
+                    {(segment) =>
+                      segment.kind === 'text' ? (
+                        segment.value
+                      ) : (
+                        <code
+                          style={{
+                            'font-family': "'JetBrains Mono', monospace",
+                            'font-size': '11px',
+                          }}
+                        >
+                          {PROJECT_DOCKERFILE_RELATIVE_PATH}
+                        </code>
+                      )
+                    }
+                  </For>
                 </div>
               </div>
               <SettingsCheckboxRow
@@ -1056,7 +1083,9 @@ export function SettingsDialog(props: SettingsDialogProps) {
               label={tr('Verbose logging')}
               checked={store.verboseLogging}
               onChange={setVerboseLogging}
-              description="Emit debug-level logs to the developer console. Verbose logs may include file paths, branch names, commit messages, IPC channel activity, and pty lifecycle events. Review the contents before sharing."
+              description={tr(
+                'Emit debug-level logs to the developer console. Verbose logs may include file paths, branch names, commit messages, IPC channel activity, and pty lifecycle events. Review the contents before sharing.',
+              )}
             />
           </SettingsSection>
 
@@ -1088,7 +1117,9 @@ export function SettingsDialog(props: SettingsDialogProps) {
                     onClick={() => void checkForUpdates()}
                     style={updateSecondaryButtonStyle(updateStatus().phase === 'checking')}
                   >
-                    {updateStatus().phase === 'checking' ? 'Checking…' : 'Check for updates'}
+                    {updateStatus().phase === 'checking'
+                      ? tr('Checking…')
+                      : tr('Check for updates')}
                   </button>
                 </Show>
               </div>
@@ -1096,8 +1127,9 @@ export function SettingsDialog(props: SettingsDialogProps) {
               <Switch>
                 <Match when={updateStatus().phase === 'unsupported'}>
                   <span style={updateMessageStyle(theme.fgSubtle)}>
-                    Automatic updates are not available for this build. Download the latest release
-                    from GitHub to update.
+                    {tr(
+                      'Automatic updates are not available for this build. Download the latest release from GitHub to update.',
+                    )}
                   </span>
                 </Match>
 
@@ -1115,15 +1147,21 @@ export function SettingsDialog(props: SettingsDialogProps) {
 
                 <Match when={updateStatus().phase === 'available'}>
                   <span style={updateMessageStyle(theme.fg)}>
-                    Version {updateStatus().latestVersion} is available. Use the update button in
-                    the sidebar to install.
+                    {tr(
+                      'Version {version} is available. Use the update button in the sidebar to install.',
+                      {
+                        version: updateStatus().latestVersion ?? '',
+                      },
+                    )}
                   </span>
                 </Match>
 
                 <Match when={updateStatus().phase === 'downloading'}>
                   <div style={{ display: 'flex', 'flex-direction': 'column', gap: '6px' }}>
                     <span style={updateMessageStyle(theme.fgSubtle)}>
-                      Downloading update… {updateStatus().downloadPercent}%
+                      {tr('Downloading update… {percent}%', {
+                        percent: updateStatus().downloadPercent ?? 0,
+                      })}
                     </span>
                     <div
                       style={{
@@ -1147,14 +1185,16 @@ export function SettingsDialog(props: SettingsDialogProps) {
 
                 <Match when={updateStatus().phase === 'downloaded'}>
                   <span style={updateMessageStyle(theme.fg)}>
-                    Version {updateStatus().latestVersion} is downloaded. Use the update button in
-                    the sidebar to restart &amp; install.
+                    {tr(
+                      'Version {version} is downloaded. Use the update button in the sidebar to restart & install.',
+                      { version: updateStatus().latestVersion ?? '' },
+                    )}
                   </span>
                 </Match>
 
                 <Match when={updateStatus().phase === 'error'}>
                   <span style={updateMessageStyle(theme.error)}>
-                    Update check failed: {updateStatus().error}
+                    {tr('Update check failed: {error}', { error: updateStatus().error ?? '' })}
                   </span>
                 </Match>
               </Switch>
@@ -1275,7 +1315,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
                 'border-radius': '5px',
               }}
             >
-              + Create New
+              {tr('+ Create New')}
             </button>
           </div>
 
@@ -1298,7 +1338,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
               {(slot) => (
                 <div style={{ display: 'flex', 'flex-direction': 'column', gap: '10px' }}>
                   <div style={{ ...sectionLabelStyle, 'font-weight': '600' }}>
-                    {slot === 'dark' ? 'Dark Theme' : 'Light Theme'}
+                    {slot === 'dark' ? tr('Dark Theme') : tr('Light Theme')}
                   </div>
                   <ThemeGrid
                     slot={slot}
@@ -1335,7 +1375,9 @@ export function SettingsDialog(props: SettingsDialogProps) {
               label={tr('Coordinator mode')}
               checked={store.coordinatorModeEnabled}
               onChange={setCoordinatorModeEnabled}
-              description="Enable the Coordinator option when creating tasks. Coordinators can spawn sub-tasks, send prompts, and merge branches automatically via MCP tools. Requires app restart to fully disable."
+              description={tr(
+                'Enable the Coordinator option when creating tasks. Coordinators can spawn sub-tasks, send prompts, and merge branches automatically via MCP tools. Requires app restart to fully disable.',
+              )}
             />
             <div
               style={{
@@ -1385,8 +1427,9 @@ export function SettingsDialog(props: SettingsDialogProps) {
                 />
               </label>
               <span style={{ 'font-size': '12px', color: theme.fgSubtle }}>
-                How long the coordinator waits before firing a notification after a sub-task
-                completes. Default: 60s. Failed sub-tasks use max(10s, delay ÷ 4).
+                {tr(
+                  'How long the coordinator waits before firing a notification after a sub-task completes. Default: 60s. Failed sub-tasks use max(10s, delay ÷ 4).',
+                )}
               </span>
             </div>
           </SettingsSection>

@@ -85,11 +85,36 @@ export function transcriptEmptyMessage(enabled: boolean): string {
     : 'Session transcripts are off. Turn on Settings → Privacy → Record session transcripts to start recording this task.';
 }
 
-/** Summary line for the pane header: how much is here, and was anything masked. */
-export function transcriptSummaryLine(events: readonly TranscriptEvent[]): string {
-  if (events.length === 0) return '';
+/** A sentence the caller translates: source text plus the values it carries. */
+export interface TranscriptSummary {
+  readonly text: string;
+  readonly params: Readonly<Record<string, number>>;
+}
+
+/**
+ * Summary line for the pane header: how much is here, and was anything masked.
+ *
+ * A descriptor rather than a finished string, for the same reason
+ * `transcriptEmptyMessage` returns source text — this module is pure and `tr()`
+ * reads the locale. Null when there is nothing to say, which the caller renders
+ * as an empty line.
+ *
+ * English inflects "event" for count, so the two counts are separate sentences
+ * rather than a number glued to a translated noun. zh-TW maps both to the same
+ * text; the duplication lives in English, where the grammar actually is.
+ */
+export function transcriptSummaryLine(
+  events: readonly TranscriptEvent[],
+): TranscriptSummary | null {
+  if (events.length === 0) return null;
   const masked = events.filter((e) => Array.isArray(e.redacted) && e.redacted.length > 0).length;
-  const base = events.length === 1 ? '1 event' : `${events.length} events`;
-  if (masked === 0) return base;
-  return `${base} · ${masked} with redacted content`;
+  const params = { count: events.length, masked };
+  if (masked === 0) {
+    return events.length === 1
+      ? { text: '{count} event', params }
+      : { text: '{count} events', params };
+  }
+  return events.length === 1
+    ? { text: '{count} event · {masked} with redacted content', params }
+    : { text: '{count} events · {masked} with redacted content', params };
 }

@@ -91,29 +91,53 @@ export function visibleProviderColumns(rows: readonly TokenUsagePathRow[]): Prov
   }));
 }
 
+/** One sentence the caller translates: source text plus the values it carries. */
+export interface ProviderSummarySentence {
+  readonly text: string;
+  readonly params: Readonly<Record<string, string>>;
+}
+
 /**
- * One line summarising which CLIs were found.
+ * The line summarising which CLIs were found, one sentence at a time.
  *
  * A missing directory means the CLI is not installed, which is ordinary and is
  * worded as such — the alternative, showing nothing, leaves the user unable to
  * tell "not installed" from "broken". A genuine read error is called out
  * separately because that one is worth acting on.
+ *
+ * Returns descriptors rather than a finished string, matching
+ * `dependencyBlockMessage`, for two reasons. `tr()` reads `store.locale` and so
+ * is not pure, and this module has to stay testable without a store. And the
+ * version this replaces built each sentence by concatenation, which pinned the
+ * provider list to the position English puts it in; `{providers}` lets the
+ * translation move it — zh-TW wants "未安裝 Codex" where English wants "Codex
+ * not installed".
  */
 export function describeProviders(
   providers: readonly { provider: ProviderId; present: boolean; error?: string }[],
-): string {
-  if (providers.length === 0) return 'No usage logs have been read yet.';
-  const found = providers
-    .filter((p) => p.present && !p.error)
-    .map((p) => PROVIDER_LABELS[p.provider]);
-  const failed = providers.filter((p) => p.error).map((p) => PROVIDER_LABELS[p.provider]);
-  const missing = providers
-    .filter((p) => !p.present && !p.error)
-    .map((p) => PROVIDER_LABELS[p.provider]);
+): ProviderSummarySentence[] {
+  if (providers.length === 0) return [{ text: 'No usage logs have been read yet.', params: {} }];
+  const label = (p: { provider: ProviderId }) => PROVIDER_LABELS[p.provider];
+  const found = providers.filter((p) => p.present && !p.error).map(label);
+  const failed = providers.filter((p) => p.error).map(label);
+  const missing = providers.filter((p) => !p.present && !p.error).map(label);
 
-  const parts: string[] = [];
-  parts.push(found.length > 0 ? `Reading ${found.join(', ')}.` : 'No AI CLI logs found.');
-  if (missing.length > 0) parts.push(`${missing.join(', ')} not installed.`);
-  if (failed.length > 0) parts.push(`Could not read ${failed.join(', ')}.`);
-  return parts.join(' ');
+  const sentences: ProviderSummarySentence[] = [
+    found.length > 0
+      ? { text: 'Reading {providers}.', params: { providers: found.join(', ') } }
+      : { text: 'No AI CLI logs found.', params: {} },
+  ];
+  if (missing.length > 0) {
+    sentences.push({
+      text: '{providers} not installed.',
+      params: { providers: missing.join(', ') },
+    });
+  }
+  if (failed.length > 0) {
+    sentences.push({
+      text: 'Could not read {providers}.',
+      params: { providers: failed.join(', ') },
+    });
+  }
+  return sentences;
 }

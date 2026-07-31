@@ -403,7 +403,9 @@ export function TaskNotesBody(props: TaskNotesBodyProps) {
             }
           >
             <div style={{ color: theme.fgSubtle, 'padding-bottom': '4px' }}>
-              {transcriptSummaryLine(transcript())}
+              <Show when={transcriptSummaryLine(transcript())}>
+                {(summary) => tr(summary().text, summary().params)}
+              </Show>
             </div>
             <For each={toTimelineRows(transcript())}>
               {(row) => (
