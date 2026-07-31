@@ -8,6 +8,7 @@ import { randomPastelColor } from './projects';
 import { markAgentSpawned } from './taskStatus';
 import { getLocalDateKey } from '../lib/date';
 import { nextPeakConcurrentTasks } from '../lib/onboarding';
+import { DEFAULT_APP_ICON, isAppIconId } from '../lib/app-icon';
 import type {
   Agent,
   Task,
@@ -238,6 +239,7 @@ export async function saveState(): Promise<void> {
     lightThemeCustomId: store.lightThemeCustomId ?? undefined,
     darkThemePreset: store.darkThemePreset !== 'islands-dark' ? store.darkThemePreset : undefined,
     darkThemeCustomId: store.darkThemeCustomId ?? undefined,
+    appIcon: store.appIcon !== DEFAULT_APP_ICON ? store.appIcon : undefined,
     coordinatorModeEnabled: store.coordinatorModeEnabled || undefined,
     coordinatorControlHintDismissed: store.coordinatorControlHintDismissed || undefined,
     defaultStepsEnabled: store.defaultStepsEnabled || undefined,
@@ -415,6 +417,7 @@ interface LegacyPersistedState {
   lightThemeCustomId?: unknown;
   darkThemePreset?: unknown;
   darkThemeCustomId?: unknown;
+  appIcon?: unknown;
   coordinatorModeEnabled?: unknown;
   coordinatorControlHintDismissed?: unknown;
   defaultStepsEnabled?: unknown;
@@ -609,6 +612,7 @@ export async function loadState(): Promise<void> {
       s.lightThemePreset = isLookPreset(raw.lightThemePreset)
         ? raw.lightThemePreset
         : 'islands-light';
+      s.appIcon = isAppIconId(raw.appIcon) ? raw.appIcon : DEFAULT_APP_ICON;
       s.darkThemeCustomId =
         typeof raw.darkThemeCustomId === 'string' ? raw.darkThemeCustomId : null;
       s.lightThemeCustomId =

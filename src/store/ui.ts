@@ -6,6 +6,7 @@ import { setTaskFocusedPanel } from './focused-panel';
 import type { LookPreset, AppearanceMode } from '../lib/look';
 import { osIsDark } from '../lib/os-appearance';
 import type { CustomTheme } from '../lib/custom-theme';
+import type { AppIconId } from '../lib/app-icon';
 import { themeToCss } from '../lib/custom-theme';
 import type { PersistedWindowState, TaskViewportVisibility } from './types';
 import { invoke } from '../lib/ipc';
@@ -126,6 +127,20 @@ export function setDarkTheme(preset: LookPreset, customId: string | null): void 
     setStore('darkThemeCustomId', customId);
   });
   applyAppearanceMode();
+}
+
+/**
+ * Persist the chosen app-icon variant and ask main to swap the live icon.
+ *
+ * The IPC call is deliberately not awaited and its failure is swallowed: the
+ * icon is cosmetic, main already refuses to blank it on a bad read, and a
+ * rejected promise here would surface as an unhandled rejection for something
+ * the user cannot act on. The selection is stored either way, so a restart
+ * still lands on the right icon.
+ */
+export function setAppIcon(id: AppIconId): void {
+  setStore('appIcon', id);
+  void invoke(IPC.SetAppIcon, { id }).catch(() => {});
 }
 
 export async function saveCustomTheme(theme: CustomTheme): Promise<void> {

@@ -18,6 +18,7 @@ import {
   retryCjkFontInstall,
 } from '../store/cjkFont';
 import { presetsForTone } from '../lib/look';
+import { APP_ICON_VARIANTS, type AppIconVariant } from '../lib/app-icon';
 import type { AppearanceMode } from '../lib/look';
 import { LOCALES, LOCALE_LABELS } from '../lib/i18n';
 import { tr, trParts, setLocale } from '../store/i18n';
@@ -46,6 +47,7 @@ import {
   setAppearanceMode,
   setLightTheme,
   setDarkTheme,
+  setAppIcon,
   setCoordinatorModeEnabled,
   setCoordinatorNotificationDelayMs,
   setDefaultStepsEnabled,
@@ -414,6 +416,87 @@ function ThemeGrid(props: {
           );
         }}
       </For>
+    </div>
+  );
+}
+
+/**
+ * Preview of an app-icon variant, drawn from the same geometry the real icon
+ * uses rather than loading its PNG — stays crisp at any size and keeps Settings
+ * free of image requests.
+ */
+function AppIconSwatch(props: { variant: AppIconVariant; size: number }) {
+  return (
+    <svg
+      width={props.size}
+      height={props.size}
+      viewBox="0 0 512 512"
+      style={{ 'border-radius': '22%', display: 'block' }}
+      aria-hidden="true"
+    >
+      <rect width="512" height="512" rx="114" fill={props.variant.bg} />
+      <Show
+        when={!props.variant.legacy}
+        fallback={
+          <g fill="none" stroke={props.variant.live} stroke-width="37">
+            <line x1="91" y1="55" x2="91" y2="457" />
+            <line x1="201" y1="55" x2="201" y2="457" />
+            <path d="M274 73 H430 V219 H274" />
+            <path d="M448 293 H293 V439 H448" />
+          </g>
+        }
+      >
+        <g fill="none" stroke-width="50" stroke-linecap="round">
+          <path d="M152 120 V 392" stroke={props.variant.track} />
+          <path d="M256 120 V 392" stroke={props.variant.track} />
+          <path d="M360 120 V 392" stroke={props.variant.track} />
+          <path d="M152 120 V 214" stroke={props.variant.live} />
+          <path d="M256 120 V 296" stroke={props.variant.live} />
+          <path d="M360 120 V 392" stroke={props.variant.live} />
+        </g>
+      </Show>
+    </svg>
+  );
+}
+
+function AppIconSection() {
+  return (
+    <div style={{ display: 'flex', 'flex-direction': 'column', gap: '10px' }}>
+      <div style={{ ...sectionLabelStyle, 'font-weight': '600' }}>{tr('App icon')}</div>
+      <div style={{ 'font-size': '12px', color: theme.fgSubtle }}>
+        {tr('Changes the Dock icon on macOS and the window icon on Linux.')}
+      </div>
+      <div style={{ display: 'flex', gap: '10px', 'flex-wrap': 'wrap' }}>
+        <For each={APP_ICON_VARIANTS}>
+          {(variant) => {
+            const active = () => store.appIcon === variant.id;
+            return (
+              <button
+                type="button"
+                aria-pressed={active()}
+                title={tr(variant.label)}
+                onClick={() => setAppIcon(variant.id)}
+                style={{
+                  display: 'flex',
+                  'flex-direction': 'column',
+                  'align-items': 'center',
+                  gap: '7px',
+                  padding: '9px',
+                  background: active() ? theme.bgSelected : theme.bgInput,
+                  border: `1px solid ${active() ? theme.borderFocus : theme.border}`,
+                  'border-radius': '10px',
+                  cursor: 'pointer',
+                  color: active() ? theme.fg : theme.fgMuted,
+                  'font-size': '11px',
+                }}
+              >
+                <AppIconSwatch variant={variant} size={52} />
+                <span>{tr(variant.label)}</span>
+              </button>
+            );
+          }}
+        </For>
+      </div>
     </div>
   );
 }
@@ -1353,6 +1436,8 @@ export function SettingsDialog(props: SettingsDialogProps) {
               )}
             </For>
           </Show>
+
+          <AppIconSection />
         </div>
       </Show>
 

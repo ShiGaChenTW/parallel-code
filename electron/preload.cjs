@@ -22,6 +22,7 @@ const ALLOWED_CHANNELS = new Set([
   'append_transcript_event',
   'read_transcript',
   'clear_transcripts',
+  'set_app_icon',
   'create_task',
   'delete_task',
   'get_changed_files',

@@ -129,6 +129,13 @@
         "to": "icon.png"
       },
       {
+        "from": "build/icons/",
+        "to": "icons/",
+        "filter": [
+          "*.png"
+        ]
+      },
+      {
         "from": "docker/",
         "to": "docker/"
       }

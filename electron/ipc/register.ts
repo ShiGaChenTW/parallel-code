@@ -48,6 +48,7 @@ import {
   isPrUrl,
 } from './pr-checks.js';
 import { readCoverageSummary } from './coverage.js';
+import { applyAppIcon, isAppIconId, DEFAULT_APP_ICON } from './app-icon.js';
 import { startRemoteServer, getMCPLogs, type RemoteProject } from '../remote/server.js';
 import type { RemoteAttentionState } from '../remote/protocol.js';
 import { atomicWriteFileSync } from '../mcp/atomic.js';
@@ -828,6 +829,18 @@ export function registerAllHandlers(win: BrowserWindow): void {
     const removed = getTranscriptStore()?.clear() ?? 0;
     logDebug('transcript', 'cleared', { removed });
     return { removed };
+  });
+
+  // --- App icon ---
+  // Fire-and-forget from the renderer: an icon that fails to swap is cosmetic,
+  // and must never surface as an error the user has to dismiss. `applyAppIcon`
+  // returns false rather than throwing when the variant PNG is unreadable, so
+  // the previous icon stays put instead of being blanked.
+  ipcMain.handle(IPC.SetAppIcon, (_e, args) => {
+    const id = isAppIconId(args?.id) ? args.id : DEFAULT_APP_ICON;
+    const applied = applyAppIcon(win, id);
+    if (!applied) logDebug('app-icon', 'not applied', { id, platform: process.platform });
+    return { applied };
   });
 
   ipcMain.handle(IPC.LoadCustomThemes, () => loadCustomThemeFiles());
