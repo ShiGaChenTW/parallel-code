@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  CODEX_REPLAY_WINDOW_MS,
+  CODEX_REPLAY_GAP_MS,
   ZERO_TOTALS,
   addTotals,
   aggregateUsage,
@@ -771,13 +771,90 @@ describe('foldCodexLines and a replayed parent history', () => {
     expect(byPath.get(WT)).toEqual(totals(1200, 120));
   });
 
-  it('draws the replay boundary at the documented window', () => {
-    const inside = [
+  it('draws the replay boundary at the documented gap', () => {
+    const lines = [
       codexSessionMetaLine({ cwd: WT, forked_from_id: 'p' }),
-      codexTokenLine(cumulative(1000, 100), cumulative(1000, 100), at(CODEX_REPLAY_WINDOW_MS)),
-      codexTokenLine(cumulative(1100, 110), cumulative(100, 10), at(CODEX_REPLAY_WINDOW_MS + 1)),
+      // Exactly the gap, twice over: still the burst, however long it runs.
+      codexTokenLine(cumulative(1000, 100), cumulative(1000, 100), at(CODEX_REPLAY_GAP_MS)),
+      codexTokenLine(cumulative(2000, 200), cumulative(1000, 100), at(CODEX_REPLAY_GAP_MS * 2)),
+      // One millisecond past it: a turn someone waited for.
+      codexTokenLine(cumulative(2100, 210), cumulative(100, 10), at(CODEX_REPLAY_GAP_MS * 3 + 1)),
     ];
-    expect(foldCodexLines(inside, createCodexDeltaState()).byPath.get(WT)).toEqual(totals(100, 10));
+    expect(foldCodexLines(lines, createCodexDeltaState()).byPath.get(WT)).toEqual(totals(100, 10));
+  });
+
+  // ---- S3: one unjudgeable record inside the burst ------------------------
+  // The record with no clock cannot be placed, and "cannot be placed" is not
+  // "the replay ended". Charging it costs one record; ending the replay there
+  // used to cost every replayed record after it.
+  it('keeps removing the replay when one record inside the burst has no clock', () => {
+    const burst = [
+      codexSessionMetaLine({ cwd: WT, forked_from_id: '019f-parent' }),
+      codexTokenLine(cumulative(1000, 100), cumulative(1000, 100), at(1)),
+      // Same burst, but this line was written without a timestamp.
+      codexTokenLine(cumulative(4000, 400), cumulative(3000, 300)),
+      codexTokenLine(cumulative(9000, 900), cumulative(5000, 500), at(6)),
+    ];
+    const state = createCodexDeltaState();
+    const first = foldCodexLines(burst, state);
+
+    // The unjudgeable record is charged — the bias stays "rather count a copied
+    // record than drop a real one" — but the burst is not over.
+    expect(first.byPath.get(WT)).toEqual(totals(3000, 300));
+    expect(state.pastReplay).toBe(false);
+
+    // ... so the rest of the replayed history is still removed, and the live
+    // turn that follows is charged on its own.
+    const second = foldCodexLines(
+      [codexTokenLine(cumulative(9200, 920), cumulative(200, 20), at(30_000))],
+      state,
+    );
+    expect(second.byPath.get(WT)).toEqual(totals(200, 20));
+    expect(state.pastReplay).toBe(true);
+    // The old rule latched on the clockless record and charged 5000/500 of
+    // replayed history on top of this, 8200/820 for a session that spent 200/20.
+  });
+
+  // ---- S5: a burst wider than any fixed window ----------------------------
+  it('removes a replay burst that runs far past a two-second window', () => {
+    const lines = [codexSessionMetaLine({ cwd: WT, forked_from_id: '019f-parent' })];
+    // Forty replayed records, 100 ms apart: four seconds of burst. A bigger
+    // parent history, a slower disk or a busier machine all widen this, and the
+    // rule has to hold whatever the width.
+    for (let i = 1; i <= 40; i++) {
+      lines.push(codexTokenLine(cumulative(i * 100, i * 10), cumulative(100, 10), at(i * 100)));
+    }
+    lines.push(codexTokenLine(cumulative(4100, 410), cumulative(100, 10), at(60_000)));
+
+    const state = createCodexDeltaState();
+    const { byPath } = foldCodexLines(lines, state);
+    // Only the session's own turn.
+    expect(byPath.get(WT)).toEqual(totals(100, 10));
+    // A window measured from session start ended the replay at the 20th record
+    // and charged the other twenty, 2100/210 — 21x the truth.
+    expect(sumTotals(byPath.get(WT) ?? ZERO_TOTALS)).toBeLessThan(1000);
+  });
+
+  it('bounds the cost when the session clock itself is unreadable', () => {
+    const lines = [
+      // `session_meta` with a timestamp nothing can parse: there is no start to
+      // measure from, so the first record cannot be judged.
+      JSON.stringify({
+        timestamp: 'not-a-date',
+        type: 'session_meta',
+        payload: { cwd: WT, forked_from_id: '019f-parent' },
+      }),
+      codexTokenLine(cumulative(1000, 100), cumulative(1000, 100), at(1)),
+      codexTokenLine(cumulative(4000, 400), cumulative(3000, 300), at(3)),
+      codexTokenLine(cumulative(9000, 900), cumulative(5000, 500), at(6)),
+      codexTokenLine(cumulative(9200, 920), cumulative(200, 20), at(30_000)),
+    ];
+    const { byPath } = foldCodexLines(lines, createCodexDeltaState());
+    // The first record is charged because it could not be placed; it then
+    // becomes the clock the rest of the burst is measured against, so the other
+    // 8000/800 of replayed history is still removed. The old rule charged the
+    // whole file, 9200/920, for a session that spent 200/20.
+    expect(byPath.get(WT)).toEqual(totals(1200, 120));
   });
 
   // Found against the real logs, not in a fixture. A fork replays its parent's
