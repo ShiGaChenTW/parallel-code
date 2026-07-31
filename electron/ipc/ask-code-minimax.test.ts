@@ -306,7 +306,16 @@ describe('cancelAskAboutCodeMinimax', () => {
 });
 
 describe('offline mode', () => {
-  beforeEach(() => setOfflineMode(false));
+  beforeEach(() => {
+    // `mockFetch` is module-level, so its call log outlives every test in this
+    // file. Without this clear, "never reaches api.minimax.io" is asserting
+    // against calls made by the *online* suites above, and passes only while
+    // the runner happens to schedule this describe first. Under
+    // `--sequence.shuffle` it fails — which is the worst possible property for
+    // the one test that proves offline mode blocks the network.
+    vi.clearAllMocks();
+    setOfflineMode(false);
+  });
   afterEach(() => setOfflineMode(false));
 
   it('never reaches api.minimax.io, even with a key configured', () => {
