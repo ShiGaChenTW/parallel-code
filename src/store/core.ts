@@ -51,6 +51,7 @@ export const [store, setStore] = createStore<AppStore>({
   darkThemePreset: 'islands-dark',
   darkThemeCustomId: null,
   appIcon: 'terminal-green',
+  windowOpacity: 1,
   showPromptInput: true,
   fontSmoothing: true,
   windowState: null,

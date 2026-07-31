@@ -247,6 +247,16 @@ const ZH_TW: Record<string, string> = {
   'App icon': 'App 圖示',
   'Changes the Dock icon on macOS and the window icon on Linux.':
     '更換 macOS 的 Dock 圖示與 Linux 的視窗圖示。',
+  'Window opacity': '視窗透明度',
+  Opacity: '透明度',
+  'Fades the whole window, text included — the desktop shows through the terminals, not just behind them.':
+    '整個視窗連同文字一起淡化——桌面會直接透過終端機顯示出來，不只是襯在後面。',
+  'Not available on Linux — Electron implements window opacity on macOS only, so a slider here would do nothing.':
+    'Linux 無法使用——Electron 只在 macOS 上實作視窗透明度，在這裡放滑桿也不會有任何作用。',
+  'At this level, text over a bright desktop falls below the contrast the built-in themes are checked against.':
+    '在這個透明度下，文字疊在明亮桌面上的對比度會低於內建主題所檢查的標準。',
+  'More transparent': '更透明',
+  Opaque: '不透明',
   'Terminal Green': '終端綠',
   'Signal Amber': '訊號琥珀',
   'Indigo Dusk': '靛藍薄暮',

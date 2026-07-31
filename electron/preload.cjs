@@ -23,6 +23,7 @@ const ALLOWED_CHANNELS = new Set([
   'read_transcript',
   'clear_transcripts',
   'set_app_icon',
+  'set_window_opacity',
   'create_task',
   'delete_task',
   'get_changed_files',

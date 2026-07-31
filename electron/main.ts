@@ -12,6 +12,8 @@ import { stopAllStepsWatchers } from './ipc/steps.js';
 import { stopAllHandoffWatchers } from './ipc/handoff.js';
 import { stopTokenUsageWatcher } from './ipc/token-usage.js';
 import { IPC } from './ipc/channels.js';
+import { loadAppState } from './ipc/persistence.js';
+import { isWindowOpacitySupported, windowOpacityFromState } from './ipc/window-opacity.js';
 import { markStartup } from './startup-timing.js';
 import { resolveUserShell } from './user-shell.js';
 
@@ -130,12 +132,37 @@ function getIconPath(): string | undefined {
   return path.join(__dirname, '..', 'build', 'icon.png');
 }
 
+/**
+ * The persisted window opacity, as a `BrowserWindow` constructor option.
+ *
+ * Read here rather than pushed from the renderer after boot — the way the app
+ * icon is — because opacity is visible from the first frame. Waiting for
+ * `loadState()` to round-trip through IPC would open every launch at full
+ * opacity and then pop to the user's setting, which reads as a rendering bug.
+ * The cost is one extra `state.json` read and parse before the window opens;
+ * the renderer reads the same file moments later anyway.
+ *
+ * `undefined` on Linux, where Electron implements neither the constructor
+ * option nor `setOpacity` — see `ipc/window-opacity.ts`. `undefined` also on any
+ * failure: a profile whose state file cannot be read must still get a window.
+ */
+function initialWindowOpacity(): number | undefined {
+  if (!isWindowOpacitySupported(process.platform)) return undefined;
+  try {
+    return windowOpacityFromState(loadAppState());
+  } catch (err) {
+    console.warn('[main] Failed to read persisted window opacity:', err);
+    return undefined;
+  }
+}
+
 function createWindow() {
   markStartup('window-created');
   mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
     icon: getIconPath(),
+    opacity: initialWindowOpacity(),
     frame: process.platform === 'darwin',
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : undefined,
     resizable: true,
