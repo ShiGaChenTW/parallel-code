@@ -2,7 +2,6 @@ import { app, BrowserWindow, ipcMain, session, shell } from 'electron';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
-import { execFileSync } from 'child_process';
 import { registerAllHandlers } from './ipc/register.js';
 import { registerLogHandler } from './log.js';
 import { installIpcTracing } from './ipc/trace.js';
@@ -15,7 +14,7 @@ import { IPC } from './ipc/channels.js';
 import { loadAppState } from './ipc/persistence.js';
 import { isWindowOpacitySupported, windowOpacityFromState } from './ipc/window-opacity.js';
 import { markStartup } from './startup-timing.js';
-import { resolveUserShell } from './user-shell.js';
+import { startEnvImport } from './env-import.js';
 
 // First line of our own code to run. Everything before this — Electron's own
 // boot — is invisible from in-process, which is why the harness subtracts its
@@ -25,69 +24,18 @@ markStartup('main-module-loaded');
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// When launched from a .desktop file (e.g. AppImage), the environment is
-// minimal — often just PATH=/usr/bin:/bin. Resolve the user's full
-// login-interactive shell environment and merge it into process.env so
-// spawned PTYs can find CLI tools (claude, codex, gemini, etc.) and
-// inherit other expected variables (SSH_AGENT_LAUNCHER, KUBECONFIG, etc.).
+// When launched from a .desktop file (e.g. AppImage) or the macOS Dock, the
+// environment is minimal — often just PATH=/usr/bin:/bin:/usr/sbin:/sbin.
+// Resolve the user's full login-interactive shell environment and merge it into
+// process.env so spawned PTYs can find CLI tools (claude, codex, gemini, etc.)
+// and inherit other expected variables (SSH_AGENT_LAUNCHER, KUBECONFIG, etc.).
 //
-// Uses -ilc (interactive + login) to source both .zprofile/.profile AND
-// .zshrc/.bashrc, where version managers (nvm, volta, fnm) add to PATH.
-// A perl one-liner dumps every env var as null-delimited key=value pairs,
-// bounded by sentinel markers to isolate the data from noisy shell init.
-//
-// Trade-off: -i (interactive) triggers .zshrc side effects (compinit, conda,
-// welcome messages). Login-only (-lc) would be quieter but would miss tools
-// that are only added to PATH in .bashrc/.zshrc (e.g. nvm). We accept the
-// side effects since the sentinel-based parsing discards all other output.
-// Another trade-off: inheriting the *full* environment (rather than just PATH)
-// can pull in large variables (certificates, tokens, kubeconfig). We set a
-// generous maxBuffer and fall back to the original environment on failure.
-//
-// Skip vars that would alter Electron/Node runtime behavior if a user's shell
-// rc sets them — those belong to our process, not the login shell.
-const PROTECTED_ENV_KEYS = new Set([
-  'ELECTRON_RUN_AS_NODE',
-  'NODE_OPTIONS',
-  'NODE_EXTRA_CA_CERTS',
-  'LD_PRELOAD',
-  'LD_LIBRARY_PATH',
-  'DYLD_INSERT_LIBRARIES',
-  'DYLD_LIBRARY_PATH',
-]);
-
-function fixEnv(): void {
-  if (process.platform === 'win32') return;
-  try {
-    const loginShell = resolveUserShell();
-    const sentinel = '__PCODE_ENV__';
-    const result = execFileSync(
-      loginShell,
-      [
-        '-ilc',
-        `printf '${sentinel}' && perl -e 'print "$_=$ENV{$_}\\0" for keys %ENV' && printf '${sentinel}'`,
-      ],
-      { encoding: 'utf8', timeout: 5000, maxBuffer: 10 * 1024 * 1024 },
-    );
-    const startIdx = result.indexOf(sentinel);
-    const endIdx = result.lastIndexOf(sentinel);
-    if (startIdx === -1 || endIdx === -1 || startIdx === endIdx) return;
-
-    const envBlock = result.slice(startIdx + sentinel.length, endIdx);
-    for (const entry of envBlock.split('\0')) {
-      if (!entry) continue;
-      const eqIdx = entry.indexOf('=');
-      if (eqIdx <= 0) continue;
-      const key = entry.slice(0, eqIdx);
-      if (PROTECTED_ENV_KEYS.has(key)) continue;
-      process.env[key] = entry.slice(eqIdx + 1);
-    }
-  } catch (err) {
-    console.warn('[fixEnv] Failed to resolve login shell environment:', err);
-  }
-}
-
-fixEnv();
+// Synchronous on the startup path by design: everything downstream reads
+// process.env, and the measured cost of the shell round-trip is ~0.4s. What is
+// no longer synchronous is the *failure* path — see electron/env-import.ts for
+// the retry and reporting behaviour, and for why a failed import now leaves a
+// trail a user can act on instead of a single console.warn.
+startEnvImport();
 
 // Verify that preload.cjs ALLOWED_CHANNELS stays in sync with the IPC enum.
 // Logs a warning in dev if they drift — catches mismatches before they hit users.
