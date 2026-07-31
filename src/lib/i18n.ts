@@ -284,8 +284,8 @@ const ZH_TW: Record<string, string> = {
   Privacy: '隱私',
   'Offline mode': '離線模式',
   'Offline mode is on.': '離線模式已啟用。',
-  'Stop Parallel Code making any network request of its own: update checks, PR check polling, Huly sync, inline code Q&A, Docker image builds, git push, and external images in rendered markdown. Each one reports that offline mode is on rather than failing silently. This does not cover the AI CLIs you run as agents — those talk to their own vendors under their own configuration, and Parallel Code neither can nor should intercept them.':
-    '停止 Parallel Code 自己發出任何網路請求：更新檢查、PR 檢查輪詢、Huly 同步、行內程式碼問答、Docker image 建置、git push，以及渲染 Markdown 中的外部圖片。每一項都會明確顯示「離線模式已啟用」，而不是無聲失敗。此開關不涵蓋你以 agent 身分執行的 AI CLI —— 那些工具依你自己的設定連向各自的廠商，Parallel Code 不攔也不該攔。',
+  'Stop Parallel Code making any network request of its own: update checks, PR check polling, Huly sync, inline code Q&A, Docker image builds, starting a Docker task whose image is not on this machine, git push, and external images in rendered markdown. Each one reports that offline mode is on rather than failing silently. This does not cover the AI CLIs you run as agents — those talk to their own vendors under their own configuration, and Parallel Code neither can nor should intercept them.':
+    '停止 Parallel Code 自己發出任何網路請求：更新檢查、PR 檢查輪詢、Huly 同步、行內程式碼問答、Docker image 建置、啟動 image 不在本機的 Docker 任務、git push，以及渲染 Markdown 中的外部圖片。每一項都會明確顯示「離線模式已啟用」，而不是無聲失敗。此開關不涵蓋你以 agent 身分執行的 AI CLI —— 那些工具依你自己的設定連向各自的廠商，Parallel Code 不攔也不該攔。',
 
   // Panel and section headings
   'Branch prefix': 'Branch 前綴',

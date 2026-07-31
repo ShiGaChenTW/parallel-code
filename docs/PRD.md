@@ -225,8 +225,8 @@ Parallel Code 應成為「本機 AI 軟體團隊的控制台」：開發者保�
 - 原始碼、task metadata、notes、設定與 terminal buffer 預設只存於本機。
 - UI 與隱私政策須清楚區分 Parallel Code 自身網路活動與第三方 CLI 的網路活動。
 - 渲染 Markdown 允許的外部圖片可能洩漏 IP，須在文件中揭露。
-- **Parallel Code 自身的對外連線點共有十個**（此數字先前記為三個，實際盤點後為九個；
-  R4 終端中文字體下載加入後為十個）：
+- **Parallel Code 自身的對外連線點共有十一個**（此數字先前記為三個，實際盤點後為九個；
+  R4 終端中文字體下載加入後為十個；S2 補上盤點時漏掉的 `docker run` 後為十一個）：
   1. 更新檢查／下載（GitHub Releases，`electron/ipc/updater.ts`）
   2. PR check 狀態輪詢（`gh` CLI，`electron/ipc/pr-checks.ts`）
   3. Ask About Code — Claude CLI（`electron/ipc/ask-code.ts`）
@@ -240,13 +240,18 @@ Parallel Code 應成為「本機 AI 軟體團隊的控制台」：開發者保�
   10. 終端中文字體下載（`electron/ipc/font-install.ts`）——**只有使用者在提示框中明確同意才會發出**，
       下載前必須先顯示授權、來源網址與檔案大小；網址釘在字體專案自己的 release tag 上，
       不得指向第三方鏡像；字體一律不內嵌於安裝檔
-- 上述十個必須全部受單一「離線模式」總開關控制（見 §13 Q3 裁決）。開關關閉時，
+  11. `docker run`（`electron/ipc/pty.ts` `spawnAgent()`）——**只在 image 不在本機時才是對外連線**：
+      `docker run <image>` 找不到本機 image 就會去 registry 拉。R2 盤點時漏掉，
+      因為 argv 是 `buildPtySpawnSpec()` 回傳的資料再交給 node-pty，
+      `rg "spawn\(" -e "execFile\("` 掃不到字面上的 `'docker'`。
+      image 已在本機時照常啟動（零連線）並補 `--pull never`；不在本機時在呼叫 `docker` 前拒絕
+- 上述十一個必須全部受單一「離線模式」總開關控制（見 §13 Q3 裁決）。開關關閉時，
   每個連線點都必須回報明確原因，不得靜默逾時或無限等待。
 - 離線模式**不涵蓋**第三方 AI CLI 自身的網路活動；文件必須明確寫出這條界線，
   避免使用者誤以為開關能管到 Claude Code 等工具自己的連線。
 - 離線模式不得以網路層攔截（`session.webRequest` 之類）實作 —— 那會一併影響第三方 CLI，
   且會把失敗模式變成靜默逾時。
-- Remote Access 與 MCP coordinator 是 **inbound** listener，不屬於這十個對外連線點，
+- Remote Access 與 MCP coordinator 是 **inbound** listener，不屬於這十一個對外連線點，
   由各自的啟動／停止控制，不受離線模式管轄。
 
 ### 7.2 安全
