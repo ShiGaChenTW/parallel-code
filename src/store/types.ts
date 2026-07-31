@@ -6,6 +6,7 @@ import type { KeyBinding } from '../lib/keybindings';
 import type { CustomTheme } from '../lib/custom-theme';
 import type { AppIconId } from '../lib/app-icon';
 import type { PromptHistoryEntry } from '../lib/prompt-history';
+import type { WindowBlur } from '../lib/window-blur';
 
 /** A user override for a binding: partial key/modifiers to apply, or null to unbind. */
 export type KeybindingOverride = Partial<Pick<KeyBinding, 'key' | 'modifiers'>> | null;
@@ -359,6 +360,7 @@ export interface PersistedState {
   darkThemeCustomId?: string | null;
   appIcon?: AppIconId;
   windowOpacity?: number;
+  windowBlur?: WindowBlur;
   coordinatorModeEnabled?: boolean;
   coordinatorNotificationDelayMs?: number;
   coordinatorControlHintDismissed?: boolean;
@@ -488,6 +490,7 @@ export interface AppStore {
   darkThemeCustomId: string | null;
   appIcon: AppIconId;
   windowOpacity: number;
+  windowBlur: WindowBlur;
   coordinatorModeEnabled: boolean;
   coordinatorNotificationDelayMs: number;
   coordinatorControlHintDismissed: boolean;

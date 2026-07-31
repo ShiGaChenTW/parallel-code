@@ -160,5 +160,6 @@
   "ReadTranscript": "read_transcript",
   "ClearTranscripts": "clear_transcripts",
   "SetAppIcon": "set_app_icon",
-  "SetWindowOpacity": "set_window_opacity"
+  "SetWindowOpacity": "set_window_opacity",
+  "SetWindowBlur": "set_window_blur"
 }

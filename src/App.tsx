@@ -323,8 +323,23 @@ function App() {
   // Sync theme to <html> so Portal content (dialogs, tooltips) inherits CSS variables.
   // data-look always holds the base preset so structural rules (islands, workbench, etc.)
   // continue to apply. data-custom-theme overlays color variables when a custom theme is active.
+  // data-window-blur rides along here rather than in an effect of its own so the
+  // veil and the theme it tints flip in the same frame. It is also why blur needs
+  // no special first-paint path in the renderer: the preset itself only lands
+  // once state has loaded, so a veil arriving at that same moment adds no second
+  // pop. (The native half — vibrancy and the transparent backdrop — does come
+  // from the BrowserWindow constructor, so the window itself never pops.)
+  //
+  // The attribute is removed, not set to 'off'. Every rule in styles.css keys off
+  // its mere presence, so absence means zero blur rules match and the original
+  // opaque backdrops stand exactly as written.
   createEffect(() => {
     document.documentElement.dataset.look = store.themePreset;
+    if (store.windowBlur !== 'off') {
+      document.documentElement.dataset.windowBlur = store.windowBlur;
+    } else {
+      delete document.documentElement.dataset.windowBlur;
+    }
     const customId = store.activeCustomThemeId;
     if (customId) {
       document.documentElement.dataset.customTheme = customId;

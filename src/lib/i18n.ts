@@ -263,6 +263,18 @@ const ZH_TW: Record<string, string> = {
     'Linux 無法使用——Electron 只在 macOS 上實作視窗透明度，在這裡放滑桿也不會有任何作用。',
   'At this level, text over a bright desktop falls below the contrast the built-in themes are checked against.':
     '在這個透明度下，文字疊在明亮桌面上的對比度會低於內建主題所檢查的標準。',
+  'Window blur': '視窗模糊',
+  'Frosts the desktop behind the window. Panels and terminals stay opaque, so only the frame around them lets the desktop through.':
+    '把視窗後方的桌面變成毛玻璃。面板與終端機維持不透明，只有周圍的外框會透出桌面。',
+  'Not available on Linux — Electron implements window blur on macOS only, so a control here would do nothing.':
+    'Linux 無法使用——Electron 只在 macOS 上實作視窗模糊，在這裡放控制項也不會有任何作用。',
+  'Paused while window blur is on — fading a blurred backdrop over the desktop it was blurred from doubles the image rather than dimming it. This setting is kept and returns when blur goes off.':
+    '視窗模糊開啟時暫停——把模糊後的背景再淡化疊回它模糊自的那張桌面，只會產生疊影而不是變淡。這項設定會保留，關閉模糊後就會回來。',
+  Off: '關閉',
+  Window: '視窗',
+  Sidebar: '側邊欄',
+  'HUD panel': 'HUD 面板',
+  'Full screen': '全螢幕',
   'More transparent': '更透明',
   Opaque: '不透明',
   'Terminal Green': '終端綠',

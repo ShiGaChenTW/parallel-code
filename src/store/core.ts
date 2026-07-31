@@ -53,6 +53,7 @@ export const [store, setStore] = createStore<AppStore>({
   darkThemeCustomId: null,
   appIcon: 'terminal-green',
   windowOpacity: 1,
+  windowBlur: 'off',
   showPromptInput: true,
   fontSmoothing: true,
   windowState: null,

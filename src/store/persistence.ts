@@ -10,6 +10,7 @@ import { getLocalDateKey } from '../lib/date';
 import { nextPeakConcurrentTasks } from '../lib/onboarding';
 import { DEFAULT_APP_ICON, isAppIconId } from '../lib/app-icon';
 import { DEFAULT_WINDOW_OPACITY, normalizeWindowOpacity } from '../lib/window-opacity';
+import { DEFAULT_WINDOW_BLUR, normalizeWindowBlur } from '../lib/window-blur';
 import type {
   Agent,
   Task,
@@ -252,6 +253,7 @@ export function buildPersistedState(): PersistedState {
     darkThemeCustomId: store.darkThemeCustomId ?? undefined,
     appIcon: store.appIcon !== DEFAULT_APP_ICON ? store.appIcon : undefined,
     windowOpacity: store.windowOpacity !== DEFAULT_WINDOW_OPACITY ? store.windowOpacity : undefined,
+    windowBlur: store.windowBlur !== DEFAULT_WINDOW_BLUR ? store.windowBlur : undefined,
     coordinatorModeEnabled: store.coordinatorModeEnabled || undefined,
     coordinatorControlHintDismissed: store.coordinatorControlHintDismissed || undefined,
     defaultStepsEnabled: store.defaultStepsEnabled || undefined,
@@ -437,6 +439,7 @@ interface LegacyPersistedState {
   darkThemeCustomId?: unknown;
   appIcon?: unknown;
   windowOpacity?: unknown;
+  windowBlur?: unknown;
   coordinatorModeEnabled?: unknown;
   coordinatorControlHintDismissed?: unknown;
   defaultStepsEnabled?: unknown;
@@ -633,6 +636,7 @@ export async function loadState(): Promise<void> {
         : 'islands-light';
       s.appIcon = isAppIconId(raw.appIcon) ? raw.appIcon : DEFAULT_APP_ICON;
       s.windowOpacity = normalizeWindowOpacity(raw.windowOpacity);
+      s.windowBlur = normalizeWindowBlur(raw.windowBlur);
       s.darkThemeCustomId =
         typeof raw.darkThemeCustomId === 'string' ? raw.darkThemeCustomId : null;
       s.lightThemeCustomId =

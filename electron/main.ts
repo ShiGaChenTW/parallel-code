@@ -13,6 +13,14 @@ import { stopTokenUsageWatcher } from './ipc/token-usage.js';
 import { IPC } from './ipc/channels.js';
 import { loadAppState } from './ipc/persistence.js';
 import { isWindowOpacitySupported, windowOpacityFromState } from './ipc/window-opacity.js';
+import {
+  WINDOW_BACKDROP_OPAQUE,
+  WINDOW_BACKDROP_TRANSPARENT,
+  effectiveWindowOpacity,
+  isWindowBlurSupported,
+  windowBlurFromState,
+} from './ipc/window-blur.js';
+import type { WindowBlurMaterial } from './ipc/window-blur.js';
 import { markStartup } from './startup-timing.js';
 import { startEnvImport } from './env-import.js';
 
@@ -81,36 +89,73 @@ function getIconPath(): string | undefined {
 }
 
 /**
- * The persisted window opacity, as a `BrowserWindow` constructor option.
+ * The persisted appearance settings that have to be in place before the first
+ * frame, as `BrowserWindow` constructor options.
  *
  * Read here rather than pushed from the renderer after boot — the way the app
- * icon is — because opacity is visible from the first frame. Waiting for
- * `loadState()` to round-trip through IPC would open every launch at full
- * opacity and then pop to the user's setting, which reads as a rendering bug.
- * The cost is one extra `state.json` read and parse before the window opens;
- * the renderer reads the same file moments later anyway.
+ * icon is — because both are visible from the first frame. Waiting for
+ * `loadState()` to round-trip through IPC would open every launch opaque and
+ * unblurred and then pop to the user's settings, which reads as a rendering bug.
+ * The cost is one `state.json` read and parse before the window opens; the
+ * renderer reads the same file moments later anyway.
  *
- * `undefined` on Linux, where Electron implements neither the constructor
- * option nor `setOpacity` — see `ipc/window-opacity.ts`. `undefined` also on any
- * failure: a profile whose state file cannot be read must still get a window.
+ * One read serves both settings, which also makes them consistent by
+ * construction: they are derived from a single snapshot of the file rather than
+ * from two reads that could straddle a write.
+ *
+ * `backgroundColor` is set explicitly in both directions, and that matters more
+ * than it looks. The runtime off path (`applyWindowBlur`) restores
+ * `WINDOW_BACKDROP_OPAQUE`, so construction has to use the same value — if it
+ * left the option unset, Electron's default white would mean "launched with blur
+ * off" and "switched blur off" produced two different windows.
+ *
+ * `undefined` on any failure: a profile whose state file cannot be read must
+ * still get a window, and it gets the plain one.
  */
-function initialWindowOpacity(): number | undefined {
-  if (!isWindowOpacitySupported(process.platform)) return undefined;
+function initialWindowChrome(): {
+  opacity: number | undefined;
+  vibrancy: WindowBlurMaterial | undefined;
+  backgroundColor: string | undefined;
+} {
+  const none = { opacity: undefined, vibrancy: undefined, backgroundColor: undefined };
+  let state: string | null;
   try {
-    return windowOpacityFromState(loadAppState());
+    state = loadAppState();
   } catch (err) {
-    console.warn('[main] Failed to read persisted window opacity:', err);
-    return undefined;
+    console.warn('[main] Failed to read persisted window appearance:', err);
+    return none;
   }
+
+  const blurSupported = isWindowBlurSupported(process.platform);
+  const blur = blurSupported ? windowBlurFromState(state) : 'off';
+  const storedOpacity = isWindowOpacitySupported(process.platform)
+    ? windowOpacityFromState(state)
+    : undefined;
+
+  return {
+    // Blur and opacity are never composited together — see
+    // `effectiveWindowOpacity` for why the combination is a ghosted image
+    // rather than a fainter one.
+    opacity: storedOpacity === undefined ? undefined : effectiveWindowOpacity(storedOpacity, blur),
+    vibrancy: blur === 'off' ? undefined : blur,
+    backgroundColor: blurSupported
+      ? blur === 'off'
+        ? WINDOW_BACKDROP_OPAQUE
+        : WINDOW_BACKDROP_TRANSPARENT
+      : undefined,
+  };
 }
 
 function createWindow() {
   markStartup('window-created');
+  const chrome = initialWindowChrome();
   mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
     icon: getIconPath(),
-    opacity: initialWindowOpacity(),
+    opacity: chrome.opacity,
+    vibrancy: chrome.vibrancy,
+    backgroundColor: chrome.backgroundColor,
     frame: process.platform === 'darwin',
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : undefined,
     resizable: true,

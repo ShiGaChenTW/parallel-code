@@ -58,6 +58,55 @@ body,
   background: #0e1215;
 }
 
+/* --- Window blur (macOS vibrancy) -------------------------------------------
+
+   macOS paints the blurred desktop *behind* the web contents. Everything below
+   exists because the renderer would otherwise paint straight over it: the
+   backdrop above, and the 100vw x 100vh `.app-shell` carrying `var(--bg)`.
+
+   Every rule in this block is scoped under `html[data-window-blur]`, and the
+   attribute is removed — not set to a value — when blur is off. So the off
+   state is not a second set of rules that has to reproduce the original
+   appearance; it is zero rules matching, and the declarations above stand
+   untouched. `window-blur.test.ts` asserts that scoping over this file's text,
+   so an unscoped rule added here cannot quietly leave the app translucent.
+
+   Note what is *not* here: no theme variable is redefined. The alpha lives on a
+   layer, not on a colour, which is the only form that works when `--bg` is a
+   gradient in nine of the eleven presets and an unknown in every custom theme.
+   Islands, panels and terminal surfaces are not mentioned and stay exactly as
+   opaque as their theme author wrote them, so no theme's internal contrast — the
+   thing `custom-theme-contrast.test.ts` gates — changes at all.
+
+   The veil hangs off `#root::before` rather than `.app-shell::before`, which the
+   preset system already uses for its accent wash. `position: fixed` needs no
+   positioned ancestor, and with `z-index` left auto it paints in tree order:
+   before `.app-shell`, therefore behind it. The 0.75 alpha is derived in
+   `src/lib/window-blur.ts` and pinned by its test; it is the lowest 0.05 step
+   whose worst case against a white desktop still clears WCAG 3:1. */
+
+html[data-window-blur],
+html[data-window-blur] body,
+html[data-window-blur] #root {
+  background: transparent;
+}
+
+/* `!important` overrides the inline `background: theme.bg` App.tsx sets on the
+   shell — the standard way to beat an inline declaration, and the same device
+   the preset overrides below already use. */
+html[data-window-blur] .app-shell {
+  background: transparent !important;
+}
+
+html[data-window-blur] #root::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background: var(--bg);
+  opacity: 0.75;
+}
+
 body {
   font-family: var(--font-ui);
   color: var(--fg);

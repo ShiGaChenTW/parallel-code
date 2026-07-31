@@ -24,6 +24,11 @@ const ALLOWED_CHANNELS = new Set([
   'clear_transcripts',
   'set_app_icon',
   'set_window_opacity',
+  // Carries the macOS vibrancy setting. Not the focus-lost event listed above
+  // under a confusingly similar name. Quotes are avoided in this comment on
+  // purpose: the allowlist test extracts every quoted string in this file, so a
+  // channel name mentioned in prose would register as a duplicate entry.
+  'set_window_blur',
   'create_task',
   'delete_task',
   'get_changed_files',
