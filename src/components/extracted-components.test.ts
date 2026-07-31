@@ -149,8 +149,25 @@ describe('sidebar hierarchy rail', () => {
 
   it('paints the rail from a theme token, never a literal colour', () => {
     const html = shell('middle');
-    expect(html).toContain('var(--border-subtle)');
+    expect(html).toContain('color-mix(in srgb, var(--fg) 16%, transparent)');
+    // Both halves of the original rule still hold. No literal colour reaches the
+    // markup in any notation -- `rgba(255,255,255,0.16)` would give the white
+    // Scott asked for on his dark theme and a rail that cannot be seen at all on
+    // `islands-light`, so it is banned here rather than left to review.
     expect(html).not.toMatch(/background:\s*#[0-9a-f]{3,8}/i);
+    expect(html).not.toMatch(/background:\s*(?:rgba?|hsla?)\(/i);
+  });
+
+  it('derives the rail from the foreground token so it inverts with the theme', () => {
+    const html = shell('middle');
+    // `--fg` is near-white on all eleven dark presets, which is the white
+    // translucent hairline that was asked for, and near-black (#1f2329) on
+    // `islands-light`, where a white one would be invisible. One expression,
+    // both directions, and custom themes get it for free.
+    expect(html).toContain('var(--fg)');
+    expect(html).not.toContain('var(--border-subtle)');
+    // The alpha is derived, not chosen -- see the comment on TREE_RAIL_COLOR.
+    expect(html).toContain('16%');
   });
 
   it('keeps the rail out of the pointer path so drag targets are unchanged', () => {
