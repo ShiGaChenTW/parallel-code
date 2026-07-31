@@ -51,6 +51,18 @@ export const AUTOMATED_PROMPT_PROVENANCE =
   '[parallel-code] Sent by the coordinator agent through send_prompt; not typed by the human operator.';
 
 /**
+ * Ceiling on a caller-supplied prompt, before the provenance header is added.
+ *
+ * Lives here rather than next to its enforcement in `mcp/coordinator.ts`
+ * because `shared/` is the lower layer and two modules in it already size
+ * themselves against this budget: `MAX_PROVENANCE_HEADER_BYTES` below, and the
+ * escaping headroom in `relay-payload.ts`. Neither could import it while it was
+ * private to the coordinator, so both restated the number in prose or in a test
+ * literal. One definition, imported by everyone who is bounded by it.
+ */
+export const MAX_PROMPT_BYTES = 64 * 1024;
+
+/**
  * Byte budget the provenance header is allowed to add on top of the caller's
  * prompt. Callers size their own limits against `MAX_PROMPT_BYTES + this`.
  */

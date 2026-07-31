@@ -57,6 +57,7 @@ import {
 import {
   buildAutomatedPrompt,
   sanitisePromptBody,
+  MAX_PROMPT_BYTES,
   MAX_PROVENANCE_HEADER_BYTES,
 } from '../shared/prompt-sanitise.js';
 import { buildRelayPrompt, type RelaySourceKind } from '../shared/relay-payload.js';
@@ -82,7 +83,6 @@ const PROMPT_WRITE_DELAY_MS = 50;
 const GIT_LOCK_RETRY_DELAY_MS = 2_000;
 const INITIAL_PROMPT_READY_DELAY_MS = 1_500;
 const MAX_PENDING_PROMPTS = 32;
-const MAX_PROMPT_BYTES = 64 * 1024;
 /**
  * Ceiling for a fully composed automated payload. Sanitisation only ever
  * shrinks the caller's prompt, so the provenance header is the only thing that

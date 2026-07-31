@@ -11,9 +11,7 @@ import {
   RELAY_BODY_MARKER,
   RELAY_SOURCE_KINDS,
 } from './relay-payload.js';
-import { MAX_PROVENANCE_HEADER_BYTES } from './prompt-sanitise.js';
-
-const MAX_PROMPT_BYTES = 64 * 1024;
+import { MAX_PROMPT_BYTES, MAX_PROVENANCE_HEADER_BYTES } from './prompt-sanitise.js';
 const ESC = '\x1b';
 
 function decodeBody(payload: string): string {

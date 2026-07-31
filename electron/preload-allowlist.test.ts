@@ -22,13 +22,30 @@ describe('preload ALLOWED_CHANNELS', () => {
     expect(preloadSrc).toContain('sandboxed preloads cannot require arbitrary local JSON');
   });
 
-  it('keeps the manifest, IPC enum, and preload allowlist as an exact set', () => {
-    const channels = Object.values(IPC);
-    const IPC_CHANNELS = Object.values(IPC_MANIFEST);
-    expect(new Set(IPC_CHANNELS)).toEqual(new Set(channels));
-    expect(IPC_CHANNELS).toHaveLength(channels.length);
-    expect(new Set(IPC_CHANNELS).size).toBe(IPC_CHANNELS.length);
+  // There are only two hand-maintained artifacts here, not three. `channels.ts`
+  // is `export const IPC = channelManifest` — a verbatim re-export — so the
+  // manifest and the IPC enum cannot drift while that line stands, and a test
+  // named as though it cross-checked three independent sources overstated its
+  // reach. The two checks below say what each one actually guards.
 
+  it('exposes the manifest through IPC verbatim, key for key', () => {
+    // `IPC_MANIFEST` is a separate `createRequire` read of the JSON, so this is
+    // not an object compared with itself: it goes red the moment `channels.ts`
+    // stops being a pure re-export — adding, dropping, or renaming a key on the
+    // way through. Comparing the full key→value mapping rather than just the
+    // values is deliberate; callers reach channels as `IPC.SpawnAgent`, so a
+    // renamed key breaks them while leaving the value set identical.
+    expect({ ...IPC }).toEqual(IPC_MANIFEST);
+    expect(Object.keys(IPC)).toHaveLength(Object.keys(IPC_MANIFEST).length);
+
+    const IPC_CHANNELS = Object.values(IPC_MANIFEST);
+    expect(new Set(IPC_CHANNELS).size).toBe(IPC_CHANNELS.length);
+  });
+
+  it('keeps the preload allowlist an exact set copy of the manifest', () => {
+    // This is the pair that genuinely can drift: preload.cjs cannot require the
+    // manifest under a sandboxed preload, so its list is retyped by hand.
+    const channels = Object.values(IPC);
     const preloadChannels = extractPreloadChannels();
     expect(new Set(preloadChannels)).toEqual(new Set(channels));
     expect(preloadChannels).toHaveLength(channels.length);

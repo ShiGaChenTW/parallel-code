@@ -980,21 +980,27 @@ describe('hashDockerfile', () => {
 });
 
 describe('dockerImageExists', () => {
-  it('fails closed when a custom dockerfile path is unreadable', async () => {
-    mockExecFile.mockImplementationOnce(
-      (
-        _command: string,
-        _args: string[],
-        _options: { encoding: string; timeout: number },
-        callback: (err: Error | null, stdout: string) => void,
-      ) => callback(null, 'stored-hash'),
-    );
-
+  it('fails closed on an unreadable custom dockerfile without consulting docker', async () => {
+    // The hash of the custom dockerfile is what the staleness check compares
+    // against, so an unreadable one means we cannot know whether the image is
+    // current. `dockerImageExists` returns false before running `docker image
+    // ls` at all — asserting that no child process was spawned is what pins the
+    // early return in place. Without it this test would still pass if the
+    // early return were deleted and docker happened to report nothing.
+    //
+    // This previously queued a `mockImplementationOnce` here. Because the early
+    // return means `execFile` is never called, that implementation was never
+    // consumed, and `vi.clearAllMocks()` in the root `beforeEach` clears call
+    // history but does NOT drain the once-queue. The stale implementation was
+    // then picked up by whichever `execFile` caller ran next, breaking the
+    // `isDockerAvailable` suite under `--sequence.shuffle`.
     await expect(
       dockerImageExists('parallel-code-project:test', {
         dockerfilePath: '/nonexistent/Dockerfile',
       }),
     ).resolves.toBe(false);
+
+    expect(mockExecFile).not.toHaveBeenCalled();
   });
 });
 
