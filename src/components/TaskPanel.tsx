@@ -70,6 +70,13 @@ const NOTES_PANEL_AUTO_MAX = 'min(400px, 33vh)';
 export function TaskPanel(props: TaskPanelProps) {
   const [showCloseConfirm, setShowCloseConfirm] = createSignal(false);
   const [planFullscreen, setPlanFullscreen] = createSignal(false);
+  // Deliberately not persisted. The panel is a glance at a running cost, not a
+  // working surface, and it takes vertical space from the notes in a column
+  // that is already dense — a state restored on every launch would be a layout
+  // change nobody asked for on a window they opened to read notes. It survives
+  // as long as the panel is mounted, which covers the case that matters:
+  // opening it, working, and looking again.
+  const [showTokenUsage, setShowTokenUsage] = createSignal(false);
 
   // Countdown clock for staged coordinator notifications shown while auto mode is active.
   const [nowMs, setNowMs] = createSignal(Date.now());
@@ -301,6 +308,7 @@ export function TaskPanel(props: TaskPanelProps) {
     <TaskNotesBody
       task={props.task}
       agentId={firstAgentId()}
+      showTokenUsage={showTokenUsage()}
       onPlanFullscreen={() => setPlanFullscreen(true)}
     />
   );
@@ -549,6 +557,8 @@ export function TaskPanel(props: TaskPanelProps) {
             onPush={() => setShowPushConfirm(true)}
             pushing={pushing()}
             pushSuccess={pushSuccess()}
+            tokenUsageOpen={showTokenUsage()}
+            onToggleTokenUsage={() => setShowTokenUsage((open) => !open)}
             onTitleEditRef={(h) => (titleEditHandle = h)}
           />
         </div>

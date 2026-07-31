@@ -6,6 +6,13 @@ interface IconButtonProps {
   onClick: (e: MouseEvent) => void;
   title?: string;
   size?: 'sm' | 'md';
+  /**
+   * Tints the button to show that what it toggles is currently open.
+   *
+   * Every other button in the title bar is a one-shot action, so a toggle
+   * without this looks the same whether or not its panel is showing.
+   */
+  active?: boolean;
 }
 
 export function IconButton(props: IconButtonProps) {
@@ -20,9 +27,11 @@ export function IconButton(props: IconButtonProps) {
         props.onClick(e);
       }}
       style={{
-        background: 'transparent',
-        border: `1px solid ${theme.border}`,
-        color: theme.fgMuted,
+        background: props.active
+          ? `color-mix(in srgb, ${theme.accent} 14%, transparent)`
+          : 'transparent',
+        border: `1px solid ${props.active ? theme.accent : theme.border}`,
+        color: props.active ? theme.fg : theme.fgMuted,
         cursor: 'pointer',
         'border-radius': '6px',
         padding: isSm() ? '2px' : '4px',
