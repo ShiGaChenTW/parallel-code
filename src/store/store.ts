@@ -131,6 +131,7 @@ export {
   setDarkTheme,
   setAppIcon,
   setWindowOpacity,
+  setWindowBlur,
   saveCustomTheme,
   deleteCustomTheme,
   setAutoTrustFolders,

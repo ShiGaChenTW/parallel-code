@@ -77,6 +77,7 @@ export function persistedSnapshot(): string {
     darkThemeCustomId: store.darkThemeCustomId,
     appIcon: store.appIcon,
     windowOpacity: store.windowOpacity,
+    windowBlur: store.windowBlur,
     tasks: Object.fromEntries(
       [...store.taskOrder, ...store.collapsedTaskOrder]
         .filter((id) => store.tasks[id])

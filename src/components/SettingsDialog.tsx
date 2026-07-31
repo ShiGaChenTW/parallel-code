@@ -49,6 +49,7 @@ import {
   setDarkTheme,
   setAppIcon,
   setWindowOpacity,
+  setWindowBlur,
   setCoordinatorModeEnabled,
   setCoordinatorNotificationDelayMs,
   setDefaultStepsEnabled,
@@ -67,6 +68,8 @@ import {
   isWindowOpacitySupported,
   windowOpacityReadability,
 } from '../lib/window-opacity';
+import { WINDOW_BLUR_MATERIALS, isWindowBlurSupported } from '../lib/window-blur';
+import type { WindowBlurMaterial } from '../lib/window-blur';
 import { DEFAULT_DOCKER_IMAGE, PROJECT_DOCKERFILE_RELATIVE_PATH } from '../lib/docker';
 
 interface SettingsDialogProps {
@@ -634,6 +637,88 @@ function WindowOpacitySection() {
             )}
           </div>
         </Show>
+        <Show when={store.windowBlur !== 'off'}>
+          <div style={{ 'font-size': '12px', color: theme.fgMuted }}>
+            {tr(
+              'Paused while window blur is on — fading a blurred backdrop over the desktop it was blurred from doubles the image rather than dimming it. This setting is kept and returns when blur goes off.',
+            )}
+          </div>
+        </Show>
+      </Show>
+    </SettingsCard>
+  );
+}
+
+/** Display names for the four materials. Kept beside the section rather than in
+ * `lib/window-blur.ts` so the value model stays free of UI text. */
+const WINDOW_BLUR_LABELS: Record<WindowBlurMaterial, string> = {
+  'under-window': 'Window',
+  sidebar: 'Sidebar',
+  hud: 'HUD panel',
+  'fullscreen-ui': 'Full screen',
+};
+
+/**
+ * Window blur, or an explanation of its absence.
+ *
+ * Electron 40 implements vibrancy on macOS only — a narrower rule than opacity's,
+ * which also covers Windows — and Linux is one of this app's two published
+ * targets. So the control is not rendered there, for the same reason the opacity
+ * slider is not: a control that changes nothing is worse than no control, and
+ * worse than a sentence saying why.
+ *
+ * Four materials out of Electron's fifteen; the shortlist is argued in
+ * `lib/window-blur.ts`. The short version is that most of the fifteen name
+ * controls (menu, popover, tooltip) rather than windows, and read as flat wash
+ * when stretched across one.
+ *
+ * The description says plainly that panels stay opaque, because that is the
+ * question a terminal user actually has here — whether this is about to make
+ * their scrollback hard to read. It is not, structurally: no theme variable is
+ * touched, so every panel keeps the background its theme author wrote and only
+ * the frame around them becomes translucent.
+ */
+function WindowBlurSection() {
+  const supported = isWindowBlurSupported(rendererPlatform);
+  return (
+    <SettingsCard
+      title={tr('Window blur')}
+      description={
+        supported
+          ? tr(
+              'Frosts the desktop behind the window. Panels and terminals stay opaque, so only the frame around them lets the desktop through.',
+            )
+          : tr(
+              'Not available on Linux — Electron implements window blur on macOS only, so a control here would do nothing.',
+            )
+      }
+    >
+      <Show when={supported}>
+        <div style={{ display: 'flex', 'flex-wrap': 'wrap', gap: '8px' }}>
+          <For each={['off', ...WINDOW_BLUR_MATERIALS] as const}>
+            {(value) => {
+              const active = () => store.windowBlur === value;
+              return (
+                <button
+                  type="button"
+                  aria-pressed={active()}
+                  onClick={() => setWindowBlur(value)}
+                  style={{
+                    padding: '7px 14px',
+                    background: active() ? theme.bgSelected : theme.bgInput,
+                    border: `1px solid ${active() ? theme.borderFocus : theme.border}`,
+                    'border-radius': '8px',
+                    cursor: 'pointer',
+                    color: active() ? theme.fg : theme.fgMuted,
+                    'font-size': '13px',
+                  }}
+                >
+                  {value === 'off' ? tr('Off') : tr(WINDOW_BLUR_LABELS[value])}
+                </button>
+              );
+            }}
+          </For>
+        </div>
       </Show>
     </SettingsCard>
   );
@@ -1193,6 +1278,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
               <AppIconSection />
 
               <WindowOpacitySection />
+              <WindowBlurSection />
 
               <SettingsCard
                 title={tr('Focus Dimming')}

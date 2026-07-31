@@ -8,6 +8,8 @@ import { osIsDark } from '../lib/os-appearance';
 import type { CustomTheme } from '../lib/custom-theme';
 import type { AppIconId } from '../lib/app-icon';
 import { normalizeWindowOpacity } from '../lib/window-opacity';
+import { normalizeWindowBlur } from '../lib/window-blur';
+import type { WindowBlur } from '../lib/window-blur';
 import { themeToCss } from '../lib/custom-theme';
 import type { PersistedWindowState, TaskViewportVisibility } from './types';
 import { invoke } from '../lib/ipc';
@@ -159,7 +161,31 @@ export function setAppIcon(id: AppIconId): void {
 export function setWindowOpacity(value: number): void {
   const opacity = normalizeWindowOpacity(value);
   setStore('windowOpacity', opacity);
-  void invoke(IPC.SetWindowOpacity, { opacity }).catch(() => {});
+  void invoke(IPC.SetWindowOpacity, { opacity, blur: store.windowBlur }).catch(() => {});
+}
+
+/**
+ * Persist the window blur and ask main to apply it to the live window.
+ *
+ * Both settings are sent on both channels so main can decide what the window
+ * should actually run at without holding any state of its own: blur and opacity
+ * must not be composited together (see `effectiveWindowOpacity` in
+ * `electron/ipc/window-blur.ts`), and a main process that remembered only the
+ * last value it was told would answer that question differently depending on
+ * which control the user touched last.
+ *
+ * The stored opacity is deliberately left alone while blur is on. Writing 1 into
+ * it would make switching blur on destroy a setting the user chose, and make
+ * switching it off again a different app than the one they had.
+ *
+ * The `data-window-blur` attribute that drives the CSS veil is applied in
+ * `App.tsx` alongside `data-look`, not here, so the theme and the veil flip in
+ * the same frame.
+ */
+export function setWindowBlur(value: WindowBlur): void {
+  const blur = normalizeWindowBlur(value);
+  setStore('windowBlur', blur);
+  void invoke(IPC.SetWindowBlur, { blur, opacity: store.windowOpacity }).catch(() => {});
 }
 
 export async function saveCustomTheme(theme: CustomTheme): Promise<void> {
