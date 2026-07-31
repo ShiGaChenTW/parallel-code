@@ -27,6 +27,7 @@ import { TaskTitleBar } from './TaskTitleBar';
 import { TaskBranchInfoBar } from './TaskBranchInfoBar';
 import { TaskNotesBody } from './TaskNotesBody';
 import { TaskTokenUsagePanel } from './TaskTokenUsagePanel';
+import { TaskPromptHistoryPanel, type PromptNavApi } from './TaskPromptHistoryPanel';
 import { TaskChangedFilesSection } from './TaskChangedFilesSection';
 import { isCommitHashSelection, type CommitSelection } from './CommitNavBar';
 import { TaskShellSection } from './TaskShellSection';
@@ -84,6 +85,12 @@ export function TaskPanel(props: TaskPanelProps) {
   // as long as the panel is mounted, which covers the case that matters:
   // opening it, working, and looking again.
   const [showTokenUsage, setShowTokenUsage] = createSignal(false);
+
+  // Not persisted either, and for a sharper reason than the token card's: the
+  // list is only fully useful while the terminal still holds the lines its
+  // entries point at, and that is exactly what a relaunch destroys.
+  const [showPromptHistory, setShowPromptHistory] = createSignal(false);
+  const [promptNav, setPromptNav] = createSignal<PromptNavApi | undefined>();
 
   // Countdown clock for staged coordinator notifications shown while auto mode is active.
   const [nowMs, setNowMs] = createSignal(Date.now());
@@ -307,6 +314,9 @@ export function TaskPanel(props: TaskPanelProps) {
         onStepJumpReady={(fn, fromIdx) => {
           setStepNav(fn ? { jump: fn, firstIndex: fromIdx } : undefined);
         }}
+        // The nav object is stable and holds signals, so it is stored with a
+        // thunk — `setPromptNav(api)` would call it as a signal updater.
+        onPromptNavReady={(api) => setPromptNav(() => api)}
       />
     </div>
   );
@@ -325,6 +335,14 @@ export function TaskPanel(props: TaskPanelProps) {
   // flip. `stepsSectionEl` and `changedFilesEl` already pay it while sitting
   // out of a tree, and both are heavier — they poll.
   const tokenUsageEl = <TaskTokenUsagePanel worktreePath={props.task.worktreePath} />;
+  const promptHistoryEl = (
+    <TaskPromptHistoryPanel
+      task={props.task}
+      open={showPromptHistory()}
+      nav={promptNav()}
+      onJumped={() => setTaskFocusedPanel(props.task.id, 'ai-terminal')}
+    />
+  );
   const changedFilesEl = (
     <TaskChangedFilesSection
       task={props.task}
@@ -450,6 +468,15 @@ export function TaskPanel(props: TaskPanelProps) {
     minSize: 60,
     maxAutoSize: TOKEN_USAGE_PANEL_AUTO_MAX,
     content: () => tokenUsageEl,
+  };
+
+  // Sits in the same slot as the token card in both layout trees, for the same
+  // reason: crossing the split threshold must not shuffle the column.
+  const promptHistoryChild: PanelChild = {
+    id: 'prompt-history',
+    minSize: 60,
+    maxAutoSize: TOKEN_USAGE_PANEL_AUTO_MAX,
+    content: () => promptHistoryEl,
   };
 
   // Stack-mode row containing notes (absorbs horizontally) and changed files.
@@ -589,6 +616,9 @@ export function TaskPanel(props: TaskPanelProps) {
             pushSuccess={pushSuccess()}
             tokenUsageOpen={showTokenUsage()}
             onToggleTokenUsage={() => setShowTokenUsage((open) => !open)}
+            promptHistoryOpen={showPromptHistory()}
+            promptHistoryCount={props.task.promptHistory?.length ?? 0}
+            onTogglePromptHistory={() => setShowPromptHistory((open) => !open)}
             onTitleEditRef={(h) => (titleEditHandle = h)}
           />
         </div>
@@ -614,6 +644,7 @@ export function TaskPanel(props: TaskPanelProps) {
                 // that row is one child: there is no position "above notes"
                 // that is not also above changed files.
                 ...(showTokenUsageCard() ? [tokenUsageChild] : []),
+                ...(showPromptHistory() ? [promptHistoryChild] : []),
                 notesAndFilesChild,
                 shellSectionChild,
                 aiTerminalChild,
@@ -656,6 +687,7 @@ export function TaskPanel(props: TaskPanelProps) {
                     absorberIds={['shell-section']}
                     children={[
                       ...(showTokenUsageCard() ? [tokenUsageChild] : []),
+                      ...(showPromptHistory() ? [promptHistoryChild] : []),
                       ...(isGitUnavailable() ? [] : [changedFilesChild]),
                       notesChild,
                       ...(props.task.stepsEnabled ? [stepsSectionChild] : []),

@@ -7,6 +7,7 @@ import {
   restartAgent,
   switchAgent,
   setLastPrompt,
+  recordPromptHistory,
   markAgentOutput,
   registerFocusFn,
   unregisterFocusFn,
@@ -35,13 +36,13 @@ import { createHighlightedMarkdown } from '../lib/marked-shiki';
 import type { Task } from '../store/types';
 import type { AgentDef } from '../ipc/types';
 import type { PromptInputHandle } from './PromptInput';
+import type { PromptNavApi } from './TaskPromptHistoryPanel';
+import type { MarkerNavApi } from '../lib/terminalMarkerNav';
 import { buildTaskAgentArgs, isResumeArgsFailure } from '../lib/agent-args';
 
 function aiTerminalPanelId(agentId: string): string {
   return `ai-terminal:${agentId}`;
 }
-
-type StepNavApi = { mark: (i: number) => void; jump: (i: number) => boolean };
 
 interface TaskAITerminalProps {
   task: Task;
@@ -57,6 +58,11 @@ interface TaskAITerminalProps {
     jump: ((stepIndex: number) => boolean) | undefined,
     firstJumpableIndex: number,
   ) => void;
+  /** Receives the task-level prompt navigator: it resolves a prompt id to the
+   *  agent that received it and scrolls that agent's terminal. Unlike the step
+   *  navigator this works on multi-agent tasks, because each entry carries its
+   *  own agent id rather than assuming the task has exactly one. */
+  onPromptNavReady?: (api: PromptNavApi | undefined) => void;
   onFileLink?: (filePath: string) => void;
 }
 
@@ -65,10 +71,10 @@ export function TaskAITerminal(props: TaskAITerminalProps) {
   // instance is ready. We only mark steps that arrive while the terminal is live;
   // historical steps written before this mount aren't jumpable (anchoring them
   // all at line 0 was the source of the original "jump to" bug).
-  let stepNav: StepNavApi | undefined;
+  let stepNav: MarkerNavApi | undefined;
   let activeStepNavAgentId: string | null = null;
   let lastMarkedLen = 0;
-  const stepNavByAgent = new Map<string, StepNavApi>();
+  const stepNavByAgent = new Map<string, MarkerNavApi>();
   onCleanup(() => props.onStepJumpReady?.(undefined, 0));
 
   function syncStepNavSource(agentIds = props.task.agentIds) {
@@ -101,6 +107,69 @@ export function TaskAITerminal(props: TaskAITerminalProps) {
     for (let i = lastMarkedLen; i < len; i++) stepNav.mark(i);
     lastMarkedLen = len;
   });
+
+  // --- Prompt bookmarks ---
+  // Same mechanism as steps, one level less centralised: a prompt names the
+  // agent it went to, so each entry is anchored in that agent's terminal and the
+  // feature works on multi-agent tasks, where the step navigator gives up.
+  const promptNavByAgent = new Map<string, MarkerNavApi>();
+  const [anchoredPromptIds, setAnchoredPromptIds] = createSignal<ReadonlySet<number>>(new Set());
+  let lastMarkedPromptId = 0;
+
+  function recomputeAnchoredPrompts() {
+    const anchored = new Set<number>();
+    for (const entry of untrack(() => props.task.promptHistory) ?? []) {
+      if (promptNavByAgent.get(entry.agentId)?.isAnchored(entry.id)) anchored.add(entry.id);
+    }
+    setAnchoredPromptIds(anchored);
+  }
+
+  // New entries only. An entry whose agent has no live terminal — the agent was
+  // closed, or this is a restored task whose history predates the mount — is
+  // passed over rather than retried: there is no line for it to point at, and
+  // the panel shows it as unreachable text, which is the truth.
+  createEffect(() => {
+    const history = props.task.promptHistory ?? [];
+    let marked = false;
+    for (const entry of history) {
+      if (entry.id <= lastMarkedPromptId) continue;
+      lastMarkedPromptId = entry.id;
+      const nav = promptNavByAgent.get(entry.agentId);
+      if (!nav) continue;
+      nav.mark(entry.id);
+      marked = true;
+    }
+    if (marked) recomputeAnchoredPrompts();
+  });
+
+  const promptNavApi: PromptNavApi = {
+    jump(promptId) {
+      const entry = untrack(() => props.task.promptHistory)?.find((e) => e.id === promptId);
+      if (!entry) return false;
+      const ok = promptNavByAgent.get(entry.agentId)?.jump(promptId) === true;
+      if (ok) {
+        setActiveTask(props.task.id);
+        setTaskFocusedPanel(props.task.id, aiTerminalPanelId(entry.agentId));
+      }
+      return ok;
+    },
+    anchored: anchoredPromptIds,
+    refresh: recomputeAnchoredPrompts,
+  };
+  // On mount rather than inline: the panes register their own navs during their
+  // mounts, and handing the facade up afterwards means the first `refresh()` the
+  // panel asks for already sees them.
+  onMount(() => props.onPromptNavReady?.(promptNavApi));
+  onCleanup(() => props.onPromptNavReady?.(undefined));
+
+  function handlePromptNavReady(agentId: string, api: MarkerNavApi | undefined) {
+    if (api) promptNavByAgent.set(agentId, api);
+    else promptNavByAgent.delete(agentId);
+    // A terminal that just remounted (agent restart) brings an empty marker map
+    // with it, and the scrollback those old anchors pointed into is gone. The
+    // recompute is what turns those rows honest.
+    recomputeAnchoredPrompts();
+  }
 
   // --- Markdown file viewer ---
   const [mdViewerContent, setMdViewerContent] = createSignal('');
@@ -201,7 +270,7 @@ export function TaskAITerminal(props: TaskAITerminalProps) {
       });
   }
 
-  function handleStepNavReady(agentId: string, api: StepNavApi | undefined) {
+  function handleStepNavReady(agentId: string, api: MarkerNavApi | undefined) {
     if (!api) {
       stepNavByAgent.delete(agentId);
       syncStepNavSource();
@@ -427,6 +496,7 @@ export function TaskAITerminal(props: TaskAITerminalProps) {
                 onReady={registerAgentFocus}
                 onUnmount={unregisterAgentFocus}
                 onStepNavReady={(api) => handleStepNavReady(agentId, api)}
+                onPromptNavReady={(api) => handlePromptNavReady(agentId, api)}
               />
             )}
           </For>
@@ -571,9 +641,8 @@ function AgentTerminalPane(props: {
   onFileLink: (filePath: string) => void;
   onReady: (agentId: string, focusFn: () => void) => void;
   onUnmount: (agentId: string) => void;
-  onStepNavReady?: (
-    api: { mark: (i: number) => void; jump: (i: number) => boolean } | undefined,
-  ) => void;
+  onStepNavReady?: (api: MarkerNavApi | undefined) => void;
+  onPromptNavReady?: (api: MarkerNavApi | undefined) => void;
 }) {
   onCleanup(() => props.onUnmount(props.agentId));
 
@@ -726,9 +795,17 @@ function AgentTerminalPane(props: {
                 }}
                 onData={(data) => markAgentOutput(a().id, data, props.task.id)}
                 onFileLink={props.onFileLink}
-                onPromptDetected={(text) => setLastPrompt(props.task.id, text)}
+                // Typing straight into a TUI agent and pressing Enter is a
+                // prompt too, and it never touches `sendPrompt` — this detector
+                // is the only place the app sees it. Recording here is what
+                // keeps the history from silently missing half the session.
+                onPromptDetected={(text) => {
+                  setLastPrompt(props.task.id, text);
+                  recordPromptHistory(props.task.id, a().id, text, 'terminal');
+                }}
                 onReady={(focusFn) => props.onReady(a().id, focusFn)}
                 onStepNavReady={props.onStepNavReady}
+                onPromptNavReady={props.onPromptNavReady}
                 fontSize={13}
               />
             </Show>

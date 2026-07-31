@@ -37,6 +37,7 @@ export {
   updateTaskNotes,
   sendPrompt,
   setLastPrompt,
+  recordPromptHistory,
   clearInitialPrompt,
   setInitialPrompt,
   clearPrefillPrompt,

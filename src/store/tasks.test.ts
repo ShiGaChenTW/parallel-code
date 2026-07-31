@@ -1,6 +1,7 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { IPC } from '../../electron/ipc/channels';
 import { expectDefined, type MockStoreHarness } from './test-helpers';
+import type { PromptHistoryEntry } from '../lib/prompt-history';
 
 // Hoisted so these refs are available both in vi.mock() factories and in test bodies.
 const { mockInvoke, mockIsAgentBracketedPasteEnabled, mockSaveState } = vi.hoisted(() => ({
@@ -150,6 +151,7 @@ import {
   closeTask,
   mergeTask,
   sendPrompt,
+  recordPromptHistory,
   pasteDelayMs,
   markTaskUserActivity,
   setTaskPromptDraftActive,
@@ -1044,6 +1046,86 @@ describe('sendPrompt', () => {
       expect(mockSetStore).not.toHaveBeenCalledWith('tasks', 'task-1', 'lastPrompt', 'hello Codex');
     },
   );
+});
+
+// ─── prompt history tests ─────────────────────────────────────────────────────
+
+function historyWrites(): PromptHistoryEntry[][] {
+  return mockSetStore.mock.calls
+    .filter((args) => args[0] === 'tasks' && args[2] === 'promptHistory')
+    .map((args) => args[3] as PromptHistoryEntry[]);
+}
+
+describe('prompt history', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    const harness = expectDefined(core.harness, 'mock store harness');
+    harness.reset(harness.state());
+    mockInvoke.mockResolvedValue(undefined);
+    mockIsAgentBracketedPasteEnabled.mockReturnValue(false);
+    mockAgents = { 'agent-1': { status: 'running' } };
+    mockTasks = { 'task-1': { agentIds: [], shellAgentIds: [], lastPrompt: '' } };
+  });
+
+  it('records a prompt sent through the prompt box, tagged to its agent', async () => {
+    await sendPrompt('task-1', 'agent-1', 'hello Codex');
+
+    const [entries] = historyWrites();
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({
+      id: 1,
+      text: 'hello Codex',
+      agentId: 'agent-1',
+      origin: 'composer',
+    });
+  });
+
+  // The steps instruction is machinery this app appends, not something the user
+  // typed, and showing it back would bury the prompt it was attached to.
+  it('stores what the user wrote, not the steps instruction appended to it', async () => {
+    mockTasks['task-1'].stepsEnabled = true;
+
+    await sendPrompt('task-1', 'agent-1', 'hello Codex');
+
+    expect(writePayloads()[1]).toContain('must always contain one valid JSON array');
+    expect(historyWrites()[0][0].text).toBe('hello Codex');
+  });
+
+  it('records nothing when the task refuses the write', async () => {
+    mockTasks['task-1'].landingState = 'reviewed';
+
+    await expect(sendPrompt('task-1', 'agent-1', 'hello Codex')).rejects.toThrow();
+
+    expect(historyWrites()).toEqual([]);
+  });
+
+  it('records text typed straight into the terminal, tagged as such', () => {
+    expect(recordPromptHistory('task-1', 'agent-1', 'run the tests', 'terminal')).toBe(1);
+    expect(historyWrites()[0][0]).toMatchObject({
+      text: 'run the tests',
+      origin: 'terminal',
+    });
+  });
+
+  // Answering an agent's own y/n menu goes through the same terminal detector.
+  it('ignores a single-character terminal answer', () => {
+    expect(recordPromptHistory('task-1', 'agent-1', 'y', 'terminal')).toBeUndefined();
+    expect(historyWrites()).toEqual([]);
+  });
+
+  it('ignores a prompt for a task that is gone', () => {
+    expect(recordPromptHistory('task-missing', 'agent-1', 'hello', 'composer')).toBeUndefined();
+    expect(historyWrites()).toEqual([]);
+  });
+
+  it('gives each entry an id one past the highest already recorded', () => {
+    mockTasks['task-1'].promptHistory = [
+      { id: 4, text: 'earlier', agentId: 'agent-1', at: 1, origin: 'composer' },
+    ];
+
+    expect(recordPromptHistory('task-1', 'agent-1', 'later', 'composer')).toBe(5);
+    expect(historyWrites()[0].map((e) => e.id)).toEqual([4, 5]);
+  });
 });
 
 // ─── MCP_TaskCleanupFailed IPC handler ───────────────────────────────────────
