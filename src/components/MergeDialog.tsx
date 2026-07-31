@@ -1,5 +1,5 @@
 import { Show, For, createSignal, createResource, createEffect } from 'solid-js';
-import { tr } from '../store/i18n';
+import { tr, trParts } from '../store/i18n';
 import { invoke } from '../lib/ipc';
 import { IPC } from '../../electron/ipc/channels';
 import {
@@ -138,14 +138,17 @@ export function MergeDialog(props: MergeDialogProps) {
             >
               <Show when={worktreeStatus()?.current_branch === null}>
                 <div style={{ 'font-weight': '600' }}>
-                  Worktree has a detached HEAD — merging '{props.task.branchName}' would discard
-                  work.
+                  {tr("Worktree has a detached HEAD — merging '{branch}' would discard work.", {
+                    branch: props.task.branchName,
+                  })}
                 </div>
               </Show>
               <Show when={worktreeStatus()?.current_branch !== null}>
                 <div style={{ 'font-weight': '600' }}>
-                  The worktree is on '{worktreeStatus()?.current_branch}' but this task tracks '
-                  {props.task.branchName}'.
+                  {tr("The worktree is on '{current}' but this task tracks '{expected}'.", {
+                    current: worktreeStatus()?.current_branch ?? '',
+                    expected: props.task.branchName,
+                  })}
                 </div>
                 <div
                   style={{
@@ -176,7 +179,7 @@ export function MergeDialog(props: MergeDialogProps) {
                       'font-size': '13px',
                     }}
                   >
-                    Use '{worktreeStatus()?.current_branch}'
+                    {tr("Use '{branch}'", { branch: worktreeStatus()?.current_branch ?? '' })}
                   </button>
                 </div>
               </Show>
@@ -203,7 +206,9 @@ export function MergeDialog(props: MergeDialogProps) {
                 'font-weight': '600',
               }}
             >
-              Nothing to merge: this branch has no committed changes compared to {baseBranchName()}.
+              {tr('Nothing to merge: this branch has no committed changes compared to {branch}.', {
+                branch: baseBranchName(),
+              })}
             </div>
           </Show>
           <Show when={mergeStatus.loading}>
@@ -218,7 +223,7 @@ export function MergeDialog(props: MergeDialogProps) {
                 border: `1px solid ${theme.border}`,
               }}
             >
-              Checking for conflicts with {baseBranchName()}...
+              {tr('Checking for conflicts with {branch}...', { branch: baseBranchName() })}
             </div>
           </Show>
           <Show when={!mergeStatus.loading && mergeStatus()}>
@@ -233,21 +238,29 @@ export function MergeDialog(props: MergeDialogProps) {
                   }}
                 >
                   <Show when={!hasConflicts()}>
-                    {baseBranchName()} has {status().main_ahead_count} new commit
-                    {status().main_ahead_count > 1 ? 's' : ''}. Rebase onto {baseBranchName()}{' '}
-                    first.
+                    {tr(
+                      status().main_ahead_count === 1
+                        ? '{branch} has {count} new commit. Rebase onto {branch} first.'
+                        : '{branch} has {count} new commits. Rebase onto {branch} first.',
+                      { branch: baseBranchName(), count: status().main_ahead_count },
+                    )}
                   </Show>
                   <Show when={hasConflicts()}>
                     <div>
-                      Conflicts detected with {baseBranchName()} (
-                      {status().conflicting_files.length} file
-                      {status().conflicting_files.length > 1 ? 's' : ''}):
+                      {tr(
+                        status().conflicting_files.length === 1
+                          ? 'Conflicts detected with {branch} ({count} file):'
+                          : 'Conflicts detected with {branch} ({count} files):',
+                        { branch: baseBranchName(), count: status().conflicting_files.length },
+                      )}
                     </div>
                     <ul style={{ margin: '4px 0 0', 'padding-left': '20px', 'font-weight': '400' }}>
                       <For each={status().conflicting_files}>{(f) => <li>{f}</li>}</For>
                     </ul>
                     <div style={{ 'margin-top': '4px', 'font-weight': '400' }}>
-                      Rebase onto {baseBranchName()} to resolve conflicts.
+                      {tr('Rebase onto {branch} to resolve conflicts.', {
+                        branch: baseBranchName(),
+                      })}
                     </div>
                   </Show>
                 </div>
@@ -283,8 +296,8 @@ export function MergeDialog(props: MergeDialogProps) {
                     }}
                     title={
                       worktreeStatus()?.has_uncommitted_changes
-                        ? 'Commit or stash changes before rebasing'
-                        : `Rebase onto ${baseBranchName()}`
+                        ? tr('Commit or stash changes before rebasing')
+                        : tr('Rebase onto {branch}', { branch: baseBranchName() })
                     }
                     style={{
                       padding: '6px 14px',
@@ -302,7 +315,9 @@ export function MergeDialog(props: MergeDialogProps) {
                         rebasing() || worktreeStatus()?.has_uncommitted_changes ? '0.5' : '1',
                     }}
                   >
-                    {rebasing() ? 'Rebasing...' : `Rebase onto ${baseBranchName()}`}
+                    {rebasing()
+                      ? tr('Rebasing...')
+                      : tr('Rebase onto {branch}', { branch: baseBranchName() })}
                   </button>
                   <Show
                     when={
@@ -349,9 +364,24 @@ export function MergeDialog(props: MergeDialogProps) {
               </Show>
             )}
           </Show>
+          {/* One catalogue entry, not `tr('Merge')` with the two branch names
+              concatenated after it. The old shape rendered "合併 task/-b3d1ec
+              into main:" — a translated verb, an English preposition and a
+              Chinese reader left guessing which half was deliberate. As a
+              single template the translation owns the whole sentence, and the
+              two `<strong>` values land wherever zh-TW puts them. */}
           <p style={{ margin: '0 0 12px' }}>
-            {tr('Merge')} <strong>{props.task.branchName}</strong> into{' '}
-            <strong>{baseBranchName()}</strong>:
+            <For each={trParts('Merge {branch} into {base}:')}>
+              {(segment) =>
+                segment.kind === 'text' ? (
+                  segment.value
+                ) : (
+                  <strong>
+                    {segment.name === 'branch' ? props.task.branchName : baseBranchName()}
+                  </strong>
+                )
+              }
+            </For>
           </p>
           <Show when={!branchLog.loading && branchLog()}>
             {(log) => {
@@ -543,7 +573,7 @@ export function MergeDialog(props: MergeDialogProps) {
         merging() || hasConflicts() || !hasCommittedChangesToMerge() || hasBranchMismatch()
       }
       confirmLoading={merging()}
-      confirmLabel={merging() ? 'Merging...' : squash() ? 'Squash Merge' : 'Merge'}
+      confirmLabel={merging() ? tr('Merging...') : squash() ? tr('Squash Merge') : tr('Merge')}
       onConfirm={() => {
         const taskId = props.task.id;
         const onDone = props.onDone;

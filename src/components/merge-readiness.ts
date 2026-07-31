@@ -1,12 +1,34 @@
 import type { MergeStatus, PrChecksOverall, WorktreeStatus } from '../ipc/types';
-import type { SubtaskVerification } from '../store/types';
+import type { TranslationParams } from '../lib/i18n';
+import type { SubtaskVerification, SubtaskVerificationCheck } from '../store/types';
 
 export type MergeReadinessCheckStatus = 'pass' | 'warning' | 'blocked' | 'checking' | 'neutral';
 
+/**
+ * One sentence for the caller to translate: source text plus the values it
+ * carries.
+ *
+ * This module is pure and stays that way. `tr()` reads `store.locale`, so
+ * calling it here would tie every judgement below to a store the tests do not
+ * have — vitest runs `environment: 'node'`, and this file exists precisely so
+ * the judgements can be asserted without a component or a store.
+ *
+ * Descriptors rather than finished strings, matching `describeProviders` and
+ * `dependencyBlockMessage`. The version this replaces built each sentence by
+ * concatenation (`${count} conflicting file` + ' must be resolved.'), which
+ * pinned every one of them to the word order English happens to use;
+ * `{count}` lets the translation put the value where zh-TW wants it.
+ */
+export interface MergeReadinessMessage {
+  readonly text: string;
+  readonly params?: TranslationParams;
+}
+
 export interface MergeReadinessCheck {
+  /** Catalogue key for the row label, translated by the panel. */
   label: string;
   status: MergeReadinessCheckStatus;
-  detail: string;
+  detail: MergeReadinessMessage;
 }
 
 export interface MergeReadiness {
@@ -31,67 +53,124 @@ export interface MergeReadinessInput {
   prChecks?: PrReadinessState;
 }
 
-function countLabel(count: number, singular: string, plural = `${singular}s`): string {
-  return `${count} ${count === 1 ? singular : plural}`;
+/**
+ * Pick the sentence English needs for `count`.
+ *
+ * Not plural machinery: zh-TW has no plural form, so both keys map to the same
+ * translation. It exists so each wording is a whole catalogue entry — the same
+ * ternary-between-sentences idiom the rest of the UI already uses — rather than
+ * a noun glued onto a number.
+ */
+function plural(count: number, one: string, many: string): string {
+  return count === 1 ? one : many;
 }
 
 function mergeSafetyCheck(input: MergeReadinessInput): MergeReadinessCheck {
   if (input.mergeStatusLoading || input.worktreeStatusLoading) {
-    return { label: 'Merge safety', status: 'checking', detail: 'Checking merge safety…' };
+    return {
+      label: 'Merge safety',
+      status: 'checking',
+      detail: { text: 'Checking merge safety…' },
+    };
   }
 
   const merge = input.mergeStatus;
   const worktree = input.worktreeStatus;
-  if (worktree?.current_branch === null) {
-    return {
-      label: 'Merge safety',
-      status: 'blocked',
-      detail: 'Worktree has a detached HEAD.',
-    };
-  }
-  if (worktree && worktree.current_branch !== input.expectedBranch) {
-    return {
-      label: 'Merge safety',
-      status: 'blocked',
-      detail: `Worktree is on '${worktree.current_branch}', expected '${input.expectedBranch}'.`,
-    };
+  if (worktree) {
+    // One block rather than the two guards this replaces, so `current` narrows
+    // to a string for the interpolated sentence. Same order, same outcomes:
+    // a detached HEAD is reported before a plain mismatch.
+    const current = worktree.current_branch;
+    if (current === null) {
+      return {
+        label: 'Merge safety',
+        status: 'blocked',
+        detail: { text: 'Worktree has a detached HEAD.' },
+      };
+    }
+    if (current !== input.expectedBranch) {
+      return {
+        label: 'Merge safety',
+        status: 'blocked',
+        detail: {
+          text: "Worktree is on '{current}', expected '{expected}'.",
+          params: { current, expected: input.expectedBranch },
+        },
+      };
+    }
   }
   if (merge && merge.conflicting_files.length > 0) {
     return {
       label: 'Merge safety',
       status: 'blocked',
-      detail: `${countLabel(merge.conflicting_files.length, 'conflicting file')} must be resolved.`,
+      detail: {
+        text: plural(
+          merge.conflicting_files.length,
+          '{count} conflicting file must be resolved.',
+          '{count} conflicting files must be resolved.',
+        ),
+        params: { count: merge.conflicting_files.length },
+      },
     };
   }
   if (worktree && !worktree.has_committed_changes) {
     return {
       label: 'Merge safety',
       status: 'blocked',
-      detail: 'No committed changes are available to merge.',
+      detail: { text: 'No committed changes are available to merge.' },
     };
   }
   if (!merge || !worktree) {
     return {
       label: 'Merge safety',
       status: 'warning',
-      detail: 'Merge safety could not be checked.',
+      detail: { text: 'Merge safety could not be checked.' },
     };
   }
   if (merge.main_ahead_count > 0) {
     return {
       label: 'Merge safety',
       status: 'warning',
-      detail: `${merge.base_branch} is ${countLabel(merge.main_ahead_count, 'commit')} ahead. Rebase recommended.`,
+      detail: {
+        text: plural(
+          merge.main_ahead_count,
+          '{branch} is {count} commit ahead. Rebase recommended.',
+          '{branch} is {count} commits ahead. Rebase recommended.',
+        ),
+        params: { branch: merge.base_branch, count: merge.main_ahead_count },
+      },
     };
   }
   if (worktree.has_uncommitted_changes) {
     return {
       label: 'Merge safety',
       status: 'warning',
-      detail: 'Uncommitted changes will be excluded.',
+      detail: { text: 'Uncommitted changes will be excluded.' },
     };
   }
-  return { label: 'Merge safety', status: 'pass', detail: 'Branch is mergeable.' };
+  return { label: 'Merge safety', status: 'pass', detail: { text: 'Branch is mergeable.' } };
+}
+
+/**
+ * The sentence for a verification check that did not pass.
+ *
+ * `blocked` and `failed` are separate wordings rather than one sentence with the
+ * result word substituted in. Substituting it would leave an untranslated
+ * English word sitting inside a Chinese sentence — the half-translated reading
+ * this wave exists to remove.
+ */
+function verificationFailureDetail(check: SubtaskVerificationCheck): MergeReadinessMessage {
+  const blocked = check.result === 'blocked';
+  if (check.reason) {
+    return {
+      text: blocked ? '{name} blocked — {reason}' : '{name} failed — {reason}',
+      params: { name: check.name, reason: check.reason },
+    };
+  }
+  return {
+    text: blocked ? '{name} blocked' : '{name} failed',
+    params: { name: check.name },
+  };
 }
 
 function verificationCheck(verification?: SubtaskVerification): MergeReadinessCheck {
@@ -99,7 +178,7 @@ function verificationCheck(verification?: SubtaskVerification): MergeReadinessCh
     return {
       label: 'Verification',
       status: 'warning',
-      detail: 'No verification was reported.',
+      detail: { text: 'No verification was reported.' },
     };
   }
   const failed = verification.checks.find((check) => check.result !== 'passed');
@@ -107,44 +186,68 @@ function verificationCheck(verification?: SubtaskVerification): MergeReadinessCh
     return {
       label: 'Verification',
       status: 'warning',
-      detail: `${failed.name} ${failed.result}${failed.reason ? ` — ${failed.reason}` : ''}`,
+      detail: verificationFailureDetail(failed),
     };
   }
   return {
     label: 'Verification',
     status: 'pass',
-    detail: `${countLabel(verification.checks.length, 'check')} passed.`,
+    detail: {
+      text: plural(verification.checks.length, '{count} check passed.', '{count} checks passed.'),
+      params: { count: verification.checks.length },
+    },
   };
 }
 
 function prCheck(prChecks?: PrReadinessState): MergeReadinessCheck {
   if (!prChecks || prChecks.overall === 'none') {
-    return { label: 'PR checks', status: 'neutral', detail: 'No PR checks available.' };
+    return { label: 'PR checks', status: 'neutral', detail: { text: 'No PR checks available.' } };
   }
   if (prChecks.overall === 'pending') {
-    const failing = prChecks.failing
-      ? `, ${countLabel(prChecks.failing, 'failing', 'failing')}`
-      : '';
     return {
       label: 'PR checks',
       status: 'warning',
-      detail: `${countLabel(prChecks.pending, 'pending', 'pending')}, ${countLabel(prChecks.passing, 'passing', 'passing')}${failing}.`,
+      detail: prChecks.failing
+        ? {
+            text: '{pending} pending, {passing} passing, {failing} failing.',
+            params: {
+              pending: prChecks.pending,
+              passing: prChecks.passing,
+              failing: prChecks.failing,
+            },
+          }
+        : {
+            text: '{pending} pending, {passing} passing.',
+            params: { pending: prChecks.pending, passing: prChecks.passing },
+          },
     };
   }
   if (prChecks.overall === 'failure') {
-    const pending = prChecks.pending
-      ? `, ${countLabel(prChecks.pending, 'pending', 'pending')}`
-      : '';
     return {
       label: 'PR checks',
       status: 'warning',
-      detail: `${countLabel(prChecks.failing, 'failing', 'failing')}, ${countLabel(prChecks.passing, 'passing', 'passing')}${pending}.`,
+      detail: prChecks.pending
+        ? {
+            text: '{failing} failing, {passing} passing, {pending} pending.',
+            params: {
+              failing: prChecks.failing,
+              passing: prChecks.passing,
+              pending: prChecks.pending,
+            },
+          }
+        : {
+            text: '{failing} failing, {passing} passing.',
+            params: { failing: prChecks.failing, passing: prChecks.passing },
+          },
     };
   }
   return {
     label: 'PR checks',
     status: 'pass',
-    detail: `${countLabel(prChecks.passing, 'check')} passed.`,
+    detail: {
+      text: plural(prChecks.passing, '{count} check passed.', '{count} checks passed.'),
+      params: { count: prChecks.passing },
+    },
   };
 }
 

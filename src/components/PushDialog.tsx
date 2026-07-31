@@ -1,5 +1,5 @@
-import { Show, createEffect, createSignal, onCleanup } from 'solid-js';
-import { tr } from '../store/i18n';
+import { For, Show, createEffect, createSignal, onCleanup } from 'solid-js';
+import { tr, trParts } from '../store/i18n';
 import { pushTask } from '../store/store';
 import { Channel } from '../lib/ipc';
 import { Dialog } from './Dialog';
@@ -91,7 +91,14 @@ export function PushDialog(props: PushDialogProps) {
           when={pushing() || output()}
           fallback={
             <p style={{ margin: '0' }}>
-              Push branch <strong>{props.task.branchName}</strong> to remote?
+              {/* One template rather than "Push branch " + <strong> + " to
+                  remote?", so the translation decides where the branch lands
+                  instead of inheriting English word order. */}
+              <For each={trParts('Push branch {branch} to remote?')}>
+                {(segment) =>
+                  segment.kind === 'text' ? segment.value : <strong>{props.task.branchName}</strong>
+                }
+              </For>
             </p>
           }
         >
@@ -113,7 +120,7 @@ export function PushDialog(props: PushDialogProps) {
               color: theme.fgMuted,
             }}
           >
-            {output() || 'Pushing...'}
+            {output() || tr('Pushing...')}
           </pre>
         </Show>
         <Show when={pushError()}>
@@ -159,7 +166,7 @@ export function PushDialog(props: PushDialogProps) {
             'font-size': '14px',
           }}
         >
-          {pushing() ? 'Close' : 'Cancel'}
+          {pushing() ? tr('Close') : tr('Cancel')}
         </button>
         <Show when={!pushing()}>
           <button
@@ -177,7 +184,7 @@ export function PushDialog(props: PushDialogProps) {
               'font-weight': '500',
             }}
           >
-            Push
+            {tr('Push')}
           </button>
         </Show>
       </div>
