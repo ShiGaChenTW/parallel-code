@@ -95,3 +95,65 @@ describe('extracted component helpers', () => {
     expect(html).toContain('Task Alpha');
   });
 });
+
+/**
+ * These render the real markup rather than re-asserting `sidebar-tree`'s pure
+ * functions. Vitest runs in `environment: 'node'` with no layout engine, so
+ * this is as far as verification goes: it proves what is emitted, not what it
+ * looks like. Nothing here can catch a rail that is drawn one pixel off, hidden
+ * behind the row content, or invisible under some theme.
+ */
+describe('sidebar hierarchy rail', () => {
+  const shell = (connector?: 'middle' | 'last' | 'through') =>
+    renderToString(() =>
+      TaskRowShell({
+        taskId: 'task-1',
+        class: 'task-item',
+        connector,
+        onClick: vi.fn(),
+        fontSize: '12px',
+        cursor: 'pointer',
+        opacity: '1',
+        children: 'Task Alpha',
+      }),
+    );
+
+  it('draws no rail at all when the row has no project above it', () => {
+    const html = shell(undefined);
+    expect(html).not.toContain('aria-hidden="true"');
+    expect(html).toContain('padding-left:10px');
+  });
+
+  it('runs the rail through a row that is not the last of its project', () => {
+    const html = shell('middle');
+    // Full-height trunk, plus an elbow at the row's midpoint.
+    expect(html).toContain('height:100%');
+    expect(html).toContain('top:50%');
+    expect(html).toContain('width:5px');
+    expect(html).toContain('padding-left:13px');
+  });
+
+  it('stops the rail at the elbow on the last row of a project', () => {
+    const html = shell('last');
+    expect(html).toContain('height:50%');
+    expect(html).not.toContain('height:100%');
+    // The elbow is still drawn — only the trunk below it is gone.
+    expect(html).toContain('top:50%');
+  });
+
+  it('passes the rail behind coordinator children without claiming them', () => {
+    const html = shell('through');
+    expect(html).toContain('height:100%');
+    expect(html).not.toContain('top:50%');
+  });
+
+  it('paints the rail from a theme token, never a literal colour', () => {
+    const html = shell('middle');
+    expect(html).toContain('var(--border-subtle)');
+    expect(html).not.toMatch(/background:\s*#[0-9a-f]{3,8}/i);
+  });
+
+  it('keeps the rail out of the pointer path so drag targets are unchanged', () => {
+    expect(shell('middle')).toContain('pointer-events:none');
+  });
+});

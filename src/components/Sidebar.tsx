@@ -40,6 +40,16 @@ import { UpdateButton } from './UpdateButton';
 import { StatusDot, getDotTooltip } from './StatusDot';
 import { TaskCurrentStateLine } from './TaskCurrentStateLine';
 import { dependencyBlockMessage, getDependencyBlock } from '../lib/task-dependency';
+import {
+  TREE_ELBOW_WIDTH_PX,
+  TREE_RAIL_LEFT_PX,
+  childConnector,
+  groupConnector,
+  hasElbow,
+  rowPaddingLeft,
+  trunkHeight,
+} from './sidebar-tree';
+import type { TreeConnector } from './sidebar-tree';
 import { theme } from '../lib/theme';
 import { sf } from '../lib/fontScale';
 import { mod } from '../lib/platform';
@@ -151,9 +161,58 @@ function taskAttentionStyles(
   };
 }
 
+/**
+ * This row's slice of the project hierarchy rail — see `sidebar-tree.ts` for
+ * why each row draws its own slice rather than a wrapper drawing one line.
+ *
+ * Absolutely positioned inside the row, so the flex column, the drag index
+ * space and the drop indicators are untouched. Two consequences worth naming:
+ * the 1px flex gap between rows leaves a 1px break in the rail (invisible at
+ * `--border-subtle` weight, and closing it would mean dropping the row's
+ * `overflow: hidden`, which the name ellipsis needs), and the rail fades with
+ * the row while it is being dragged, which is the behaviour you want.
+ *
+ * The elbow sits at 50% of the row rather than at a fixed offset from the top:
+ * rows grow a second line when `TaskCurrentStateLine` has something to say, and
+ * font size is user-scalable via `sf`, so any hardcoded offset would drift.
+ */
+function TaskTreeRail(props: { connector: TreeConnector }) {
+  return (
+    <>
+      <div
+        aria-hidden="true"
+        style={{
+          position: 'absolute',
+          left: `${TREE_RAIL_LEFT_PX}px`,
+          top: '0',
+          width: '1px',
+          height: trunkHeight(props.connector),
+          background: theme.borderSubtle,
+          'pointer-events': 'none',
+        }}
+      />
+      <Show when={hasElbow(props.connector)}>
+        <div
+          aria-hidden="true"
+          style={{
+            position: 'absolute',
+            left: `${TREE_RAIL_LEFT_PX}px`,
+            top: '50%',
+            width: `${TREE_ELBOW_WIDTH_PX}px`,
+            height: '1px',
+            background: theme.borderSubtle,
+            'pointer-events': 'none',
+          }}
+        />
+      </Show>
+    </>
+  );
+}
+
 export function TaskRowShell(props: {
   taskId: string;
   class: string;
+  connector?: TreeConnector;
   taskIndex?: number;
   sidebarTaskId?: string;
   role?: JSX.HTMLAttributes<HTMLDivElement>['role'];
@@ -187,8 +246,12 @@ export function TaskRowShell(props: {
       onClick={() => props.onClick()}
       onKeyDown={(event) => props.onKeyDown?.(event)}
       style={{
+        position: 'relative',
         padding: '7px 10px',
-        'padding-left': props.paddingLeft ?? '10px',
+        // The rail and the indent that keeps the elbow off the row content are
+        // one decision, so the default derives from the connector rather than
+        // being a bare '10px' that a future caller could pair with a rail.
+        'padding-left': props.paddingLeft ?? rowPaddingLeft(false, props.connector),
         'border-radius': '6px',
         'font-size': props.fontSize,
         cursor: props.cursor,
@@ -202,6 +265,7 @@ export function TaskRowShell(props: {
         ...props.style,
       }}
     >
+      <Show when={props.connector}>{(connector) => <TaskTreeRail connector={connector()} />}</Show>
       {props.children}
     </div>
   );
@@ -811,19 +875,29 @@ export function Sidebar() {
                     />
                     {project.name} ({totalCount()})
                   </span>
+                  {/* The hierarchy rail runs over `[...active, ...collapsed]` as one
+                      list, so the terminator lands on whichever row is genuinely
+                      last — either half can be empty. */}
                   <For each={activeTasks()}>
-                    {(taskId) => (
+                    {(taskId, index) => (
                       <TaskEntry
                         taskId={taskId}
                         nowMs={nowMs()}
                         globalIndex={globalIndex}
                         dragFromIndex={dragFromIndex}
                         dropTargetIndex={dropTargetIndex}
+                        connector={groupConnector(index(), totalCount())}
                       />
                     )}
                   </For>
                   <For each={collapsedTasks()}>
-                    {(taskId) => <CollapsedTaskEntry taskId={taskId} nowMs={nowMs()} />}
+                    {(taskId, index) => (
+                      <CollapsedTaskEntry
+                        taskId={taskId}
+                        nowMs={nowMs()}
+                        connector={groupConnector(activeTasks().length + index(), totalCount())}
+                      />
+                    )}
                   </For>
                 </Show>
               );
@@ -942,6 +1016,8 @@ interface TaskEntryProps {
   globalIndex: (taskId: string) => number;
   dragFromIndex: () => number | null;
   dropTargetIndex: () => number | null;
+  /** Slice of the project hierarchy rail this row draws. Absent for orphans. */
+  connector?: TreeConnector;
 }
 
 function TaskEntry(props: TaskEntryProps) {
@@ -960,6 +1036,7 @@ function TaskEntry(props: TaskEntryProps) {
             dragFromIndex={props.dragFromIndex}
             dropTargetIndex={props.dropTargetIndex}
             indented={false}
+            connector={props.connector}
           />
         }
       >
@@ -969,6 +1046,7 @@ function TaskEntry(props: TaskEntryProps) {
           globalIndex={props.globalIndex}
           dragFromIndex={props.dragFromIndex}
           dropTargetIndex={props.dropTargetIndex}
+          connector={props.connector}
         />
       </Show>
     </Show>
@@ -996,6 +1074,7 @@ function CoordinatorFolder(props: TaskEntryProps) {
             taskId={props.taskId}
             class={`task-item${t().closingStatus === 'removing' ? ' task-item-removing' : ' task-item-appearing'}`}
             taskIndex={idx()}
+            connector={props.connector}
             title={getDotTooltip(
               getTaskDotStatus(props.taskId),
               getTaskAttentionState(props.taskId),
@@ -1004,6 +1083,7 @@ function CoordinatorFolder(props: TaskEntryProps) {
               setActiveTask(props.taskId);
               focusSidebar();
             }}
+            paddingLeft={rowPaddingLeft(false, props.connector)}
             fontSize={sf(13)}
             cursor={props.dragFromIndex() !== null ? 'grabbing' : 'pointer'}
             opacity={props.dragFromIndex() === idx() ? '0.4' : '1'}
@@ -1044,13 +1124,21 @@ function CoordinatorFolder(props: TaskEntryProps) {
                 dragFromIndex={props.dragFromIndex}
                 dropTargetIndex={props.dropTargetIndex}
                 indented
+                connector={childConnector(props.connector)}
               />
             )}
           </For>
 
           {/* Indented collapsed children */}
           <For each={children().collapsed}>
-            {(childId) => <CollapsedTaskEntry taskId={childId} nowMs={props.nowMs} indented />}
+            {(childId) => (
+              <CollapsedTaskEntry
+                taskId={childId}
+                nowMs={props.nowMs}
+                indented
+                connector={childConnector(props.connector)}
+              />
+            )}
           </For>
         </>
       )}
@@ -1065,6 +1153,8 @@ function CollapsedTaskEntry(props: {
   nowMs: number;
   indented?: boolean;
   coordinatorId?: string;
+  /** Slice of the project hierarchy rail this row draws. Absent for orphans. */
+  connector?: TreeConnector;
 }) {
   const task = () => store.tasks[props.taskId];
   // Only top-level coordinators render children — indented entries never recurse
@@ -1104,7 +1194,8 @@ function CollapsedTaskEntry(props: {
               }
             }}
             title={tr('Click to restore')}
-            paddingLeft={props.indented ? '22px' : '10px'}
+            connector={props.connector}
+            paddingLeft={rowPaddingLeft(props.indented ?? false, props.connector)}
             fontSize={sf(12)}
             cursor="pointer"
             opacity="0.6"
@@ -1155,6 +1246,7 @@ function CollapsedTaskEntry(props: {
                   nowMs={props.nowMs}
                   indented
                   coordinatorId={props.taskId}
+                  connector={childConnector(props.connector)}
                 />
               )}
             </For>
@@ -1165,6 +1257,7 @@ function CollapsedTaskEntry(props: {
                   nowMs={props.nowMs}
                   indented
                   coordinatorId={props.taskId}
+                  connector={childConnector(props.connector)}
                 />
               )}
             </For>
@@ -1216,6 +1309,8 @@ interface TaskRowProps {
   dragFromIndex: () => number | null;
   dropTargetIndex: () => number | null;
   indented: boolean;
+  /** Slice of the project hierarchy rail this row draws. Absent for orphans. */
+  connector?: TreeConnector;
 }
 
 function TaskRow(props: TaskRowProps) {
@@ -1233,6 +1328,7 @@ function TaskRow(props: TaskRowProps) {
             taskId={props.taskId}
             class={`task-item${t().closingStatus === 'removing' ? ' task-item-removing' : ' task-item-appearing'}`}
             taskIndex={props.indented ? undefined : idx()}
+            connector={props.connector}
             title={getDotTooltip(
               getTaskDotStatus(props.taskId),
               getTaskAttentionState(props.taskId),
@@ -1241,7 +1337,7 @@ function TaskRow(props: TaskRowProps) {
               setActiveTask(props.taskId);
               focusSidebar();
             }}
-            paddingLeft={props.indented ? '22px' : '10px'}
+            paddingLeft={rowPaddingLeft(props.indented, props.connector)}
             fontSize={sf(12)}
             cursor={
               props.indented ? 'pointer' : props.dragFromIndex() !== null ? 'grabbing' : 'pointer'
