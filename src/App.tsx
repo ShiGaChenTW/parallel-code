@@ -423,6 +423,10 @@ function App() {
       () => setDockerAvailable(false),
     );
     await loadState();
+    // The bundled .icns/.png only ever carries the default variant, so a user
+    // who picked another one needs it re-applied on every launch. Fire-and-forget
+    // for the same reason as `setAppIcon`: a cosmetic swap must not block boot.
+    void invoke(IPC.SetAppIcon, { id: store.appIcon }).catch(() => {});
     const themesLoaded = await loadCustomThemes();
     // Only unlock slot-ID sanitization when the IPC call succeeded. On failure
     // customThemes remains {} and we must not null out the user's persisted selections.

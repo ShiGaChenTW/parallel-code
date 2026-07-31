@@ -4,6 +4,7 @@ import type { LookPreset, AppearanceMode } from '../lib/look';
 import type { Locale } from '../lib/i18n';
 import type { KeyBinding } from '../lib/keybindings';
 import type { CustomTheme } from '../lib/custom-theme';
+import type { AppIconId } from '../lib/app-icon';
 
 /** A user override for a binding: partial key/modifiers to apply, or null to unbind. */
 export type KeybindingOverride = Partial<Pick<KeyBinding, 'key' | 'modifiers'>> | null;
@@ -317,6 +318,7 @@ export interface PersistedState {
   lightThemeCustomId?: string | null;
   darkThemePreset?: LookPreset;
   darkThemeCustomId?: string | null;
+  appIcon?: AppIconId;
   coordinatorModeEnabled?: boolean;
   coordinatorNotificationDelayMs?: number;
   coordinatorControlHintDismissed?: boolean;
@@ -441,6 +443,7 @@ export interface AppStore {
   lightThemeCustomId: string | null;
   darkThemePreset: LookPreset;
   darkThemeCustomId: string | null;
+  appIcon: AppIconId;
   coordinatorModeEnabled: boolean;
   coordinatorNotificationDelayMs: number;
   coordinatorControlHintDismissed: boolean;

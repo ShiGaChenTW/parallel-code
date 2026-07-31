@@ -158,5 +158,6 @@
   "SetTranscriptEnabled": "set_transcript_enabled",
   "AppendTranscriptEvent": "append_transcript_event",
   "ReadTranscript": "read_transcript",
-  "ClearTranscripts": "clear_transcripts"
+  "ClearTranscripts": "clear_transcripts",
+  "SetAppIcon": "set_app_icon"
 }

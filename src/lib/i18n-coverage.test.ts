@@ -111,7 +111,7 @@ const DYNAMIC_TR_SOURCES: Readonly<Record<string, DynamicTrSource>> = {
     },
   },
   'src/components/SettingsDialog.tsx': {
-    note: 'Font notes come from the CJK font table; the appearance mode is a union member; the font install message is a descriptor from `planCjkFontSelection`, which `cjk-fonts.test.ts` pins separately.',
+    note: 'Font notes come from the CJK font table; the appearance mode is a union member; the font install message is a descriptor from `planCjkFontSelection`, which `cjk-fonts.test.ts` pins separately. App-icon labels come from the shipped variant table, which main also reads and so cannot import the locale.',
     keys: {
       'src/lib/cjk-fonts.ts': [
         'Built for terminals; CJK sits at exactly twice the Latin width',
@@ -121,6 +121,14 @@ const DYNAMIC_TR_SOURCES: Readonly<Record<string, DynamicTrSource>> = {
         'Calligraphic; easiest on the eyes over long sessions',
       ],
       'src/lib/look.ts': ['light', 'dark', 'system'],
+      'src/lib/app-icon.ts': [
+        'Terminal Green',
+        'Signal Amber',
+        'Indigo Dusk',
+        'Nord',
+        'Mono Paper',
+        'Classic',
+      ],
     },
   },
   'src/components/Sidebar.tsx': {

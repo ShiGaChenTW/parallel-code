@@ -125,6 +125,7 @@ export {
   setAppearanceMode,
   setLightTheme,
   setDarkTheme,
+  setAppIcon,
   saveCustomTheme,
   deleteCustomTheme,
   setAutoTrustFolders,
