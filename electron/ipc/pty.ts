@@ -7,6 +7,8 @@ import { fileURLToPath } from 'url';
 import type { BrowserWindow } from 'electron';
 import { RingBuffer } from '../remote/ring-buffer.js';
 import { resolveUserShell } from '../user-shell.js';
+import { resolveCommandPath } from '../command-path.js';
+import { envImportHint } from '../env-import.js';
 import { ensureClaudeSandboxFiles, ensureSandboxExcludes } from './git.js';
 import { OfflineModeError, offlineMessage, isOfflineMode } from './offline.js';
 import { debug as logDebug } from '../log.js';
@@ -161,14 +163,21 @@ export function validateCommand(command: string): void {
       );
     }
   }
-  // Bare names: resolve via `which` (execFileSync — no shell interpolation)
-  try {
-    execFileSync('which', [command], { encoding: 'utf8', timeout: 3000 });
-  } catch {
-    throw new Error(
-      `Command '${command}' not found in PATH. Make sure it is installed and available in your terminal.`,
-    );
-  }
+  // Bare names: search PATH ourselves rather than shelling out to `which`.
+  // Same answer, no subprocess on every spawn — and `which` is itself a bare
+  // name, so a broken PATH was being diagnosed with a tool that depends on the
+  // very thing that is broken.
+  if (resolveCommandPath(command)) return;
+
+  // When the login-shell PATH import failed, that is the real reason a command
+  // the user definitely installed cannot be seen. Say so instead of implying
+  // they never installed it.
+  const hint = envImportHint();
+  throw new Error(
+    hint
+      ? `Command '${command}' not found in PATH. ${hint}`
+      : `Command '${command}' not found in PATH. Make sure it is installed and available in your terminal.`,
+  );
 }
 
 function copyProcessEnv(): Record<string, string> {

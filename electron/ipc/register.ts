@@ -4,6 +4,8 @@ import fs from 'fs';
 import os from 'os';
 import { fileURLToPath } from 'url';
 import { IPC } from './channels.js';
+import { resolveCommandPath } from '../command-path.js';
+import { awaitEnvImport, envImportHint, type EnvImportStatus } from '../env-import.js';
 import { appendGitInfoExcludeBlock } from './git-exclude.js';
 import {
   spawnAgent,
@@ -269,6 +271,64 @@ export async function openExternalHttpUrl(
   } catch {
     throw new Error('Failed to open external URL');
   }
+}
+
+/**
+ * Accept an editor command from the renderer.
+ *
+ * Unchanged from the original handler and deliberately kept as the first gate:
+ * the command is spawned without a shell, but rejecting metacharacters means a
+ * value that leaked into a shell later still cannot do anything. Resolution
+ * happens *after* this, so it can only ever narrow what gets spawned.
+ */
+export function validateEditorCommand(rawCommand: unknown): string {
+  if (typeof rawCommand !== 'string' || !rawCommand.trim()) {
+    throw new Error('editorCommand must be a non-empty string');
+  }
+  const cmd = rawCommand.trim();
+  if (/[;&|`$(){}[\]<>\\'"*?!#~]/.test(cmd)) {
+    throw new Error('editorCommand must not contain shell metacharacters');
+  }
+  return cmd;
+}
+
+export interface ResolveEditorDeps {
+  resolve?: (command: string) => string | null;
+  waitForEnv?: () => Promise<EnvImportStatus>;
+  hint?: (status: EnvImportStatus) => string | null;
+}
+
+/**
+ * Turn an accepted editor command into an absolute executable path.
+ *
+ * Two things happen here that did not before.
+ *
+ * First, we wait (briefly, bounded) for the login-shell PATH import to settle.
+ * That import now retries after a transient failure, and without this wait a
+ * click landing between the failed first attempt and a successful retry would
+ * be resolved against the stale PATH and told the editor does not exist.
+ *
+ * Second, when the command genuinely cannot be found we say *why*. A bare
+ * `spawn code ENOENT` is technically a report, but it points the user at their
+ * editor setting — which is usually fine — instead of at the PATH import that
+ * actually failed. Joining the two facts here is the whole point: the user only
+ * hears about the import when it is the thing standing in their way.
+ */
+export async function resolveEditorExecutable(
+  command: string,
+  deps: ResolveEditorDeps = {},
+): Promise<string> {
+  const status = await (deps.waitForEnv ?? awaitEnvImport)();
+  const resolved = (deps.resolve ?? resolveCommandPath)(command);
+  if (resolved) return resolved;
+
+  const hint = (deps.hint ?? envImportHint)(status);
+  throw new Error(
+    hint
+      ? `Could not find "${command}". ${hint}`
+      : `Could not find "${command}" in PATH. Check that it is installed, ` +
+          `or enter an absolute path instead.`,
+  );
 }
 
 const validateBranchName = sharedValidateBranchName;
@@ -1301,18 +1361,13 @@ export function registerAllHandlers(win: BrowserWindow): void {
     await openExternalHttpUrl(args.url);
   });
 
-  ipcMain.handle(IPC.ShellOpenInEditor, (_e, args) => {
+  ipcMain.handle(IPC.ShellOpenInEditor, async (_e, args) => {
     validatePath(args.worktreePath, 'worktreePath');
-    if (typeof args.editorCommand !== 'string' || !args.editorCommand.trim()) {
-      throw new Error('editorCommand must be a non-empty string');
-    }
-    const cmd = args.editorCommand.trim();
-    if (/[;&|`$(){}[\]<>\\'"*?!#~]/.test(cmd)) {
-      throw new Error('editorCommand must not contain shell metacharacters');
-    }
+    const cmd = validateEditorCommand(args.editorCommand);
+    const executable = await resolveEditorExecutable(cmd);
     return new Promise<void>((resolve, reject) => {
       let settled = false;
-      const child = spawn(cmd, [args.worktreePath], {
+      const child = spawn(executable, [args.worktreePath], {
         detached: true,
         stdio: 'ignore',
       });
