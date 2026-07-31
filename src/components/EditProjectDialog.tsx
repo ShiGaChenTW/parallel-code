@@ -1,5 +1,5 @@
-import { createSignal, createEffect, For, Show } from 'solid-js';
-import { tr } from '../store/i18n';
+import { createSignal, createEffect, For, Show, type JSX } from 'solid-js';
+import { tr, trParts } from '../store/i18n';
 import { Dialog } from './Dialog';
 import { updateProject, PASTEL_HUES, isProjectMissing, relinkProject } from '../store/store';
 import { sanitizeBranchPrefix, toBranchName } from '../lib/branch-name';
@@ -18,6 +18,50 @@ interface EditProjectDialogProps {
 function hueFromColor(color: string): number {
   const match = color.match(/hsl\((\d+)/);
   return match ? Number(match[1]) : 0;
+}
+
+/**
+ * The `?` that carries a field's explanation.
+ *
+ * A native `title`, because that is what every other hover explanation in this
+ * app already is (`CommitNavBar.tsx`, `ChangedFilesList.tsx`,
+ * `MergeReadinessPanel.tsx`). A custom tooltip would be the only one in the
+ * codebase, would need positioning, portalling and dismissal, and would spend
+ * renderer entry bytes the bundle gate is already 84% through — for text the OS
+ * tooltip renders correctly, CJK included.
+ *
+ * `text` arrives already translated, so the English key stays a literal at the
+ * call site where `i18n-coverage.test.ts` can see it.
+ */
+function HelpHint(props: { text: string }): JSX.Element {
+  return (
+    <span
+      // role + aria-label rather than title alone: a bare title on a span is
+      // not reliably announced, and the glyph itself carries no information.
+      role="img"
+      aria-label={props.text}
+      title={props.text}
+      style={{
+        display: 'inline-flex',
+        'align-items': 'center',
+        'justify-content': 'center',
+        width: '13px',
+        height: '13px',
+        'margin-left': '5px',
+        'vertical-align': 'middle',
+        'border-radius': '50%',
+        border: `1px solid ${theme.border}`,
+        color: theme.fgSubtle,
+        'font-size': '9px',
+        'font-weight': '600',
+        'line-height': '1',
+        'text-transform': 'none',
+        cursor: 'help',
+      }}
+    >
+      ?
+    </span>
+  );
 }
 
 export function EditProjectDialog(props: EditProjectDialogProps) {
@@ -242,7 +286,14 @@ export function EditProjectDialog(props: EditProjectDialogProps) {
             {/* Branch prefix — git projects only */}
             <Show when={props.project?.isGitRepo !== false}>
               <div style={{ display: 'flex', 'flex-direction': 'column', gap: '8px' }}>
-                <label style={sectionLabelStyle}>{tr('Branch prefix')}</label>
+                <label style={sectionLabelStyle}>
+                  {tr('Branch prefix')}
+                  <HelpHint
+                    text={tr(
+                      'Prefix for the branch created in Worktree mode. The branch name is prefix/task-name-6-random-characters; the prefix is lowercased, split on /, and falls back to task when blank.',
+                    )}
+                  />
+                </label>
                 <input
                   class="input-field"
                   type="text"
@@ -346,11 +397,18 @@ export function EditProjectDialog(props: EditProjectDialogProps) {
 
               {/* Default isolation mode */}
               <div style={{ display: 'flex', 'flex-direction': 'column', gap: '8px' }}>
-                <label style={sectionLabelStyle}>{tr('Default Git Isolation')}</label>
+                <label style={sectionLabelStyle}>
+                  {tr('Default Git Isolation')}
+                  <HelpHint
+                    text={tr(
+                      'Default isolation for new tasks. Worktree creates a separate worktree and branch; Current Branch works directly in the project folder on the base branch, and only one such task is allowed per project. The New Task dialog can still override it.',
+                    )}
+                  />
+                </label>
                 <SegmentedButtons
                   options={[
-                    { value: 'worktree', label: 'Worktree' },
-                    { value: 'direct', label: 'Current Branch' },
+                    { value: 'worktree', label: tr('Worktree') },
+                    { value: 'direct', label: tr('Current Branch') },
                   ]}
                   value={defaultGitIsolation()}
                   onChange={setDefaultGitIsolation}
@@ -359,11 +417,26 @@ export function EditProjectDialog(props: EditProjectDialogProps) {
 
               {/* Default base branch */}
               <div style={{ display: 'flex', 'flex-direction': 'column', gap: '8px' }}>
+                {/* One template rather than the label concatenated with its
+                    parenthetical, so zh-TW decides where the hint lands
+                    instead of inheriting English order. */}
                 <label style={sectionLabelStyle}>
-                  Default base branch{' '}
-                  <span style={{ opacity: '0.5', 'text-transform': 'none' }}>
-                    (blank = auto-detect main)
-                  </span>
+                  <For each={trParts('Default base branch {hint}')}>
+                    {(segment) =>
+                      segment.kind === 'text' ? (
+                        segment.value
+                      ) : (
+                        <span style={{ opacity: '0.5', 'text-transform': 'none' }}>
+                          {tr('(blank = auto-detect main)')}
+                        </span>
+                      )
+                    }
+                  </For>
+                  <HelpHint
+                    text={tr(
+                      'Base branch new tasks start from. When blank it is detected in order: origin/HEAD, then origin/main or origin/master, then local main or master, then git config init.defaultBranch, falling back to main.',
+                    )}
+                  />
                 </label>
                 <input
                   class="input-field"
@@ -386,17 +459,29 @@ export function EditProjectDialog(props: EditProjectDialogProps) {
 
             <div style={{ display: 'flex', 'flex-direction': 'column', gap: '8px' }}>
               <label style={sectionLabelStyle}>
-                Coverage report path{' '}
-                <span style={{ opacity: '0.5', 'text-transform': 'none' }}>
-                  (relative to repo root)
-                </span>
+                <For each={trParts('Coverage report path {hint}')}>
+                  {(segment) =>
+                    segment.kind === 'text' ? (
+                      segment.value
+                    ) : (
+                      <span style={{ opacity: '0.5', 'text-transform': 'none' }}>
+                        {tr('(relative to repo root)')}
+                      </span>
+                    )
+                  }
+                </For>
+                <HelpHint
+                  text={tr(
+                    'Where the Changed Files coverage radar reads its report from, relative to the repo root and never outside it. Setting it reads that one file only — the blank-value candidate list, including the scan of subdirectories under coverage/, no longer applies.',
+                  )}
+                />
               </label>
               <input
                 class="input-field"
                 type="text"
                 value={coverageReportPath()}
                 onInput={(e) => setCoverageReportPath(e.currentTarget.value)}
-                placeholder="coverage/coverage-summary.json or coverage/lcov.info"
+                placeholder={tr('coverage/coverage-summary.json or coverage/lcov.info')}
                 style={{
                   background: theme.bgInput,
                   border: `1px solid ${theme.border}`,
@@ -415,14 +500,36 @@ export function EditProjectDialog(props: EditProjectDialogProps) {
                   padding: '2px 2px 0',
                 }}
               >
-                {tr('Leave blank to try')} <code>coverage/coverage-summary.json</code>, then{' '}
-                <code>coverage/lcov.info</code>.
+                {/* Was a translated "Leave blank to try" concatenated with two
+                    <code> paths and an English ", then" between them, which
+                    pinned the sentence to English order and left the connector
+                    untranslated. One template now; the paths are the slots. */}
+                <For each={trParts('Leave blank to try {first}, then {second}.')}>
+                  {(segment) =>
+                    segment.kind === 'text' ? (
+                      segment.value
+                    ) : (
+                      <code>
+                        {segment.name === 'first'
+                          ? 'coverage/coverage-summary.json'
+                          : 'coverage/lcov.info'}
+                      </code>
+                    )
+                  }
+                </For>
               </div>
             </div>
 
             {/* Command Bookmarks */}
             <div style={{ display: 'flex', 'flex-direction': 'column', gap: '8px' }}>
-              <label style={sectionLabelStyle}>{tr('Command Bookmarks')}</label>
+              <label style={sectionLabelStyle}>
+                {tr('Command Bookmarks')}
+                <HelpHint
+                  text={tr(
+                    'Each bookmark becomes a button on the task shell toolbar. Clicking it sends the command to the most recent idle shell, or opens a new one if none is idle; the button label is derived from the command by taking its last non-flag word.',
+                  )}
+                />
+              </label>
               <Show when={bookmarks().length > 0}>
                 <div style={{ display: 'flex', 'flex-direction': 'column', gap: '4px' }}>
                   <For each={bookmarks()}>
@@ -484,7 +591,7 @@ export function EditProjectDialog(props: EditProjectDialogProps) {
                       addBookmark();
                     }
                   }}
-                  placeholder="e.g. npm run dev"
+                  placeholder={tr('e.g. {command}', { command: 'npm run dev' })}
                   style={{
                     flex: '1',
                     background: theme.bgInput,
@@ -512,7 +619,7 @@ export function EditProjectDialog(props: EditProjectDialogProps) {
                     'flex-shrink': '0',
                   }}
                 >
-                  Add
+                  {tr('Add')}
                 </button>
               </div>
             </div>

@@ -125,6 +125,7 @@ const ZH_TW: Record<string, string> = {
   system: '跟隨系統',
 
   // Common actions
+  Add: '新增',
   Cancel: '取消',
   Close: '關閉',
   Save: '儲存',
@@ -137,6 +138,9 @@ const ZH_TW: Record<string, string> = {
   Open: '開啟',
   Refresh: '重新整理',
   Search: '搜尋',
+  // Placeholder prefix. The example command itself is a shell command and stays
+  // verbatim in the slot; only the "e.g." prefix is translated.
+  'e.g. {command}': '例如 {command}',
 
   // Task lifecycle
   'New Task': '新增任務',
@@ -436,6 +440,28 @@ const ZH_TW: Record<string, string> = {
     'AI agent 會在專案根目錄、你目前的 branch 上工作。',
   'This project already has a task on the current branch':
     '這個專案在目前 branch 上已經有一個任務了',
+
+  // Edit Project — field labels split from their parenthetical hint, so zh-TW
+  // places the hint rather than inheriting "label (hint)" order.
+  'Default base branch {hint}': '預設基底 branch {hint}',
+  '(blank = auto-detect main)': '（留白＝自動偵測 main）',
+  'Coverage report path {hint}': '覆蓋率報告路徑 {hint}',
+  '(relative to repo root)': '（相對於 repo 根目錄）',
+
+  // Edit Project — the five `?` explanations. Each states behaviour read out of
+  // the implementation, not out of the field name; the source of each is
+  // recorded in the wave notes.
+  'Prefix for the branch created in Worktree mode. The branch name is prefix/task-name-6-random-characters; the prefix is lowercased, split on /, and falls back to task when blank.':
+    'Worktree 模式建立分支時的前綴。實際分支名是「前綴/任務名-6 碼亂數」；前綴會正規化為小寫並以 / 分段，留白則回到 task。',
+  'Default isolation for new tasks. Worktree creates a separate worktree and branch; Current Branch works directly in the project folder on the base branch, and only one such task is allowed per project. The New Task dialog can still override it.':
+    '新任務的預設隔離模式。Worktree 會另開 worktree 與新分支；Current Branch 不開 worktree，直接在專案資料夾的基底 branch 上工作，每個專案同時只能有一個。建立任務時仍可覆寫。',
+  'Base branch new tasks start from. When blank it is detected in order: origin/HEAD, then origin/main or origin/master, then local main or master, then git config init.defaultBranch, falling back to main.':
+    '新任務預設的基底 branch。留白時依序偵測 origin/HEAD、origin/main 或 origin/master、本機 main 或 master、git config init.defaultBranch，都沒有才退回 main。',
+  'Where the Changed Files coverage radar reads its report from, relative to the repo root and never outside it. Setting it reads that one file only — the blank-value candidate list, including the scan of subdirectories under coverage/, no longer applies.':
+    '「變更檔案」覆蓋率雷達圖的報告來源，相對於 repo 根目錄，且不可指向根目錄之外。一旦填寫就只讀這一個檔案，留白時的候選順序（含掃描 coverage/ 下的子目錄）不再套用。',
+  'Each bookmark becomes a button on the task shell toolbar. Clicking it sends the command to the most recent idle shell, or opens a new one if none is idle; the button label is derived from the command by taking its last non-flag word.':
+    '每個書籤會在任務的終端機工具列上變成一顆按鈕。點下去會把指令送進最近一個閒置的 shell，沒有閒置的就另開一個；按鈕文字由指令自動推導，取最後一個非旗標的字。',
+
   'Select an agent': '選擇 agent',
   'Pick a preset for your coding agent': '為你的 coding agent 選一個預設組',
   'Add Agent': '新增 agent',
@@ -598,7 +624,11 @@ const ZH_TW: Record<string, string> = {
     '你的手機與這台電腦必須在同一個 WiFi 網路上。',
   'Your phone and this computer must be on the same Tailscale network.':
     '你的手機與這台電腦必須在同一個 Tailscale 網路上。',
-  'Leave blank to try': '留白則嘗試',
+  // The two default report paths are slots, not text: the sentence keeps the
+  // paths verbatim while zh-TW owns the connector and the word order.
+  'Leave blank to try {first}, then {second}.': '留白則依序嘗試 {first}、{second}。',
+  'coverage/coverage-summary.json or coverage/lcov.info':
+    'coverage/coverage-summary.json 或 coverage/lcov.info',
   'Coverage summary': '覆蓋率摘要',
   'No recent coverage data for this source file. Run npm run test:coverage to populate the radar.':
     '這個原始檔沒有近期的覆蓋率資料。執行 npm run test:coverage 以產生資料。',
