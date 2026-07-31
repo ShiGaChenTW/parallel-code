@@ -839,12 +839,16 @@ const ZH_TW: Record<string, string> = {
   '{providers} not installed.': '未安裝 {providers}。',
   'Could not read {providers}.': '無法讀取 {providers}。',
 
-  // Per-task token panel — the same vocabulary as the settings table above,
+  // Per-task token card — the same vocabulary as the settings table above,
   // scoped to a single worktree. `worktree` stays English here as it does
-  // everywhere else in this catalogue.
+  // everywhere else in this catalogue, and so does `Token`: the two toggle
+  // labels immediately below already leave the word itself alone.
   'Show token usage': '顯示 token 用量',
   'Hide token usage': '隱藏 token 用量',
-  'Tokens in this worktree': '這個 worktree 的 token 用量',
+  // Card title, in the same shape as its siblings 'Changed Files' and 'Steps'.
+  // Replaces 'Tokens in this worktree', which was the panel's own heading back
+  // when the panel had no card header to carry the name.
+  'Token Usage': 'Token 用量',
   'No AI CLI usage has been recorded for this worktree yet.':
     '這個 worktree 還沒有任何 AI CLI 的用量紀錄。',
   'This task has no worktree yet, so no usage can be attributed to it.':
