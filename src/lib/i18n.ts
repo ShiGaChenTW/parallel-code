@@ -118,6 +118,14 @@ const ZH_TW: Record<string, string> = {
   Notifications: '通知',
   Terminal: '終端機',
   Advanced: '進階',
+  // Settings left-nav groups introduced with the card layout. 'General',
+  // 'Appearance', 'Terminal', 'Tasks', 'Privacy', 'Updates' and 'Experimental'
+  // already exist in this catalogue and are reused as nav labels.
+  'AI tools': 'AI 工具',
+  Integrations: '整合',
+  // Card headings that had no group of their own before.
+  Interface: '介面',
+  'Text rendering': '文字算繪',
 
   // Appearance modes
   light: '淺色',
@@ -841,6 +849,41 @@ const ZH_TW: Record<string, string> = {
   'The agent starts on its own once it lands.': '一旦落地，agent 會自己開始。',
   'Clear dependency and start now': '解除依賴並立即開始',
   // 'Retry' and 'Dismiss' are already in this catalogue above.
+
+  // Settings card descriptions — one sentence under each group name, added with
+  // the left-nav card layout. Every one of them describes what the code in that
+  // group actually does; none is a paraphrase of the group name. The file and
+  // line each was read from is recorded in the redesign notes, because a
+  // description that drifts from the behaviour is worse than no description.
+  'Language of the Parallel Code interface. Terminal output is written by the agents and is not translated.':
+    'Parallel Code 介面的語言。終端機輸出由 agent 自己寫出，不會被翻譯。',
+  'What Parallel Code does on its own while an agent is running.':
+    'agent 執行期間，Parallel Code 會自行做的事。',
+  'Which panels and sidebar sections are shown.': '哪些面板與側欄區塊會顯示出來。',
+  'Presets for light and dark, and which of the two the app follows.':
+    '淺色與深色各自的預設主題，以及 app 目前跟隨哪一個。',
+  'Applies antialiased, grayscale font smoothing to the interface.':
+    '為介面文字套用消除鋸齒與灰階字型平滑。',
+  'Dims every task column except the active one.': '把作用中以外的每個任務欄位變暗。',
+  'Font used to draw every terminal panel.': '用來繪製每個終端機面板的字型。',
+  'How the New Task dialog is pre-filled. Every task can still be changed before it starts.':
+    '「新增任務」對話框的預設勾選。每個任務在開始前仍然可以自行改掉。',
+  'CLI agents added here appear in the agent picker alongside the built-in ones.':
+    '在這裡新增的 CLI agent，會和內建的一起出現在 agent 選擇器裡。',
+  'Which model answers questions about text you select in the diff and plan views.':
+    '在 diff 與 plan 檢視中選取文字提問時，由哪個模型回答。',
+  'Token counts read from AI CLI logs already on this machine. Nothing is requested from a vendor.':
+    'token 數量讀自本機既有的 AI CLI 記錄檔，不會向任何廠商發出請求。',
+  'What leaves this machine, and what is written to disk.':
+    '哪些東西會離開這台機器，哪些東西會寫進磁碟。',
+  'Extra logging for reporting a problem. Off by default.': '回報問題時用的額外記錄。預設為關閉。',
+  'Connect a Huly workspace so a task can start from an issue. The token is encrypted by the OS keychain and never read back for display.':
+    '連上 Huly workspace，任務就能直接從 issue 開工。token 會交由作業系統金鑰鏈加密保存，不會再讀回來顯示。',
+  'Which version is running, and whether a newer one is available.':
+    '目前執行的是哪一版，以及有沒有更新的版本。',
+  'Lets one task spawn and drive sub-tasks through MCP tools.':
+    '讓一個任務可以透過 MCP 工具產生並驅動子任務。',
+  'Changes apply immediately and are saved automatically.': '變更立即生效，並會自動儲存。',
 
   // Settings explanatory copy. Everything below is a sentence rather than a
   // label, and belongs to a section added after the i18n wave: the transcript

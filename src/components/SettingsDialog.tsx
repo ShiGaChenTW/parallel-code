@@ -79,6 +79,57 @@ function ensureSelectedFont(available: string[]): string[] {
   return [store.terminalFont, ...available];
 }
 
+type ThemeSlot = 'light' | 'dark';
+
+/**
+ * A group of related settings, drawn as a card.
+ *
+ * Was `SettingsSection` — a bold label with children stacked under it, which put
+ * every group on the same visual plane as the controls inside it. Nine groups
+ * rendered that way read as one undifferentiated column, which is what made the
+ * old General tab a 600-line scroll nobody could navigate.
+ *
+ * `description` is not decoration and is not optional. A group name alone
+ * ("Behavior", "Privacy") says which drawer something lives in, not what it
+ * does; the sentence is where a reader finds out whether this is the card they
+ * want before reading seven checkboxes. Every one of them is derived from the
+ * code the card controls — an invented description is worse than none, because
+ * the reader has no way to tell the two apart.
+ */
+function SettingsCard(props: { title: string; description: JSX.Element; children: JSX.Element }) {
+  return (
+    <section
+      style={{
+        display: 'flex',
+        'flex-direction': 'column',
+        gap: '10px',
+        padding: '14px 16px',
+        // Derived from the dialog's own background rather than picked from the
+        // token list: `--bg-elevated` and `--bg-input` are the same colour in
+        // some presets, which would make the card and the rows inside it one
+        // flat rectangle. A mix against `--island-bg` is a card in every theme.
+        background: 'color-mix(in srgb, var(--fg) 4%, var(--island-bg))',
+        border: `1px solid ${theme.borderSubtle}`,
+        'border-radius': '12px',
+      }}
+    >
+      <div style={{ display: 'flex', 'flex-direction': 'column', gap: '3px' }}>
+        <h3
+          style={{ ...sectionLabelStyle, color: theme.accent, 'font-weight': '600', margin: '0' }}
+        >
+          {props.title}
+        </h3>
+        <p
+          style={{ margin: '0', 'font-size': '12px', color: theme.fgSubtle, 'line-height': '1.5' }}
+        >
+          {props.description}
+        </p>
+      </div>
+      {props.children}
+    </section>
+  );
+}
+
 /**
  * Traditional-Chinese terminal fonts.
  *
@@ -91,15 +142,12 @@ function CjkFontSection() {
   const installed = (family: string) => isCjkFontInstalled(family, installedFamilies());
 
   return (
-    <div style={{ display: 'flex', 'flex-direction': 'column', gap: '10px' }}>
-      <div style={{ ...sectionLabelStyle, 'font-weight': '600' }}>
-        {tr('Chinese Terminal Font')}
-      </div>
-      <span style={{ 'font-size': '12px', color: theme.fgSubtle }}>
-        {tr(
-          'Fonts are never bundled or downloaded automatically. Picking one that is not installed asks first.',
-        )}
-      </span>
+    <SettingsCard
+      title={tr('Chinese Terminal Font')}
+      description={tr(
+        'Fonts are never bundled or downloaded automatically. Picking one that is not installed asks first.',
+      )}
+    >
       <div class="settings-font-grid">
         <For each={CJK_TERMINAL_FONTS}>
           {(font) => (
@@ -153,19 +201,7 @@ function CjkFontSection() {
           </div>
         )}
       </Show>
-    </div>
-  );
-}
-
-type SettingsTab = 'general' | 'themes' | 'experimental';
-type ThemeSlot = 'light' | 'dark';
-
-function SettingsSection(props: { title: string; children: JSX.Element }) {
-  return (
-    <div style={{ display: 'flex', 'flex-direction': 'column', gap: '10px' }}>
-      <div style={{ ...sectionLabelStyle, 'font-weight': '600' }}>{props.title}</div>
-      {props.children}
-    </div>
+    </SettingsCard>
   );
 }
 
@@ -468,11 +504,10 @@ function AppIconSwatch(props: { variant: AppIconVariant; size: number }) {
 
 function AppIconSection() {
   return (
-    <div style={{ display: 'flex', 'flex-direction': 'column', gap: '10px' }}>
-      <div style={{ ...sectionLabelStyle, 'font-weight': '600' }}>{tr('App icon')}</div>
-      <div style={{ 'font-size': '12px', color: theme.fgSubtle }}>
-        {tr('Changes the Dock icon on macOS and the window icon on Linux.')}
-      </div>
+    <SettingsCard
+      title={tr('App icon')}
+      description={tr('Changes the Dock icon on macOS and the window icon on Linux.')}
+    >
       <div style={{ display: 'flex', gap: '10px', 'flex-wrap': 'wrap' }}>
         <For each={APP_ICON_VARIANTS}>
           {(variant) => {
@@ -504,7 +539,7 @@ function AppIconSection() {
           }}
         </For>
       </div>
-    </div>
+    </SettingsCard>
   );
 }
 
@@ -516,6 +551,11 @@ function AppIconSection() {
  * So the slider is not rendered there at all: a control that moves and changes
  * nothing is worse than no control, and worse than a sentence saying why.
  *
+ * That sentence is now the card's description rather than a line inside it,
+ * which is why the description is computed instead of literal: on Linux the
+ * honest summary of this card is that it does nothing, and a card that led with
+ * "fades the whole window" there would be lying in its first line.
+ *
  * The readability note is not decoration. Window opacity fades the glyphs along
  * with everything else, which is not what transparency means in a terminal
  * emulator — the same 80% that looks fine in iTerm2 costs real contrast here.
@@ -525,23 +565,19 @@ function WindowOpacitySection() {
   const supported = isWindowOpacitySupported(rendererPlatform);
   const readability = () => windowOpacityReadability(store.windowOpacity);
   return (
-    <div style={{ display: 'flex', 'flex-direction': 'column', gap: '10px' }}>
-      <div style={{ ...sectionLabelStyle, 'font-weight': '600' }}>{tr('Window opacity')}</div>
-      <Show
-        when={supported}
-        fallback={
-          <div style={{ 'font-size': '12px', color: theme.fgSubtle }}>
-            {tr(
+    <SettingsCard
+      title={tr('Window opacity')}
+      description={
+        supported
+          ? tr(
+              'Fades the whole window, text included — the desktop shows through the terminals, not just behind them.',
+            )
+          : tr(
               'Not available on Linux — Electron implements window opacity on macOS only, so a slider here would do nothing.',
-            )}
-          </div>
-        }
-      >
-        <div style={{ 'font-size': '12px', color: theme.fgSubtle }}>
-          {tr(
-            'Fades the whole window, text included — the desktop shows through the terminals, not just behind them.',
-          )}
-        </div>
+            )
+      }
+    >
+      <Show when={supported}>
         <div
           style={{
             display: 'flex',
@@ -599,17 +635,92 @@ function WindowOpacitySection() {
           </div>
         </Show>
       </Show>
-    </div>
+    </SettingsCard>
   );
+}
+
+/**
+ * The left-hand navigation.
+ *
+ * Nine groups replace three tabs. The old split was `general` / `themes` /
+ * `experimental`, which meant `general` held everything that was not a theme —
+ * fourteen unrelated groups in one 600-line scroll, with the language picker
+ * filed under "themes" because that tab happened to exist.
+ *
+ * The order is not alphabetical and not arbitrary. It runs from what a new user
+ * changes first (language, what the app does, how it looks) through what a
+ * working user changes occasionally (terminals, task defaults, AI tools) to what
+ * is consulted rather than set (privacy, integrations, updates), with the
+ * unfinished work last. `experimental` stays last for the same reason it was a
+ * separate tab: it is the one group whose contents can change under you.
+ *
+ * The list is fixed rather than filtered by availability — `dockerAvailable`
+ * hides a card inside `tasks`, not the group. A navigation whose items appear
+ * and disappear between machines cannot be described in a bug report.
+ */
+const SETTINGS_SECTIONS = [
+  'general',
+  'appearance',
+  'terminal',
+  'tasks',
+  'ai',
+  'privacy',
+  'integrations',
+  'updates',
+  'experimental',
+] as const;
+
+type SettingsSectionId = (typeof SETTINGS_SECTIONS)[number];
+
+/**
+ * Nav label per group. A `switch` over literals rather than a lookup table so
+ * every key is visible to the i18n coverage scanner as a literal `tr()` call.
+ */
+function sectionLabel(id: SettingsSectionId): string {
+  switch (id) {
+    case 'general':
+      return tr('General');
+    case 'appearance':
+      return tr('Appearance');
+    case 'terminal':
+      return tr('Terminal');
+    case 'tasks':
+      return tr('Tasks');
+    case 'ai':
+      return tr('AI tools');
+    case 'privacy':
+      return tr('Privacy');
+    case 'integrations':
+      return tr('Integrations');
+    case 'updates':
+      return tr('Updates');
+    case 'experimental':
+      return tr('Experimental');
+  }
 }
 
 export function SettingsDialog(props: SettingsDialogProps) {
   const titleId = createUniqueId();
   const [fonts, setFonts] = createSignal<string[]>(ensureSelectedFont(getAvailableTerminalFonts()));
-  const [activeTab, setActiveTab] = createSignal<SettingsTab>('general');
+  const [activeSection, setActiveSection] = createSignal<SettingsSectionId>('general');
   const [customThemeDialogOpen, setCustomThemeDialogOpen] = createSignal(false);
   const [editingThemeId, setEditingThemeId] = createSignal<string | null>(null);
   const [cloneCss, setCloneCss] = createSignal<string | undefined>(undefined);
+
+  // Roving tabindex: only the selected nav item is in the tab order, and the
+  // arrow keys move both selection and focus. The horizontal tabs this replaces
+  // moved selection without focus, so a screen reader announced a panel the
+  // user's focus was not in.
+  const navButtons = new Map<SettingsSectionId, HTMLButtonElement>();
+  const focusSection = (id: SettingsSectionId) => {
+    setActiveSection(id);
+    navButtons.get(id)?.focus();
+  };
+  const step = (from: SettingsSectionId, delta: number) => {
+    const count = SETTINGS_SECTIONS.length;
+    const next = SETTINGS_SECTIONS[(SETTINGS_SECTIONS.indexOf(from) + delta + count) % count];
+    focusSection(next);
+  };
 
   function openCloneDialog(presetId: string, label: string) {
     const vars = readCssVarsForPreset(presetId);
@@ -637,6 +748,50 @@ export function SettingsDialog(props: SettingsDialogProps) {
     opacity: disabled ? '0.6' : '1',
   });
   const updateMessageStyle = (color: string) => ({ 'font-size': '12px', color });
+
+  // Shared by the free-form control cards (editor command, provider picker,
+  // docker image, sliders): the framed strip a control sits in.
+  const controlRowStyle = {
+    display: 'flex',
+    'flex-direction': 'column',
+    gap: '6px',
+    padding: '8px 12px',
+    'border-radius': '8px',
+    background: theme.bgInput,
+    border: `1px solid ${theme.border}`,
+  } as const;
+  const textInputStyle = {
+    flex: '1',
+    background: theme.taskPanelBg,
+    border: `1px solid ${theme.border}`,
+    'border-radius': '6px',
+    padding: '6px 10px',
+    color: theme.fg,
+    'font-size': '14px',
+    'font-family': "'JetBrains Mono', monospace",
+    outline: 'none',
+  } as const;
+  const inlineLabelStyle = { display: 'flex', 'align-items': 'center', gap: '10px' } as const;
+  const segmentedGroupStyle = {
+    display: 'flex',
+    gap: '4px',
+    background: theme.bgInput,
+    border: `1px solid ${theme.border}`,
+    'border-radius': '8px',
+    padding: '4px',
+  } as const;
+  const segmentedButtonStyle = (selected: boolean) => ({
+    flex: '1',
+    padding: '6px',
+    'border-radius': '6px',
+    border: 'none',
+    background: selected ? theme.bgElevated : 'transparent',
+    color: selected ? theme.fg : theme.fgMuted,
+    cursor: 'pointer',
+    'font-size': '13px',
+    'font-weight': selected ? '600' : '400',
+    transition: 'background 0.15s, color 0.15s',
+  });
 
   // Phases that permit a manual check. An allow-list keeps a future phase
   // from defaulting to "shown" the way excluding non-checkable phases would.
@@ -669,19 +824,37 @@ export function SettingsDialog(props: SettingsDialogProps) {
     <Dialog
       open={props.open}
       onClose={props.onClose}
-      width="640px"
+      width="880px"
       zIndex={1100}
       labelledBy={titleId}
-      panelStyle={{ 'max-width': 'calc(100vw - 32px)', padding: '24px', gap: '18px' }}
+      panelStyle={{
+        'max-width': 'calc(100vw - 32px)',
+        padding: '0',
+        gap: '0',
+        // The panel is a frame now, not a scroller: the nav must stay put and
+        // the footer must stay visible while the content moves. `Dialog`'s own
+        // `overflow: auto` would scroll all three together.
+        height: 'min(660px, 80vh)',
+        overflow: 'hidden',
+      }}
     >
       <div
         style={{
           display: 'flex',
-          'align-items': 'center',
+          'align-items': 'flex-start',
           'justify-content': 'space-between',
+          gap: '16px',
+          padding: '20px 24px 16px',
+          'border-bottom': `1px solid ${theme.border}`,
+          'flex-shrink': '0',
         }}
       >
-        <div style={{ display: 'flex', 'flex-direction': 'column', gap: '4px' }}>
+        <div style={{ display: 'flex', 'flex-direction': 'column', gap: '3px' }}>
+          {/* Product name, not a translatable string — the app is called this
+              in every locale, and the catalogue keeps vendor names in English. */}
+          <span style={{ ...sectionLabelStyle, color: theme.accent, 'font-weight': '600' }}>
+            Parallel Code
+          </span>
           <h2
             id={titleId}
             style={{
@@ -736,797 +909,242 @@ export function SettingsDialog(props: SettingsDialogProps) {
         </button>
       </div>
 
-      <div
-        role="tablist"
-        aria-label={tr('Settings tabs')}
-        style={{
-          display: 'flex',
-          gap: '2px',
-          'border-bottom': `1px solid ${theme.border}`,
-          'padding-bottom': '0',
-          'margin-bottom': '2px',
-        }}
-      >
-        <For each={['general', 'themes', 'experimental'] as SettingsTab[]}>
-          {(tab) => (
-            <button
-              role="tab"
-              aria-selected={activeTab() === tab}
-              aria-controls={`settings-tab-${tab}`}
-              id={`settings-tabbutton-${tab}`}
-              type="button"
-              onClick={() => setActiveTab(tab)}
-              onKeyDown={(e) => {
-                const tabs: SettingsTab[] = ['general', 'themes', 'experimental'];
-                const idx = tabs.indexOf(tab);
-                if (e.key === 'ArrowRight') setActiveTab(tabs[(idx + 1) % tabs.length]);
-                else if (e.key === 'ArrowLeft')
-                  setActiveTab(tabs[(idx + tabs.length - 1) % tabs.length]);
-              }}
-              style={{
-                background: 'transparent',
-                border: 'none',
-                'border-bottom':
-                  activeTab() === tab ? `2px solid ${theme.accent}` : '2px solid transparent',
-                color: activeTab() === tab ? theme.fg : theme.fgMuted,
-                cursor: 'pointer',
-                'font-size': '14px',
-                'font-weight': activeTab() === tab ? '600' : '400',
-                padding: '6px 14px',
-                'margin-bottom': '-1px',
-                'border-radius': '0',
-                transition: 'color 0.15s, border-color 0.15s',
-              }}
-            >
-              {tab === 'general'
-                ? tr('General')
-                : tab === 'themes'
-                  ? tr('Themes')
-                  : tr('Experimental')}
-            </button>
-          )}
-        </For>
-      </div>
-
-      <Show when={activeTab() === 'general'}>
+      <div style={{ display: 'flex', flex: '1', 'min-height': '0' }}>
         <div
-          id="settings-tab-general"
-          role="tabpanel"
-          aria-labelledby="settings-tabbutton-general"
-          style={{ display: 'flex', 'flex-direction': 'column', gap: '18px' }}
+          role="tablist"
+          aria-orientation="vertical"
+          aria-label={tr('Settings tabs')}
+          style={{
+            display: 'flex',
+            'flex-direction': 'column',
+            gap: '2px',
+            width: '176px',
+            'flex-shrink': '0',
+            padding: '12px 8px',
+            'border-right': `1px solid ${theme.border}`,
+            'overflow-y': 'auto',
+          }}
         >
-          <SettingsSection title={tr('Behavior')}>
-            <SettingsCheckboxRow
-              label={tr('Auto-trust folders')}
-              checked={store.autoTrustFolders}
-              onChange={setAutoTrustFolders}
-              description={tr('Automatically accept trust and permission dialogs from agents')}
-            />
-            <SettingsCheckboxRow
-              label={tr('Show plans')}
-              checked={store.showPlans}
-              onChange={setShowPlans}
-              description={tr('Display Claude Code plan files in a tab next to Notes')}
-            />
-            <SettingsCheckboxRow
-              label={tr('Desktop notifications')}
-              checked={store.desktopNotificationsEnabled}
-              onChange={setDesktopNotificationsEnabled}
-              description={tr('Show native notifications when tasks finish or need attention')}
-            />
-            <SettingsCheckboxRow
-              label={tr('Show prompt input box below terminal')}
-              checked={store.showPromptInput}
-              onChange={setShowPromptInput}
-              description={tr(
-                'When hidden, the terminal occupies the full panel and auto-focuses on activation',
-              )}
-            />
-            <SettingsCheckboxRow
-              label={tr('Show progress section in sidebar')}
-              checked={store.showSidebarProgress}
-              onChange={setShowSidebarProgress}
-              description={tr(
-                'Daily completed-task count and merged-line totals at the bottom of the sidebar',
-              )}
-            />
-            <SettingsCheckboxRow
-              label={tr('Show tips section in sidebar')}
-              checked={store.showSidebarTips}
-              onChange={setShowSidebarTips}
-              description={tr('Keyboard shortcut hints at the bottom of the sidebar')}
-            />
-            <SettingsCheckboxRow
-              label={tr('Font smoothing')}
-              checked={store.fontSmoothing}
-              onChange={setFontSmoothing}
-              description={tr('Enable antialiasing and geometric text rendering')}
-              align="flex-start"
-            />
-          </SettingsSection>
-
-          <SettingsSection title={tr('Privacy')}>
-            <SettingsCheckboxRow
-              label={tr('Offline mode')}
-              checked={store.offlineMode}
-              onChange={setOfflineMode}
-              description={tr(
-                'Stop Parallel Code making any network request of its own: update checks, PR check polling, Huly sync, inline code Q&A, Docker image builds, starting a Docker task whose image is not on this machine, git push, and external images in rendered markdown. Each one reports that offline mode is on rather than failing silently. This does not cover the AI CLIs you run as agents — those talk to their own vendors under their own configuration, and Parallel Code neither can nor should intercept them.',
-              )}
-              align="flex-start"
-            />
-            <SettingsCheckboxRow
-              label={tr('Record session transcripts')}
-              checked={store.transcriptEnabled}
-              onChange={setTranscriptEnabled}
-              description={tr(
-                'Write a timestamped record of each task — agent starts and exits, step updates, attention changes, merges, PR check results and commits — to transcripts/<taskId>.jsonl in the application data directory, so a task can be reviewed after a restart. Nothing leaves your machine. Known secret shapes (API keys, tokens, private key headers) are masked before anything is written, but a transcript quotes your source code and instructions, so treat it as sensitive: masking catches shapes, not meaning. Kept for 30 days or 5000 events per task, whichever comes first.',
-              )}
-              align="flex-start"
-            />
-            <TranscriptClearRow />
-          </SettingsSection>
-
-          <SettingsSection title={tr('AI Usage')}>
-            <TokenUsageSection />
-          </SettingsSection>
-
-          <SettingsSection title={tr('New Task Defaults')}>
-            <SettingsCheckboxRow
-              label={tr('Steps tracking')}
-              checked={store.defaultStepsEnabled}
-              onChange={setDefaultStepsEnabled}
-              description={tr('Pre-tick Steps tracking in the New Task dialog')}
-            />
-            <SettingsCheckboxRow
-              label={tr('Dangerously skip all confirms by default')}
-              checked={store.defaultSkipPermissions}
-              onChange={setDefaultSkipPermissions}
-              description={tr(
-                'Pre-tick skip-permissions for every new task. The agent will run without asking for confirmation. Only honoured when the selected agent supports it.',
-              )}
-            />
-            <Show when={store.coordinatorModeEnabled}>
-              <SettingsCheckboxRow
-                label={tr('Propagate skip-permissions to sub-tasks')}
-                checked={store.defaultPropagateSkipPermissions}
-                onChange={setDefaultPropagateSkipPermissions}
-                description={tr(
-                  'Pre-tick Propagate to sub-tasks when both coordinator mode and skip-permissions are enabled for a task',
-                )}
-              />
-            </Show>
-          </SettingsSection>
-
-          <div style={{ display: 'flex', 'flex-direction': 'column', gap: '10px' }}>
-            <div
-              style={{
-                ...sectionLabelStyle,
-                'font-weight': '600',
-              }}
-            >
-              {tr('Editor')}
-            </div>
-            <div
-              style={{
-                display: 'flex',
-                'flex-direction': 'column',
-                gap: '6px',
-                padding: '8px 12px',
-                'border-radius': '8px',
-                background: theme.bgInput,
-                border: `1px solid ${theme.border}`,
-              }}
-            >
-              <label
-                style={{
-                  display: 'flex',
-                  'align-items': 'center',
-                  gap: '10px',
-                }}
-              >
-                <span style={{ 'font-size': '14px', color: theme.fg, 'white-space': 'nowrap' }}>
-                  {tr('Editor command')}
-                </span>
-                <input
-                  type="text"
-                  value={store.editorCommand}
-                  onInput={(e) => setEditorCommand(e.currentTarget.value)}
-                  placeholder={tr('e.g. code, cursor, zed, subl')}
-                  style={{
-                    flex: '1',
-                    background: theme.taskPanelBg,
-                    border: `1px solid ${theme.border}`,
-                    'border-radius': '6px',
-                    padding: '6px 10px',
-                    color: theme.fg,
-                    'font-size': '14px',
-                    'font-family': "'JetBrains Mono', monospace",
-                    outline: 'none',
-                  }}
-                />
-              </label>
-              <span style={{ 'font-size': '12px', color: theme.fgSubtle }}>
-                {tr(
-                  'CLI command to open worktree folders. Click the path bar in a task to open it.',
-                )}
-              </span>
-            </div>
-          </div>
-
-          <div style={{ display: 'flex', 'flex-direction': 'column', gap: '10px' }}>
-            <div
-              style={{
-                ...sectionLabelStyle,
-                'font-weight': '600',
-              }}
-            >
-              {tr('Ask about Code')}
-            </div>
-            <div
-              style={{
-                display: 'flex',
-                'flex-direction': 'column',
-                gap: '6px',
-                padding: '8px 12px',
-                'border-radius': '8px',
-                background: theme.bgInput,
-                border: `1px solid ${theme.border}`,
-              }}
-            >
-              <label
-                style={{
-                  display: 'flex',
-                  'align-items': 'center',
-                  gap: '10px',
-                }}
-              >
-                <span style={{ 'font-size': '13px', color: theme.fg, 'white-space': 'nowrap' }}>
-                  {tr('LLM provider')}
-                </span>
-                <select
-                  value={store.askCodeProvider}
-                  onChange={(e) =>
-                    setAskCodeProvider(e.currentTarget.value as 'claude' | 'minimax')
-                  }
-                  style={{
-                    flex: '1',
-                    background: theme.taskPanelBg,
-                    border: `1px solid ${theme.border}`,
-                    'border-radius': '6px',
-                    padding: '6px 10px',
-                    color: theme.fg,
-                    'font-size': '13px',
-                    outline: 'none',
-                    cursor: 'pointer',
-                  }}
-                >
-                  <option value="claude">Claude Code (claude CLI)</option>
-                  <option value="minimax">MiniMax (M2.7)</option>
-                </select>
-              </label>
-              <Show when={store.askCodeProvider === 'minimax'}>
-                <label
-                  style={{
-                    display: 'flex',
-                    'align-items': 'center',
-                    gap: '10px',
-                    'margin-top': '4px',
-                  }}
-                >
-                  <span style={{ 'font-size': '13px', color: theme.fg, 'white-space': 'nowrap' }}>
-                    {tr('MiniMax API key')}
-                  </span>
-                  <input
-                    type="password"
-                    onInput={(e) => setMinimaxApiKey(e.currentTarget.value)}
-                    placeholder={tr('Enter your MINIMAX_API_KEY (stored in memory only)')}
-                    style={{
-                      flex: '1',
-                      background: theme.taskPanelBg,
-                      border: `1px solid ${theme.border}`,
-                      'border-radius': '6px',
-                      padding: '6px 10px',
-                      color: theme.fg,
-                      'font-size': '13px',
-                      'font-family': "'JetBrains Mono', monospace",
-                      outline: 'none',
-                    }}
-                  />
-                </label>
-              </Show>
-              <span style={{ 'font-size': '11px', color: theme.fgSubtle }}>
-                {store.askCodeProvider === 'minimax'
-                  ? tr(
-                      'Uses MiniMax M2.7 (204K context) via the OpenAI-compatible API — no Claude Code CLI required.',
-                    )
-                  : tr(
-                      'Uses the claude CLI to answer questions about selected code. Requires Claude Code to be installed.',
-                    )}
-              </span>
-            </div>
-          </div>
-
-          <Show when={store.dockerAvailable}>
-            <div style={{ display: 'flex', 'flex-direction': 'column', gap: '10px' }}>
-              <div
-                style={{
-                  'font-size': '12px',
-                  color: theme.fgMuted,
-                  'text-transform': 'uppercase',
-                  'letter-spacing': '0.05em',
-                  'font-weight': '600',
-                }}
-              >
-                {tr('Docker Isolation')}
-              </div>
-              <div
-                style={{
-                  display: 'flex',
-                  'flex-direction': 'column',
-                  gap: '6px',
-                  padding: '8px 12px',
-                  'border-radius': '8px',
-                  background: theme.bgInput,
-                  border: `1px solid ${theme.border}`,
-                }}
-              >
-                <label
-                  style={{
-                    display: 'flex',
-                    'align-items': 'center',
-                    gap: '10px',
-                  }}
-                >
-                  <span style={{ 'font-size': '14px', color: theme.fg, 'white-space': 'nowrap' }}>
-                    {tr('Default image')}
-                  </span>
-                  <input
-                    type="text"
-                    value={store.dockerImage}
-                    onInput={(e) => setDockerImage(e.currentTarget.value)}
-                    placeholder={DEFAULT_DOCKER_IMAGE}
-                    style={{
-                      flex: '1',
-                      background: theme.taskPanelBg,
-                      border: `1px solid ${theme.border}`,
-                      'border-radius': '6px',
-                      padding: '6px 10px',
-                      color: theme.fg,
-                      'font-size': '14px',
-                      'font-family': "'JetBrains Mono', monospace",
-                      outline: 'none',
-                    }}
-                  />
-                </label>
-                <span style={{ 'font-size': '12px', color: theme.fgSubtle }}>
-                  {tr(
-                    'Docker image used when "Run in Docker container" is enabled for a task. The agent runs inside the container with only the project directory mounted.',
-                  )}
-                </span>
-                <div style={{ 'font-size': '11px', color: theme.fgMuted, 'margin-top': '4px' }}>
-                  {/* The path is a styled <code> element, not a string, so the
-                      sentence renders from segments and the translation decides
-                      which side of it the path falls on. */}
-                  <For
-                    each={trParts(
-                      'Projects with a {path} will use a project-specific image instead.',
-                    )}
-                  >
-                    {(segment) =>
-                      segment.kind === 'text' ? (
-                        segment.value
-                      ) : (
-                        <code
-                          style={{
-                            'font-family': "'JetBrains Mono', monospace",
-                            'font-size': '11px',
-                          }}
-                        >
-                          {PROJECT_DOCKERFILE_RELATIVE_PATH}
-                        </code>
-                      )
+          <For each={SETTINGS_SECTIONS}>
+            {(id) => {
+              const selected = () => activeSection() === id;
+              return (
+                <button
+                  ref={(el) => navButtons.set(id, el)}
+                  role="tab"
+                  aria-selected={selected()}
+                  aria-controls={selected() ? `settings-panel-${id}` : undefined}
+                  id={`settings-tabbutton-${id}`}
+                  type="button"
+                  tabIndex={selected() ? 0 : -1}
+                  onClick={() => setActiveSection(id)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'ArrowDown') {
+                      e.preventDefault();
+                      step(id, 1);
+                    } else if (e.key === 'ArrowUp') {
+                      e.preventDefault();
+                      step(id, -1);
+                    } else if (e.key === 'Home') {
+                      e.preventDefault();
+                      focusSection(SETTINGS_SECTIONS[0]);
+                    } else if (e.key === 'End') {
+                      e.preventDefault();
+                      focusSection(SETTINGS_SECTIONS[SETTINGS_SECTIONS.length - 1]);
                     }
+                  }}
+                  style={{
+                    'text-align': 'left',
+                    background: selected() ? theme.bgSelected : 'transparent',
+                    border: 'none',
+                    'border-radius': '7px',
+                    color: selected() ? theme.fg : theme.fgMuted,
+                    cursor: 'pointer',
+                    'font-size': '13px',
+                    'font-weight': selected() ? '600' : '400',
+                    padding: '7px 10px',
+                    transition: 'background 0.15s, color 0.15s',
+                  }}
+                >
+                  {sectionLabel(id)}
+                </button>
+              );
+            }}
+          </For>
+        </div>
+
+        {/* `tabIndex` so the scroll region is reachable from the keyboard: the
+            dialog panel no longer scrolls, so without this the content of a long
+            group would be unreadable without a mouse. */}
+        <div
+          id={`settings-panel-${activeSection()}`}
+          role="tabpanel"
+          tabIndex={0}
+          aria-labelledby={`settings-tabbutton-${activeSection()}`}
+          style={{
+            flex: '1',
+            'min-width': '0',
+            'overflow-y': 'auto',
+            padding: '18px 22px',
+            display: 'flex',
+            'flex-direction': 'column',
+            gap: '14px',
+          }}
+        >
+          <Switch>
+            <Match when={activeSection() === 'general'}>
+              <SettingsCard
+                title={tr('Language')}
+                description={tr(
+                  'Language of the Parallel Code interface. Terminal output is written by the agents and is not translated.',
+                )}
+              >
+                <div style={segmentedGroupStyle}>
+                  <For each={LOCALES}>
+                    {(locale) => (
+                      <button
+                        type="button"
+                        style={segmentedButtonStyle(store.locale === locale)}
+                        onClick={() => setLocale(locale)}
+                      >
+                        {/* Each language names itself — a reader who cannot read
+                            the current UI language still recognises their own. */}
+                        {LOCALE_LABELS[locale]}
+                      </button>
+                    )}
                   </For>
                 </div>
-              </div>
-              <SettingsCheckboxRow
-                label={tr('Share agent auth across Linux containers')}
-                checked={store.shareDockerAgentAuth}
-                onChange={setShareDockerAgentAuth}
-                description={tr(
-                  'Persist agent credentials in a user-owned host directory so you only need to sign in once per agent type. Auth on first run is saved automatically for future containers.',
-                )}
-              />
-            </div>
-          </Show>
+              </SettingsCard>
 
-          <div style={{ display: 'flex', 'flex-direction': 'column', gap: '10px' }}>
-            <div
-              style={{
-                ...sectionLabelStyle,
-                'font-weight': '600',
-              }}
-            >
-              {tr('Focus Dimming')}
-            </div>
-            <div
-              style={{
-                display: 'flex',
-                'flex-direction': 'column',
-                gap: '8px',
-                padding: '8px 12px',
-                'border-radius': '8px',
-                background: theme.bgInput,
-                border: `1px solid ${theme.border}`,
-              }}
-            >
-              <div
-                style={{
-                  display: 'flex',
-                  'align-items': 'center',
-                  'justify-content': 'space-between',
-                }}
+              <SettingsCard
+                title={tr('Behavior')}
+                description={tr('What Parallel Code does on its own while an agent is running.')}
               >
-                <span style={{ 'font-size': '14px', color: theme.fg }}>
-                  {tr('Inactive column opacity')}
-                </span>
-                <span
+                <SettingsCheckboxRow
+                  label={tr('Auto-trust folders')}
+                  checked={store.autoTrustFolders}
+                  onChange={setAutoTrustFolders}
+                  description={tr('Automatically accept trust and permission dialogs from agents')}
+                />
+                <SettingsCheckboxRow
+                  label={tr('Desktop notifications')}
+                  checked={store.desktopNotificationsEnabled}
+                  onChange={setDesktopNotificationsEnabled}
+                  description={tr('Show native notifications when tasks finish or need attention')}
+                />
+              </SettingsCard>
+
+              <SettingsCard
+                title={tr('Interface')}
+                description={tr('Which panels and sidebar sections are shown.')}
+              >
+                <SettingsCheckboxRow
+                  label={tr('Show plans')}
+                  checked={store.showPlans}
+                  onChange={setShowPlans}
+                  description={tr('Display Claude Code plan files in a tab next to Notes')}
+                />
+                <SettingsCheckboxRow
+                  label={tr('Show prompt input box below terminal')}
+                  checked={store.showPromptInput}
+                  onChange={setShowPromptInput}
+                  description={tr(
+                    'When hidden, the terminal occupies the full panel and auto-focuses on activation',
+                  )}
+                />
+                <SettingsCheckboxRow
+                  label={tr('Show progress section in sidebar')}
+                  checked={store.showSidebarProgress}
+                  onChange={setShowSidebarProgress}
+                  description={tr(
+                    'Daily completed-task count and merged-line totals at the bottom of the sidebar',
+                  )}
+                />
+                <SettingsCheckboxRow
+                  label={tr('Show tips section in sidebar')}
+                  checked={store.showSidebarTips}
+                  onChange={setShowSidebarTips}
+                  description={tr('Keyboard shortcut hints at the bottom of the sidebar')}
+                />
+              </SettingsCard>
+
+              <SettingsCard
+                title={tr('Editor')}
+                description={tr(
+                  'CLI command to open worktree folders. Click the path bar in a task to open it.',
+                )}
+              >
+                <div style={controlRowStyle}>
+                  <label style={inlineLabelStyle}>
+                    <span style={{ 'font-size': '14px', color: theme.fg, 'white-space': 'nowrap' }}>
+                      {tr('Editor command')}
+                    </span>
+                    <input
+                      type="text"
+                      value={store.editorCommand}
+                      onInput={(e) => setEditorCommand(e.currentTarget.value)}
+                      placeholder={tr('e.g. code, cursor, zed, subl')}
+                      style={textInputStyle}
+                    />
+                  </label>
+                </div>
+              </SettingsCard>
+            </Match>
+
+            <Match when={activeSection() === 'appearance'}>
+              <SettingsCard
+                title={tr('Themes')}
+                description={tr(
+                  'Presets for light and dark, and which of the two the app follows.',
+                )}
+              >
+                <div style={segmentedGroupStyle}>
+                  <For each={['light', 'dark', 'system'] as AppearanceMode[]}>
+                    {(appearance) => (
+                      <button
+                        type="button"
+                        style={segmentedButtonStyle(store.appearanceMode === appearance)}
+                        onClick={() => setAppearanceMode(appearance)}
+                      >
+                        {tr(appearance)}
+                      </button>
+                    )}
+                  </For>
+                </div>
+
+                <div
                   style={{
-                    'font-size': '13px',
-                    color: theme.fgMuted,
-                    'font-family': "'JetBrains Mono', monospace",
-                    'min-width': '36px',
-                    'text-align': 'right',
+                    display: 'flex',
+                    'align-items': 'center',
+                    'justify-content': 'flex-end',
                   }}
                 >
-                  {Math.round(store.inactiveColumnOpacity * 100)}%
-                </span>
-              </div>
-              <input
-                type="range"
-                min="30"
-                max="100"
-                step="5"
-                value={store.inactiveColumnOpacity * 100}
-                onInput={(e) => setInactiveColumnOpacity(Number(e.currentTarget.value) / 100)}
-                style={{
-                  width: '100%',
-                  'accent-color': theme.accent,
-                  cursor: 'pointer',
-                }}
-              />
-              <div
-                style={{
-                  display: 'flex',
-                  'justify-content': 'space-between',
-                  'font-size': '11px',
-                  color: theme.fgSubtle,
-                }}
-              >
-                <span>{tr('More dimmed')}</span>
-                <span>{tr('No dimming')}</span>
-              </div>
-            </div>
-          </div>
-
-          <div style={{ display: 'flex', 'flex-direction': 'column', gap: '10px' }}>
-            <div
-              style={{
-                ...sectionLabelStyle,
-                'font-weight': '600',
-              }}
-            >
-              {tr('Custom Agents')}
-            </div>
-            <CustomAgentEditor />
-          </div>
-
-          <div style={{ display: 'flex', 'flex-direction': 'column', gap: '10px' }}>
-            <div
-              style={{
-                ...sectionLabelStyle,
-                'font-weight': '600',
-              }}
-            >
-              {tr('Terminal Font')}
-            </div>
-            <div class="settings-font-grid">
-              <For each={fonts()}>
-                {(font) => (
                   <button
                     type="button"
-                    class={`settings-font-card${store.terminalFont === font ? ' active' : ''}`}
-                    onClick={() => setTerminalFont(font)}
-                  >
-                    <span class="settings-font-name">{font}</span>
-                    <span
-                      class="settings-font-preview"
-                      style={{ 'font-family': getTerminalFontFamily(font) }}
-                    >
-                      AaBb 0Oo1Il →
-                    </span>
-                  </button>
-                )}
-              </For>
-            </div>
-            <Show when={LIGATURE_FONTS.has(store.terminalFont)}>
-              <span style={{ 'font-size': '12px', color: theme.fgSubtle }}>
-                {tr('This font includes ligatures which may impact rendering performance.')}
-              </span>
-            </Show>
-          </div>
-
-          <CjkFontSection />
-
-          <SettingsSection title="Huly">
-            <HulySettings />
-          </SettingsSection>
-
-          <SettingsSection title={tr('Diagnostics')}>
-            <SettingsCheckboxRow
-              label={tr('Verbose logging')}
-              checked={store.verboseLogging}
-              onChange={setVerboseLogging}
-              description={tr(
-                'Emit debug-level logs to the developer console. Verbose logs may include file paths, branch names, commit messages, IPC channel activity, and pty lifecycle events. Review the contents before sharing.',
-              )}
-            />
-          </SettingsSection>
-
-          <div style={{ display: 'flex', 'flex-direction': 'column', gap: '10px' }}>
-            <div style={{ ...sectionLabelStyle, 'font-weight': '600' }}>{tr('Updates')}</div>
-            <div
-              style={{
-                display: 'flex',
-                'flex-direction': 'column',
-                gap: '10px',
-                padding: '12px',
-                'border-radius': '8px',
-                background: theme.bgInput,
-                border: `1px solid ${theme.border}`,
-              }}
-            >
-              <div style={updateRowStyle}>
-                <span style={{ 'font-size': '14px', color: theme.fg }}>
-                  {tr('Current version')}
-                  <Show when={updateStatus().currentVersion}>
-                    {' '}
-                    <span style={{ color: theme.fgMuted }}>v{updateStatus().currentVersion}</span>
-                  </Show>
-                </span>
-                <Show when={canCheckForUpdates()}>
-                  <button
-                    type="button"
-                    disabled={updateStatus().phase === 'checking'}
-                    onClick={() => void checkForUpdates()}
-                    style={updateSecondaryButtonStyle(updateStatus().phase === 'checking')}
-                  >
-                    {updateStatus().phase === 'checking'
-                      ? tr('Checking…')
-                      : tr('Check for updates')}
-                  </button>
-                </Show>
-              </div>
-
-              <Switch>
-                <Match when={updateStatus().phase === 'unsupported'}>
-                  <span style={updateMessageStyle(theme.fgSubtle)}>
-                    {tr(
-                      'Automatic updates are not available for this build. Download the latest release from GitHub to update.',
-                    )}
-                  </span>
-                </Match>
-
-                <Match when={updateStatus().phase === 'offline'}>
-                  <span style={updateMessageStyle(theme.fgSubtle)}>
-                    {updateStatus().error ?? tr('Offline mode is on.')}
-                  </span>
-                </Match>
-
-                <Match when={updateStatus().phase === 'up-to-date'}>
-                  <span style={updateMessageStyle(theme.fgSubtle)}>
-                    {tr('You are on the latest version.')}
-                  </span>
-                </Match>
-
-                <Match when={updateStatus().phase === 'available'}>
-                  <span style={updateMessageStyle(theme.fg)}>
-                    {tr(
-                      'Version {version} is available. Use the update button in the sidebar to install.',
-                      {
-                        version: updateStatus().latestVersion ?? '',
-                      },
-                    )}
-                  </span>
-                </Match>
-
-                <Match when={updateStatus().phase === 'downloading'}>
-                  <div style={{ display: 'flex', 'flex-direction': 'column', gap: '6px' }}>
-                    <span style={updateMessageStyle(theme.fgSubtle)}>
-                      {tr('Downloading update… {percent}%', {
-                        percent: updateStatus().downloadPercent ?? 0,
-                      })}
-                    </span>
-                    <div
-                      style={{
-                        height: '6px',
-                        'border-radius': '3px',
-                        background: theme.bgElevated,
-                        overflow: 'hidden',
-                      }}
-                    >
-                      <div
-                        style={{
-                          height: '100%',
-                          width: `${updateStatus().downloadPercent}%`,
-                          background: theme.accent,
-                          transition: 'width 0.2s',
-                        }}
-                      />
-                    </div>
-                  </div>
-                </Match>
-
-                <Match when={updateStatus().phase === 'downloaded'}>
-                  <span style={updateMessageStyle(theme.fg)}>
-                    {tr(
-                      'Version {version} is downloaded. Use the update button in the sidebar to restart & install.',
-                      { version: updateStatus().latestVersion ?? '' },
-                    )}
-                  </span>
-                </Match>
-
-                <Match when={updateStatus().phase === 'error'}>
-                  <span style={updateMessageStyle(theme.error)}>
-                    {tr('Update check failed: {error}', { error: updateStatus().error ?? '' })}
-                  </span>
-                </Match>
-              </Switch>
-            </div>
-          </div>
-        </div>
-      </Show>
-
-      <Show when={activeTab() === 'themes'}>
-        <div
-          id="settings-tab-themes"
-          role="tabpanel"
-          aria-labelledby="settings-tabbutton-themes"
-          style={{ display: 'flex', 'flex-direction': 'column', gap: '18px' }}
-        >
-          {/* Language selector */}
-          <div style={{ display: 'flex', 'flex-direction': 'column', gap: '10px' }}>
-            <div style={{ ...sectionLabelStyle, 'font-weight': '600' }}>{tr('Language')}</div>
-            <div
-              style={{
-                display: 'flex',
-                gap: '4px',
-                background: theme.bgInput,
-                border: `1px solid ${theme.border}`,
-                'border-radius': '8px',
-                padding: '4px',
-              }}
-            >
-              <For each={LOCALES}>
-                {(locale) => (
-                  <button
-                    type="button"
-                    style={{
-                      flex: '1',
-                      padding: '6px',
-                      'border-radius': '6px',
-                      border: 'none',
-                      background: store.locale === locale ? theme.bgElevated : 'transparent',
-                      color: store.locale === locale ? theme.fg : theme.fgMuted,
-                      cursor: 'pointer',
-                      'font-size': '13px',
-                      'font-weight': store.locale === locale ? '600' : '400',
-                      transition: 'background 0.15s, color 0.15s',
+                    onClick={() => {
+                      setCloneCss(undefined);
+                      setEditingThemeId(null);
+                      setCustomThemeDialogOpen(true);
                     }}
-                    onClick={() => setLocale(locale)}
-                  >
-                    {/* Each language names itself — a reader who cannot read the
-                        current UI language still recognises their own. */}
-                    {LOCALE_LABELS[locale]}
-                  </button>
-                )}
-              </For>
-            </div>
-          </div>
-
-          {/* Appearance mode selector */}
-          <div style={{ display: 'flex', 'flex-direction': 'column', gap: '10px' }}>
-            <div style={{ ...sectionLabelStyle, 'font-weight': '600' }}>{tr('Appearance')}</div>
-            <div
-              style={{
-                display: 'flex',
-                gap: '4px',
-                background: theme.bgInput,
-                border: `1px solid ${theme.border}`,
-                'border-radius': '8px',
-                padding: '4px',
-              }}
-            >
-              <For each={['light', 'dark', 'system'] as AppearanceMode[]}>
-                {(mode) => (
-                  <button
-                    type="button"
                     style={{
-                      flex: '1',
-                      padding: '6px',
-                      'border-radius': '6px',
+                      background: theme.accent,
                       border: 'none',
-                      background: store.appearanceMode === mode ? theme.bgElevated : 'transparent',
-                      color: store.appearanceMode === mode ? theme.fg : theme.fgMuted,
+                      color: theme.accentText,
                       cursor: 'pointer',
-                      'font-size': '13px',
-                      'font-weight': store.appearanceMode === mode ? '600' : '400',
-                      transition: 'background 0.15s, color 0.15s',
+                      'font-size': '12px',
+                      'font-weight': '600',
+                      padding: '4px 12px',
+                      'border-radius': '5px',
                     }}
-                    onClick={() => setAppearanceMode(mode)}
                   >
-                    {tr(mode)}
+                    {tr('+ Create New')}
                   </button>
-                )}
-              </For>
-            </div>
-          </div>
+                </div>
 
-          {/* Theme section header with Create New button */}
-          <div
-            style={{
-              display: 'flex',
-              'align-items': 'center',
-              'justify-content': 'space-between',
-            }}
-          >
-            <div style={{ ...sectionLabelStyle, 'font-weight': '600' }}>{tr('Themes')}</div>
-            <button
-              type="button"
-              onClick={() => {
-                setCloneCss(undefined);
-                setEditingThemeId(null);
-                setCustomThemeDialogOpen(true);
-              }}
-              style={{
-                background: theme.accent,
-                border: 'none',
-                color: theme.accentText,
-                cursor: 'pointer',
-                'font-size': '12px',
-                'font-weight': '600',
-                padding: '4px 12px',
-                'border-radius': '5px',
-              }}
-            >
-              {tr('+ Create New')}
-            </button>
-          </div>
-
-          {/* Single mode (Light or Dark): built-ins + matching custom themes in one grid */}
-          <Show when={store.appearanceMode !== 'system'}>
-            <ThemeGrid
-              slot={store.appearanceMode as ThemeSlot}
-              onClonePreset={openCloneDialog}
-              onEditCustom={(themeId) => {
-                setCloneCss(undefined);
-                setEditingThemeId(themeId);
-                setCustomThemeDialogOpen(true);
-              }}
-            />
-          </Show>
-
-          {/* System mode: dual grids, each with built-ins + tone-matching custom themes */}
-          <Show when={store.appearanceMode === 'system'}>
-            <For each={['dark', 'light'] as const}>
-              {(slot) => (
-                <div style={{ display: 'flex', 'flex-direction': 'column', gap: '10px' }}>
-                  <div style={{ ...sectionLabelStyle, 'font-weight': '600' }}>
-                    {slot === 'dark' ? tr('Dark Theme') : tr('Light Theme')}
-                  </div>
+                {/* Single mode (Light or Dark): built-ins + matching custom themes in one grid */}
+                <Show when={store.appearanceMode !== 'system'}>
                   <ThemeGrid
-                    slot={slot}
+                    slot={store.appearanceMode as ThemeSlot}
                     onClonePreset={openCloneDialog}
                     onEditCustom={(themeId) => {
                       setCloneCss(undefined);
@@ -1534,16 +1152,558 @@ export function SettingsDialog(props: SettingsDialogProps) {
                       setCustomThemeDialogOpen(true);
                     }}
                   />
+                </Show>
+
+                {/* System mode: dual grids, each with built-ins + tone-matching custom themes */}
+                <Show when={store.appearanceMode === 'system'}>
+                  <For each={['dark', 'light'] as const}>
+                    {(slot) => (
+                      <div style={{ display: 'flex', 'flex-direction': 'column', gap: '10px' }}>
+                        <div style={{ ...sectionLabelStyle, 'font-weight': '600' }}>
+                          {slot === 'dark' ? tr('Dark Theme') : tr('Light Theme')}
+                        </div>
+                        <ThemeGrid
+                          slot={slot}
+                          onClonePreset={openCloneDialog}
+                          onEditCustom={(themeId) => {
+                            setCloneCss(undefined);
+                            setEditingThemeId(themeId);
+                            setCustomThemeDialogOpen(true);
+                          }}
+                        />
+                      </div>
+                    )}
+                  </For>
+                </Show>
+              </SettingsCard>
+
+              <SettingsCard
+                title={tr('Text rendering')}
+                description={tr('Applies antialiased, grayscale font smoothing to the interface.')}
+              >
+                <SettingsCheckboxRow
+                  label={tr('Font smoothing')}
+                  checked={store.fontSmoothing}
+                  onChange={setFontSmoothing}
+                  description={tr('Enable antialiasing and geometric text rendering')}
+                  align="flex-start"
+                />
+              </SettingsCard>
+
+              <AppIconSection />
+
+              <WindowOpacitySection />
+
+              <SettingsCard
+                title={tr('Focus Dimming')}
+                description={tr('Dims every task column except the active one.')}
+              >
+                <div style={{ ...controlRowStyle, gap: '8px' }}>
+                  <div
+                    style={{
+                      display: 'flex',
+                      'align-items': 'center',
+                      'justify-content': 'space-between',
+                    }}
+                  >
+                    <span style={{ 'font-size': '14px', color: theme.fg }}>
+                      {tr('Inactive column opacity')}
+                    </span>
+                    <span
+                      style={{
+                        'font-size': '13px',
+                        color: theme.fgMuted,
+                        'font-family': "'JetBrains Mono', monospace",
+                        'min-width': '36px',
+                        'text-align': 'right',
+                      }}
+                    >
+                      {Math.round(store.inactiveColumnOpacity * 100)}%
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="30"
+                    max="100"
+                    step="5"
+                    value={store.inactiveColumnOpacity * 100}
+                    onInput={(e) => setInactiveColumnOpacity(Number(e.currentTarget.value) / 100)}
+                    style={{
+                      width: '100%',
+                      'accent-color': theme.accent,
+                      cursor: 'pointer',
+                    }}
+                  />
+                  <div
+                    style={{
+                      display: 'flex',
+                      'justify-content': 'space-between',
+                      'font-size': '11px',
+                      color: theme.fgSubtle,
+                    }}
+                  >
+                    <span>{tr('More dimmed')}</span>
+                    <span>{tr('No dimming')}</span>
+                  </div>
                 </div>
-              )}
-            </For>
-          </Show>
+              </SettingsCard>
+            </Match>
 
-          <AppIconSection />
+            <Match when={activeSection() === 'terminal'}>
+              <SettingsCard
+                title={tr('Terminal Font')}
+                description={tr('Font used to draw every terminal panel.')}
+              >
+                <div class="settings-font-grid">
+                  <For each={fonts()}>
+                    {(font) => (
+                      <button
+                        type="button"
+                        class={`settings-font-card${store.terminalFont === font ? ' active' : ''}`}
+                        onClick={() => setTerminalFont(font)}
+                      >
+                        <span class="settings-font-name">{font}</span>
+                        <span
+                          class="settings-font-preview"
+                          style={{ 'font-family': getTerminalFontFamily(font) }}
+                        >
+                          AaBb 0Oo1Il →
+                        </span>
+                      </button>
+                    )}
+                  </For>
+                </div>
+                <Show when={LIGATURE_FONTS.has(store.terminalFont)}>
+                  <span style={{ 'font-size': '12px', color: theme.fgSubtle }}>
+                    {tr('This font includes ligatures which may impact rendering performance.')}
+                  </span>
+                </Show>
+              </SettingsCard>
 
-          <WindowOpacitySection />
+              <CjkFontSection />
+            </Match>
+
+            <Match when={activeSection() === 'tasks'}>
+              <SettingsCard
+                title={tr('New Task Defaults')}
+                description={tr(
+                  'How the New Task dialog is pre-filled. Every task can still be changed before it starts.',
+                )}
+              >
+                <SettingsCheckboxRow
+                  label={tr('Steps tracking')}
+                  checked={store.defaultStepsEnabled}
+                  onChange={setDefaultStepsEnabled}
+                  description={tr('Pre-tick Steps tracking in the New Task dialog')}
+                />
+                <SettingsCheckboxRow
+                  label={tr('Dangerously skip all confirms by default')}
+                  checked={store.defaultSkipPermissions}
+                  onChange={setDefaultSkipPermissions}
+                  description={tr(
+                    'Pre-tick skip-permissions for every new task. The agent will run without asking for confirmation. Only honoured when the selected agent supports it.',
+                  )}
+                />
+                <Show when={store.coordinatorModeEnabled}>
+                  <SettingsCheckboxRow
+                    label={tr('Propagate skip-permissions to sub-tasks')}
+                    checked={store.defaultPropagateSkipPermissions}
+                    onChange={setDefaultPropagateSkipPermissions}
+                    description={tr(
+                      'Pre-tick Propagate to sub-tasks when both coordinator mode and skip-permissions are enabled for a task',
+                    )}
+                  />
+                </Show>
+              </SettingsCard>
+
+              <SettingsCard
+                title={tr('Custom Agents')}
+                description={tr(
+                  'CLI agents added here appear in the agent picker alongside the built-in ones.',
+                )}
+              >
+                <CustomAgentEditor />
+              </SettingsCard>
+
+              <Show when={store.dockerAvailable}>
+                <SettingsCard
+                  title={tr('Docker Isolation')}
+                  description={tr(
+                    'Docker image used when "Run in Docker container" is enabled for a task. The agent runs inside the container with only the project directory mounted.',
+                  )}
+                >
+                  <div style={controlRowStyle}>
+                    <label style={inlineLabelStyle}>
+                      <span
+                        style={{ 'font-size': '14px', color: theme.fg, 'white-space': 'nowrap' }}
+                      >
+                        {tr('Default image')}
+                      </span>
+                      <input
+                        type="text"
+                        value={store.dockerImage}
+                        onInput={(e) => setDockerImage(e.currentTarget.value)}
+                        placeholder={DEFAULT_DOCKER_IMAGE}
+                        style={textInputStyle}
+                      />
+                    </label>
+                    <div style={{ 'font-size': '11px', color: theme.fgMuted, 'margin-top': '4px' }}>
+                      {/* The path is a styled <code> element, not a string, so the
+                          sentence renders from segments and the translation decides
+                          which side of it the path falls on. */}
+                      <For
+                        each={trParts(
+                          'Projects with a {path} will use a project-specific image instead.',
+                        )}
+                      >
+                        {(segment) =>
+                          segment.kind === 'text' ? (
+                            segment.value
+                          ) : (
+                            <code
+                              style={{
+                                'font-family': "'JetBrains Mono', monospace",
+                                'font-size': '11px',
+                              }}
+                            >
+                              {PROJECT_DOCKERFILE_RELATIVE_PATH}
+                            </code>
+                          )
+                        }
+                      </For>
+                    </div>
+                  </div>
+                  <SettingsCheckboxRow
+                    label={tr('Share agent auth across Linux containers')}
+                    checked={store.shareDockerAgentAuth}
+                    onChange={setShareDockerAgentAuth}
+                    description={tr(
+                      'Persist agent credentials in a user-owned host directory so you only need to sign in once per agent type. Auth on first run is saved automatically for future containers.',
+                    )}
+                  />
+                </SettingsCard>
+              </Show>
+            </Match>
+
+            <Match when={activeSection() === 'ai'}>
+              <SettingsCard
+                title={tr('Ask about Code')}
+                description={tr(
+                  'Which model answers questions about text you select in the diff and plan views.',
+                )}
+              >
+                <div style={controlRowStyle}>
+                  <label style={inlineLabelStyle}>
+                    <span style={{ 'font-size': '13px', color: theme.fg, 'white-space': 'nowrap' }}>
+                      {tr('LLM provider')}
+                    </span>
+                    <select
+                      value={store.askCodeProvider}
+                      onChange={(e) =>
+                        setAskCodeProvider(e.currentTarget.value as 'claude' | 'minimax')
+                      }
+                      style={{
+                        flex: '1',
+                        background: theme.taskPanelBg,
+                        border: `1px solid ${theme.border}`,
+                        'border-radius': '6px',
+                        padding: '6px 10px',
+                        color: theme.fg,
+                        'font-size': '13px',
+                        outline: 'none',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <option value="claude">Claude Code (claude CLI)</option>
+                      <option value="minimax">MiniMax (M2.7)</option>
+                    </select>
+                  </label>
+                  <Show when={store.askCodeProvider === 'minimax'}>
+                    <label style={{ ...inlineLabelStyle, 'margin-top': '4px' }}>
+                      <span
+                        style={{ 'font-size': '13px', color: theme.fg, 'white-space': 'nowrap' }}
+                      >
+                        {tr('MiniMax API key')}
+                      </span>
+                      <input
+                        type="password"
+                        onInput={(e) => setMinimaxApiKey(e.currentTarget.value)}
+                        placeholder={tr('Enter your MINIMAX_API_KEY (stored in memory only)')}
+                        style={{ ...textInputStyle, 'font-size': '13px' }}
+                      />
+                    </label>
+                  </Show>
+                  <span style={{ 'font-size': '11px', color: theme.fgSubtle }}>
+                    {store.askCodeProvider === 'minimax'
+                      ? tr(
+                          'Uses MiniMax M2.7 (204K context) via the OpenAI-compatible API — no Claude Code CLI required.',
+                        )
+                      : tr(
+                          'Uses the claude CLI to answer questions about selected code. Requires Claude Code to be installed.',
+                        )}
+                  </span>
+                </div>
+              </SettingsCard>
+
+              <SettingsCard
+                title={tr('AI Usage')}
+                description={tr(
+                  'Token counts read from AI CLI logs already on this machine. Nothing is requested from a vendor.',
+                )}
+              >
+                <TokenUsageSection />
+              </SettingsCard>
+            </Match>
+
+            <Match when={activeSection() === 'privacy'}>
+              <SettingsCard
+                title={tr('Privacy')}
+                description={tr('What leaves this machine, and what is written to disk.')}
+              >
+                <SettingsCheckboxRow
+                  label={tr('Offline mode')}
+                  checked={store.offlineMode}
+                  onChange={setOfflineMode}
+                  description={tr(
+                    'Stop Parallel Code making any network request of its own: update checks, PR check polling, Huly sync, inline code Q&A, Docker image builds, starting a Docker task whose image is not on this machine, git push, and external images in rendered markdown. Each one reports that offline mode is on rather than failing silently. This does not cover the AI CLIs you run as agents — those talk to their own vendors under their own configuration, and Parallel Code neither can nor should intercept them.',
+                  )}
+                  align="flex-start"
+                />
+                <SettingsCheckboxRow
+                  label={tr('Record session transcripts')}
+                  checked={store.transcriptEnabled}
+                  onChange={setTranscriptEnabled}
+                  description={tr(
+                    'Write a timestamped record of each task — agent starts and exits, step updates, attention changes, merges, PR check results and commits — to transcripts/<taskId>.jsonl in the application data directory, so a task can be reviewed after a restart. Nothing leaves your machine. Known secret shapes (API keys, tokens, private key headers) are masked before anything is written, but a transcript quotes your source code and instructions, so treat it as sensitive: masking catches shapes, not meaning. Kept for 30 days or 5000 events per task, whichever comes first.',
+                  )}
+                  align="flex-start"
+                />
+                <TranscriptClearRow />
+              </SettingsCard>
+
+              <SettingsCard
+                title={tr('Diagnostics')}
+                description={tr('Extra logging for reporting a problem. Off by default.')}
+              >
+                <SettingsCheckboxRow
+                  label={tr('Verbose logging')}
+                  checked={store.verboseLogging}
+                  onChange={setVerboseLogging}
+                  description={tr(
+                    'Emit debug-level logs to the developer console. Verbose logs may include file paths, branch names, commit messages, IPC channel activity, and pty lifecycle events. Review the contents before sharing.',
+                  )}
+                />
+              </SettingsCard>
+            </Match>
+
+            <Match when={activeSection() === 'integrations'}>
+              <SettingsCard
+                title="Huly"
+                description={tr(
+                  'Connect a Huly workspace so a task can start from an issue. The token is encrypted by the OS keychain and never read back for display.',
+                )}
+              >
+                <HulySettings />
+              </SettingsCard>
+            </Match>
+
+            <Match when={activeSection() === 'updates'}>
+              <SettingsCard
+                title={tr('Updates')}
+                description={tr('Which version is running, and whether a newer one is available.')}
+              >
+                <div style={{ ...controlRowStyle, gap: '10px', padding: '12px' }}>
+                  <div style={updateRowStyle}>
+                    <span style={{ 'font-size': '14px', color: theme.fg }}>
+                      {tr('Current version')}
+                      <Show when={updateStatus().currentVersion}>
+                        {' '}
+                        <span style={{ color: theme.fgMuted }}>
+                          v{updateStatus().currentVersion}
+                        </span>
+                      </Show>
+                    </span>
+                    <Show when={canCheckForUpdates()}>
+                      <button
+                        type="button"
+                        disabled={updateStatus().phase === 'checking'}
+                        onClick={() => void checkForUpdates()}
+                        style={updateSecondaryButtonStyle(updateStatus().phase === 'checking')}
+                      >
+                        {updateStatus().phase === 'checking'
+                          ? tr('Checking…')
+                          : tr('Check for updates')}
+                      </button>
+                    </Show>
+                  </div>
+
+                  <Switch>
+                    <Match when={updateStatus().phase === 'unsupported'}>
+                      <span style={updateMessageStyle(theme.fgSubtle)}>
+                        {tr(
+                          'Automatic updates are not available for this build. Download the latest release from GitHub to update.',
+                        )}
+                      </span>
+                    </Match>
+
+                    <Match when={updateStatus().phase === 'offline'}>
+                      <span style={updateMessageStyle(theme.fgSubtle)}>
+                        {updateStatus().error ?? tr('Offline mode is on.')}
+                      </span>
+                    </Match>
+
+                    <Match when={updateStatus().phase === 'up-to-date'}>
+                      <span style={updateMessageStyle(theme.fgSubtle)}>
+                        {tr('You are on the latest version.')}
+                      </span>
+                    </Match>
+
+                    <Match when={updateStatus().phase === 'available'}>
+                      <span style={updateMessageStyle(theme.fg)}>
+                        {tr(
+                          'Version {version} is available. Use the update button in the sidebar to install.',
+                          {
+                            version: updateStatus().latestVersion ?? '',
+                          },
+                        )}
+                      </span>
+                    </Match>
+
+                    <Match when={updateStatus().phase === 'downloading'}>
+                      <div style={{ display: 'flex', 'flex-direction': 'column', gap: '6px' }}>
+                        <span style={updateMessageStyle(theme.fgSubtle)}>
+                          {tr('Downloading update… {percent}%', {
+                            percent: updateStatus().downloadPercent ?? 0,
+                          })}
+                        </span>
+                        <div
+                          style={{
+                            height: '6px',
+                            'border-radius': '3px',
+                            background: theme.bgElevated,
+                            overflow: 'hidden',
+                          }}
+                        >
+                          <div
+                            style={{
+                              height: '100%',
+                              width: `${updateStatus().downloadPercent}%`,
+                              background: theme.accent,
+                              transition: 'width 0.2s',
+                            }}
+                          />
+                        </div>
+                      </div>
+                    </Match>
+
+                    <Match when={updateStatus().phase === 'downloaded'}>
+                      <span style={updateMessageStyle(theme.fg)}>
+                        {tr(
+                          'Version {version} is downloaded. Use the update button in the sidebar to restart & install.',
+                          { version: updateStatus().latestVersion ?? '' },
+                        )}
+                      </span>
+                    </Match>
+
+                    <Match when={updateStatus().phase === 'error'}>
+                      <span style={updateMessageStyle(theme.error)}>
+                        {tr('Update check failed: {error}', { error: updateStatus().error ?? '' })}
+                      </span>
+                    </Match>
+                  </Switch>
+                </div>
+              </SettingsCard>
+            </Match>
+
+            <Match when={activeSection() === 'experimental'}>
+              <SettingsCard
+                title={tr('Coordinator')}
+                description={tr('Lets one task spawn and drive sub-tasks through MCP tools.')}
+              >
+                <SettingsCheckboxRow
+                  label={tr('Coordinator mode')}
+                  checked={store.coordinatorModeEnabled}
+                  onChange={setCoordinatorModeEnabled}
+                  description={tr(
+                    'Enable the Coordinator option when creating tasks. Coordinators can spawn sub-tasks, send prompts, and merge branches automatically via MCP tools. Requires app restart to fully disable.',
+                  )}
+                />
+                <div style={controlRowStyle}>
+                  <label style={inlineLabelStyle}>
+                    <span style={{ 'font-size': '14px', color: theme.fg, 'white-space': 'nowrap' }}>
+                      {tr('Coordinator notification delay (seconds)')}
+                    </span>
+                    <input
+                      type="number"
+                      min="5"
+                      max="300"
+                      step="5"
+                      value={Math.round(store.coordinatorNotificationDelayMs / 1000)}
+                      onInput={(e) => {
+                        const seconds = Number(e.currentTarget.value);
+                        if (Number.isFinite(seconds)) {
+                          setCoordinatorNotificationDelayMs(seconds * 1000);
+                        }
+                      }}
+                      style={{
+                        ...textInputStyle,
+                        flex: '0 0 auto',
+                        width: '80px',
+                        'text-align': 'right',
+                      }}
+                    />
+                  </label>
+                  <span style={{ 'font-size': '12px', color: theme.fgSubtle }}>
+                    {tr(
+                      'How long the coordinator waits before firing a notification after a sub-task completes. Default: 60s. Failed sub-tasks use max(10s, delay ÷ 4).',
+                    )}
+                  </span>
+                </div>
+              </SettingsCard>
+            </Match>
+          </Switch>
         </div>
-      </Show>
+      </div>
+
+      {/*
+        The footer says what the dialog does, and the button does what it says.
+        Nothing here is staged: every control above writes to the store on
+        change, and `setupAutosave` persists the result — so a "Save" button
+        would be a button that saves nothing, and a "Cancel" button would be a
+        lie about what closing does. The honest pair is one sentence and one
+        button that closes.
+      */}
+      <div
+        style={{
+          display: 'flex',
+          'align-items': 'center',
+          'justify-content': 'space-between',
+          gap: '12px',
+          padding: '14px 24px',
+          'border-top': `1px solid ${theme.border}`,
+          'flex-shrink': '0',
+        }}
+      >
+        <span style={{ 'font-size': '12px', color: theme.fgSubtle }}>
+          {tr('Changes apply immediately and are saved automatically.')}
+        </span>
+        <button
+          type="button"
+          onClick={() => props.onClose()}
+          style={{
+            background: theme.accent,
+            border: 'none',
+            color: theme.accentText,
+            cursor: 'pointer',
+            'font-size': '13px',
+            'font-weight': '600',
+            padding: '7px 20px',
+            'border-radius': '7px',
+          }}
+        >
+          {tr('Close')}
+        </button>
+      </div>
 
       <CustomThemeDialog
         open={customThemeDialogOpen()}
@@ -1551,79 +1711,6 @@ export function SettingsDialog(props: SettingsDialogProps) {
         initialCss={cloneCss()}
         onClose={() => setCustomThemeDialogOpen(false)}
       />
-
-      <Show when={activeTab() === 'experimental'}>
-        <div
-          id="settings-tab-experimental"
-          role="tabpanel"
-          aria-labelledby="settings-tabbutton-experimental"
-          style={{ display: 'flex', 'flex-direction': 'column', gap: '18px' }}
-        >
-          <SettingsSection title={tr('Coordinator')}>
-            <SettingsCheckboxRow
-              label={tr('Coordinator mode')}
-              checked={store.coordinatorModeEnabled}
-              onChange={setCoordinatorModeEnabled}
-              description={tr(
-                'Enable the Coordinator option when creating tasks. Coordinators can spawn sub-tasks, send prompts, and merge branches automatically via MCP tools. Requires app restart to fully disable.',
-              )}
-            />
-            <div
-              style={{
-                display: 'flex',
-                'flex-direction': 'column',
-                gap: '6px',
-                padding: '8px 12px',
-                'border-radius': '8px',
-                background: theme.bgInput,
-                border: `1px solid ${theme.border}`,
-              }}
-            >
-              <label
-                style={{
-                  display: 'flex',
-                  'align-items': 'center',
-                  gap: '10px',
-                }}
-              >
-                <span style={{ 'font-size': '14px', color: theme.fg, 'white-space': 'nowrap' }}>
-                  {tr('Coordinator notification delay (seconds)')}
-                </span>
-                <input
-                  type="number"
-                  min="5"
-                  max="300"
-                  step="5"
-                  value={Math.round(store.coordinatorNotificationDelayMs / 1000)}
-                  onInput={(e) => {
-                    const seconds = Number(e.currentTarget.value);
-                    if (Number.isFinite(seconds)) {
-                      setCoordinatorNotificationDelayMs(seconds * 1000);
-                    }
-                  }}
-                  style={{
-                    width: '80px',
-                    background: theme.taskPanelBg,
-                    border: `1px solid ${theme.border}`,
-                    'border-radius': '6px',
-                    padding: '6px 10px',
-                    color: theme.fg,
-                    'font-size': '14px',
-                    'font-family': "'JetBrains Mono', monospace",
-                    outline: 'none',
-                    'text-align': 'right',
-                  }}
-                />
-              </label>
-              <span style={{ 'font-size': '12px', color: theme.fgSubtle }}>
-                {tr(
-                  'How long the coordinator waits before firing a notification after a sub-task completes. Default: 60s. Failed sub-tasks use max(10s, delay ÷ 4).',
-                )}
-              </span>
-            </div>
-          </SettingsSection>
-        </div>
-      </Show>
     </Dialog>
   );
 }
