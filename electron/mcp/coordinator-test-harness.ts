@@ -1,5 +1,5 @@
 import type { BrowserWindow } from 'electron';
-import { vi } from 'vitest';
+import { afterEach, vi } from 'vitest';
 
 export type BackendTaskFixture = {
   id: string;
@@ -328,9 +328,51 @@ export function resetCoordinatorMocks(): void {
   mockDeleteBackendTask.mockResolvedValue(undefined);
 }
 
+/**
+ * Prompt-delivery timers a Coordinator owns and re-arms on its own.
+ *
+ * createTask arms a real 1.5s initial-prompt timer as a side effect, and
+ * tryDeliverInitialPrompt re-arms it every 1.5s for as long as the agent has
+ * not reported a ready prompt. A test that creates a task and never closes it
+ * therefore leaves a self-perpetuating real timer running past its own end.
+ *
+ * Alone the file finishes in well under 1.5s so those timers never come due.
+ * In the full suite the same file competes for CPU with every other file, its
+ * wall clock stretches, and a timer armed by one test fires inside a later one
+ * — calling writeToAgent/notifyRenderer for a stale agent against the same
+ * file-global mocks the later test is asserting on. That is a test-only
+ * lifecycle gap, not a product defect: production has one Coordinator for the
+ * lifetime of the process. Disarming at the test boundary closes it.
+ */
+type CoordinatorPromptTimers = {
+  initialPromptTimers: Map<string, ReturnType<typeof setTimeout>>;
+  queuedPromptFlushTimers: Map<string, ReturnType<typeof setTimeout>>;
+};
+
+const liveCoordinators = new Set<CoordinatorPromptTimers>();
+
+afterEach(() => {
+  for (const coordinator of liveCoordinators) {
+    for (const timer of coordinator.initialPromptTimers.values()) clearTimeout(timer);
+    coordinator.initialPromptTimers.clear();
+    for (const timer of coordinator.queuedPromptFlushTimers.values()) clearTimeout(timer);
+    coordinator.queuedPromptFlushTimers.clear();
+  }
+  liveCoordinators.clear();
+});
+
 export async function setupCoordinatorHarness(options: CoordinatorHarnessOptions = {}) {
   resetCoordinatorMocks();
-  const { Coordinator } = await import('./coordinator.js');
+  const { Coordinator: UntrackedCoordinator } = await import('./coordinator.js');
+  // Construct trap rather than a subclass so instanceof, name and the public
+  // shape stay exactly as the tests already see them.
+  const Coordinator = new Proxy(UntrackedCoordinator, {
+    construct(target, args, newTarget) {
+      const instance = Reflect.construct(target, args, newTarget);
+      liveCoordinators.add(instance as unknown as CoordinatorPromptTimers);
+      return instance;
+    },
+  });
   const coordinator = new Coordinator();
   registerDefaultCoordinator(coordinator, options);
   return {

@@ -34,6 +34,7 @@ import {
   getSpawnHandler,
   getOutputCb,
   getAgentId,
+  getAgentTextWrites,
   encodeAgentOutput as encode,
   encodeAgentBytes as encodeBytes,
   emitWorkThenIdle,
@@ -2787,6 +2788,7 @@ describe('Coordinator deregisterCoordinator', () => {
     try {
       coordinator.registerCoordinator('coord-1', 'proj-1');
       await coordinator.createTask({ name: 'test', prompt: 'do', coordinatorTaskId: 'coord-1' });
+      const agentId = getAgentId();
       const outputCb = getOutputCb();
 
       outputCb(encode(READY_AGENT_FRAME_FIXTURES[0].frame));
@@ -2799,10 +2801,11 @@ describe('Coordinator deregisterCoordinator', () => {
 
       expect(c.initialPromptTimers.has('task-1')).toBe(false);
       await vi.advanceTimersByTimeAsync(2_000);
-      expect(mockWriteToAgent).not.toHaveBeenCalledWith(
-        expect.any(String),
-        expect.stringContaining('do'),
-      );
+      // Scoped to this task's own agent: agent ids are per-createTask UUIDs, so
+      // a write from any other coordinator cannot enter this set. Asserting the
+      // set is empty is stricter than "no write containing the prompt" — it
+      // says nothing at all reached the agent being torn down.
+      expect(getAgentTextWrites(agentId)).toEqual([]);
     } finally {
       vi.useRealTimers();
     }
@@ -3956,6 +3959,7 @@ describe('Coordinator cleanupTask — failure resilience', () => {
       vi.mocked(mockDeleteTask).mockRejectedValueOnce(new Error('delete failed'));
 
       await coordinator.createTask({ name: 'test', prompt: 'do', coordinatorTaskId: 'coord-1' });
+      const agentId = getAgentId();
       const outputCb = getOutputCb();
       outputCb(encode(READY_AGENT_FRAME_FIXTURES[0].frame));
       const c = coordinator as unknown as {
@@ -3967,10 +3971,13 @@ describe('Coordinator cleanupTask — failure resilience', () => {
 
       expect(c.initialPromptTimers.has('task-1')).toBe(false);
       await vi.advanceTimersByTimeAsync(2_000);
-      expect(mockWriteToAgent).not.toHaveBeenCalledWith(
-        expect.any(String),
-        expect.stringContaining('do'),
-      );
+      // Scoped to this task's own agent: agent ids are per-createTask UUIDs, so
+      // a write from any other coordinator cannot enter this set. Asserting the
+      // set is empty is stricter than "no write containing the prompt" — it
+      // says nothing at all reached the agent being torn down.
+      expect(getAgentTextWrites(agentId)).toEqual([]);
+      // The prompt is still pending, so it was cancelled rather than delivered.
+      expect(coordinator.getTask('task-1')?.initialPrompt).toContain('do');
       expect(coordinator.getTask('task-1')).toBeDefined();
     } finally {
       vi.useRealTimers();
@@ -4042,6 +4049,7 @@ describe('Coordinator cleanupTask — failure resilience', () => {
     vi.useFakeTimers();
     try {
       await coordinator.createTask({ name: 'test', prompt: 'do', coordinatorTaskId: 'coord-1' });
+      const agentId = getAgentId();
       const outputCb = getOutputCb();
 
       outputCb(encode(READY_AGENT_FRAME_FIXTURES[0].frame));
@@ -4054,10 +4062,11 @@ describe('Coordinator cleanupTask — failure resilience', () => {
 
       expect(c.initialPromptTimers.has('task-1')).toBe(false);
       await vi.advanceTimersByTimeAsync(2_000);
-      expect(mockWriteToAgent).not.toHaveBeenCalledWith(
-        expect.any(String),
-        expect.stringContaining('do'),
-      );
+      // Scoped to this task's own agent: agent ids are per-createTask UUIDs, so
+      // a write from any other coordinator cannot enter this set. Asserting the
+      // set is empty is stricter than "no write containing the prompt" — it
+      // says nothing at all reached the agent being torn down.
+      expect(getAgentTextWrites(agentId)).toEqual([]);
     } finally {
       vi.useRealTimers();
     }
@@ -4095,6 +4104,7 @@ describe('Coordinator cleanupTask — failure resilience', () => {
     vi.useFakeTimers();
     try {
       await coordinator.createTask({ name: 'test', prompt: 'do', coordinatorTaskId: 'coord-1' });
+      const agentId = getAgentId();
       const outputCb = getOutputCb();
 
       outputCb(encode(READY_AGENT_FRAME_FIXTURES[0].frame));
@@ -4107,10 +4117,11 @@ describe('Coordinator cleanupTask — failure resilience', () => {
 
       expect(c.initialPromptTimers.has('task-1')).toBe(false);
       await vi.advanceTimersByTimeAsync(2_000);
-      expect(mockWriteToAgent).not.toHaveBeenCalledWith(
-        expect.any(String),
-        expect.stringContaining('do'),
-      );
+      // Scoped to this task's own agent: agent ids are per-createTask UUIDs, so
+      // a write from any other coordinator cannot enter this set. Asserting the
+      // set is empty is stricter than "no write containing the prompt" — it
+      // says nothing at all reached the agent being torn down.
+      expect(getAgentTextWrites(agentId)).toEqual([]);
     } finally {
       vi.useRealTimers();
     }
