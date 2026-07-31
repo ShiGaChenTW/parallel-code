@@ -26,6 +26,7 @@ import { EditProjectDialog } from './EditProjectDialog';
 import { TaskTitleBar } from './TaskTitleBar';
 import { TaskBranchInfoBar } from './TaskBranchInfoBar';
 import { TaskNotesBody } from './TaskNotesBody';
+import { TaskTokenUsagePanel } from './TaskTokenUsagePanel';
 import { TaskChangedFilesSection } from './TaskChangedFilesSection';
 import { isCommitHashSelection, type CommitSelection } from './CommitNavBar';
 import { TaskShellSection } from './TaskShellSection';
@@ -66,6 +67,12 @@ interface TaskPanelProps {
 const STEPS_PANEL_AUTO_MAX = 'min(240px, 33vh)';
 const CHANGED_FILES_PANEL_AUTO_MAX = 'min(300px, 33vh)';
 const NOTES_PANEL_AUTO_MAX = 'min(400px, 33vh)';
+// Lowest ceiling in the family, because the card holds the least: one bar, one
+// legend, four numbers and a footnote — ~145 px at the narrowest column this
+// layout allows (the 360 px split-right minimum), so 200 px is headroom rather
+// than a clip. The ordering across the four caps tracks how much reading each
+// card holds, and is the only thing that makes the numbers mean anything.
+const TOKEN_USAGE_PANEL_AUTO_MAX = 'min(200px, 33vh)';
 
 export function TaskPanel(props: TaskPanelProps) {
   const [showCloseConfirm, setShowCloseConfirm] = createSignal(false);
@@ -308,10 +315,16 @@ export function TaskPanel(props: TaskPanelProps) {
     <TaskNotesBody
       task={props.task}
       agentId={firstAgentId()}
-      showTokenUsage={showTokenUsage()}
       onPlanFullscreen={() => setPlanFullscreen(true)}
     />
   );
+  // Created eagerly like its siblings, which means it stays mounted (detached)
+  // while the card is toggled off, where it used to be built on demand by a
+  // `<Show>` in the notes body. That is the price of appearing in both layout
+  // trees: built inside `content()` it would be rebuilt on every split-mode
+  // flip. `stepsSectionEl` and `changedFilesEl` already pay it while sitting
+  // out of a tree, and both are heavier — they poll.
+  const tokenUsageEl = <TaskTokenUsagePanel worktreePath={props.task.worktreePath} />;
   const changedFilesEl = (
     <TaskChangedFilesSection
       task={props.task}
@@ -420,6 +433,23 @@ export function TaskPanel(props: TaskPanelProps) {
     minSize: 100,
     maxAutoSize: CHANGED_FILES_PANEL_AUTO_MAX,
     content: () => changedFilesEl,
+  };
+
+  // Deliberately NOT gated on `isGitUnavailable()`. Usage is attributed by
+  // worktree path out of the CLIs' own logs and has nothing to do with git
+  // isolation — a landed task still spent what it spent, and "what did this
+  // line of work cost" is a question you ask after landing more often than
+  // during. The one condition it does share with the title-bar toggle is
+  // `worktreePath`: without a path there is nothing to attribute, the button
+  // hides, and a card left behind by a task that lost its worktree mid-session
+  // would have no control able to close it.
+  const showTokenUsageCard = () => showTokenUsage() && !!props.task.worktreePath;
+
+  const tokenUsageChild: PanelChild = {
+    id: 'token-usage',
+    minSize: 60,
+    maxAutoSize: TOKEN_USAGE_PANEL_AUTO_MAX,
+    content: () => tokenUsageEl,
   };
 
   // Stack-mode row containing notes (absorbs horizontally) and changed files.
@@ -578,6 +608,12 @@ export function TaskPanel(props: TaskPanelProps) {
               persistKey={`task:${props.task.id}`}
               absorberIds={['notes-files', 'ai-terminal']}
               children={[
+                // Topmost, so the card sits in the same slot in both trees and
+                // crossing the split threshold does not shuffle the column. In
+                // this tree it is above the notes/changed-files row, because
+                // that row is one child: there is no position "above notes"
+                // that is not also above changed files.
+                ...(showTokenUsageCard() ? [tokenUsageChild] : []),
                 notesAndFilesChild,
                 shellSectionChild,
                 aiTerminalChild,
@@ -619,6 +655,7 @@ export function TaskPanel(props: TaskPanelProps) {
                     persistKey={`task:${props.task.id}:split-right`}
                     absorberIds={['shell-section']}
                     children={[
+                      ...(showTokenUsageCard() ? [tokenUsageChild] : []),
                       ...(isGitUnavailable() ? [] : [changedFilesChild]),
                       notesChild,
                       ...(props.task.stepsEnabled ? [stepsSectionChild] : []),

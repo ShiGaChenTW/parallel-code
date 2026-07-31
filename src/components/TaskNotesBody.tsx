@@ -24,15 +24,12 @@ import {
   transcriptEmptyMessage,
   transcriptSummaryLine,
 } from '../lib/transcript-timeline';
-import { TaskTokenUsagePanel } from './TaskTokenUsagePanel';
 import type { TranscriptEvent } from '../ipc/types';
 import type { Task } from '../store/types';
 
 interface TaskNotesBodyProps {
   task: Task;
   agentId: string;
-  /** Whether the per-worktree token panel is expanded above the notes. */
-  showTokenUsage: boolean;
   onPlanFullscreen: () => void;
 }
 
@@ -194,14 +191,6 @@ export function TaskNotesBody(props: TaskNotesBodyProps) {
       }}
       onClick={() => setTaskFocusedPanel(props.task.id, 'notes')}
     >
-      {/* Token usage sits above the tab strip, not inside it: it is a property
-          of the task rather than another kind of note, and putting it in the
-          strip would make it compete with Notes for the same space instead of
-          pushing the notes down the way the title-bar toggle implies. */}
-      <Show when={props.showTokenUsage}>
-        <TaskTokenUsagePanel worktreePath={props.task.worktreePath} />
-      </Show>
-
       {/* A lone Notes tab is noise, so the strip only appears once there is
           something to switch to. */}
       <Show when={tabs().length > 1}>
