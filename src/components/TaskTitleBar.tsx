@@ -32,6 +32,8 @@ interface TaskTitleBarProps {
   onPush: () => void;
   pushing: boolean;
   pushSuccess: boolean;
+  tokenUsageOpen: boolean;
+  onToggleTokenUsage: () => void;
   onTitleEditRef: (h: EditableTextHandle) => void;
 }
 
@@ -220,6 +222,23 @@ export function TaskTitleBar(props: TaskTitleBarProps) {
         />
       </div>
       <div style={{ display: 'flex', gap: '4px', 'margin-left': '8px', 'flex-shrink': '0' }}>
+        {/* Hidden rather than disabled when there is no worktree yet: usage is
+            attributed per path, so with no path there is nothing to show. This
+            row's established idiom for "does not apply to this task" is absence
+            — merge and push already vanish for the same class of task — and a
+            lone greyed-out control would be the only exception to it. */}
+        <Show when={props.task.worktreePath}>
+          <IconButton
+            icon={
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M2.75 13.5a.75.75 0 0 1-.75-.75V3.25a.75.75 0 0 1 1.5 0v9h9.75a.75.75 0 0 1 0 1.5H2.75ZM6 10.75a.75.75 0 0 1-1.5 0V8.5a.75.75 0 0 1 1.5 0v2.25Zm3-.75a.75.75 0 0 1-1.5 0V6.25a.75.75 0 0 1 1.5 0V10Zm3 .5a.75.75 0 0 1-1.5 0V4.25a.75.75 0 0 1 1.5 0v6.25Z" />
+              </svg>
+            }
+            active={props.tokenUsageOpen}
+            onClick={() => props.onToggleTokenUsage()}
+            title={props.tokenUsageOpen ? tr('Hide token usage') : tr('Show token usage')}
+          />
+        </Show>
         <Show when={props.task.gitIsolation === 'worktree' && !isLandedTask()}>
           <IconButton
             icon={

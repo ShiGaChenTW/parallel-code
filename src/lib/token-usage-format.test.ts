@@ -2,10 +2,14 @@ import { describe, expect, it } from 'vitest';
 
 import {
   describeProviders,
+  formatShare,
   formatTokens,
+  PROVIDER_COLORS,
   shortenPath,
   sumTokenTotals,
+  TOKEN_PROVIDERS,
   visibleProviderColumns,
+  worktreeUsage,
 } from './token-usage-format';
 import { translate, type Locale } from './i18n';
 import type { TokenUsagePathRow } from '../ipc/types';
@@ -104,6 +108,129 @@ describe('visibleProviderColumns', () => {
 
   it('returns nothing for no rows', () => {
     expect(visibleProviderColumns([])).toEqual([]);
+  });
+});
+
+describe('worktreeUsage', () => {
+  const row = (path: string, byProvider: TokenUsagePathRow['byProvider']): TokenUsagePathRow => ({
+    path,
+    totals: Object.values(byProvider).reduce(
+      (acc, totals) => ({
+        input: acc.input + (totals?.input ?? 0),
+        output: acc.output + (totals?.output ?? 0),
+        cacheRead: acc.cacheRead + (totals?.cacheRead ?? 0),
+        cacheWrite: acc.cacheWrite + (totals?.cacheWrite ?? 0),
+      }),
+      t(0),
+    ),
+    byProvider,
+  });
+
+  it('reports no worktree when the task has no path yet', () => {
+    const usage = worktreeUsage([row('/repo/wt-a', { claude: t(10) })], undefined);
+    expect(usage.state).toBe('no-worktree');
+    expect(usage.total).toBe(0);
+    expect(usage.shares).toEqual([]);
+  });
+
+  it('treats an empty path the same as no path', () => {
+    expect(worktreeUsage([row('/repo/wt-a', { claude: t(10) })], '').state).toBe('no-worktree');
+  });
+
+  // A brand-new task: the worktree exists, no agent has run in it yet.
+  it('separates "nothing recorded" from "no worktree"', () => {
+    const usage = worktreeUsage([row('/repo/wt-a', { claude: t(10) })], '/repo/wt-b');
+    expect(usage.state).toBe('no-usage');
+    expect(usage.total).toBe(0);
+    expect(usage.shares).toEqual([]);
+  });
+
+  it('reports no usage for a matched row whose counters are all zero', () => {
+    const usage = worktreeUsage([row('/repo/wt-a', { claude: t(0) })], '/repo/wt-a');
+    expect(usage.state).toBe('no-usage');
+    expect(usage.shares).toEqual([]);
+  });
+
+  // The reason this matches exactly rather than by prefix: these two paths are
+  // the ordinary shape of two branches off one repo.
+  it('does not fold a sibling worktree into a prefix of its path', () => {
+    const rows = [
+      row('/repo/.worktrees/feature', { claude: t(100) }),
+      row('/repo/.worktrees/feature-2', { claude: t(7) }),
+    ];
+    expect(worktreeUsage(rows, '/repo/.worktrees/feature').total).toBe(100);
+    expect(worktreeUsage(rows, '/repo/.worktrees/feature-2').total).toBe(7);
+  });
+
+  it('counts only the requested worktree, never the whole snapshot', () => {
+    const rows = [row('/repo/wt-a', { claude: t(100) }), row('/repo/wt-b', { claude: t(900) })];
+    expect(worktreeUsage(rows, '/repo/wt-a').total).toBe(100);
+  });
+
+  it('sums all four counters into the total', () => {
+    const usage = worktreeUsage([row('/repo/wt-a', { claude: t(1, 2, 3, 4) })], '/repo/wt-a');
+    expect(usage.total).toBe(10);
+    expect(usage.totals).toEqual({ input: 1, output: 2, cacheRead: 3, cacheWrite: 4 });
+  });
+
+  it('orders shares biggest first and drops providers that spent nothing', () => {
+    const usage = worktreeUsage(
+      [row('/repo/wt-a', { claude: t(10), codex: t(0), grok: t(30) })],
+      '/repo/wt-a',
+    );
+    expect(usage.shares.map((s) => s.provider)).toEqual(['grok', 'claude']);
+    expect(usage.shares.map((s) => s.share)).toEqual([0.75, 0.25]);
+  });
+
+  // Edge case the stacked bar has to survive: one provider must fill the bar,
+  // not render a stub that looks like a broken chart.
+  it('gives a lone provider the whole bar', () => {
+    const usage = worktreeUsage([row('/repo/wt-a', { codex: t(42) })], '/repo/wt-a');
+    expect(usage.state).toBe('ok');
+    expect(usage.shares).toHaveLength(1);
+    expect(usage.shares[0].share).toBe(1);
+    expect(usage.shares[0].label).toBe('Codex');
+  });
+
+  it('always fills the bar exactly, even when totals disagree with the providers', () => {
+    // Defensive: a snapshot where `totals` outruns `byProvider` would otherwise
+    // draw a bar with a gap in it, which reads as a rendering fault.
+    const usage = worktreeUsage(
+      [{ path: '/repo/wt-a', totals: t(1000), byProvider: { claude: t(10), grok: t(30) } }],
+      '/repo/wt-a',
+    );
+    expect(usage.shares.reduce((sum, s) => sum + s.share, 0)).toBeCloseTo(1, 10);
+    expect(usage.total).toBe(1000);
+  });
+
+  it('gives every provider a distinct colour', () => {
+    const colors = TOKEN_PROVIDERS.map((provider) => PROVIDER_COLORS[provider]);
+    expect(new Set(colors).size).toBe(TOKEN_PROVIDERS.length);
+  });
+});
+
+describe('formatShare', () => {
+  it.each([
+    [1, '100%'],
+    [0.75, '75%'],
+    [0.4321, '43%'],
+    // The rounding boundary: half a percent still rounds up to a real number,
+    // below it the label would round to a misleading 0%.
+    [0.005, '1%'],
+    [0.004, '<1%'],
+    [0.0001, '<1%'],
+    [0, '0%'],
+  ])('formats %d as %s', (share, expected) => {
+    expect(formatShare(share)).toBe(expected);
+  });
+
+  it('never writes 0% for a provider that is visibly in the bar', () => {
+    expect(formatShare(1 / 100_000)).toBe('<1%');
+  });
+
+  it('treats nonsense as zero', () => {
+    expect(formatShare(NaN)).toBe('0%');
+    expect(formatShare(-1)).toBe('0%');
   });
 });
 

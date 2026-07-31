@@ -772,6 +772,23 @@ const ZH_TW: Record<string, string> = {
   '{providers} not installed.': '未安裝 {providers}。',
   'Could not read {providers}.': '無法讀取 {providers}。',
 
+  // Per-task token panel — the same vocabulary as the settings table above,
+  // scoped to a single worktree. `worktree` stays English here as it does
+  // everywhere else in this catalogue.
+  'Show token usage': '顯示 token 用量',
+  'Hide token usage': '隱藏 token 用量',
+  'Tokens in this worktree': '這個 worktree 的 token 用量',
+  'No AI CLI usage has been recorded for this worktree yet.':
+    '這個 worktree 還沒有任何 AI CLI 的用量紀錄。',
+  'This task has no worktree yet, so no usage can be attributed to it.':
+    '這個任務還沒有 worktree，因此沒有可歸屬的用量。',
+  'Counts only this task. The Settings table covers every worktree.':
+    '只計這個任務。設定裡那張表才是所有 worktree 的總計。',
+  Input: '輸入',
+  Output: '輸出',
+  'Cache read': '快取讀取',
+  'Cache write': '快取寫入',
+
   // Editor and Ask about Code. Both placeholders name real commands and a real
   // environment variable, so only the words around them move.
   'e.g. code, cursor, zed, subl': '例如 code、cursor、zed、subl',
