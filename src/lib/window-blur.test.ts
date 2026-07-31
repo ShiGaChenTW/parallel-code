@@ -119,6 +119,40 @@ describe('the veil never rewrites a theme value', () => {
     expect(blurBlock).not.toMatch(/^\s*--[a-z-]+:/m);
   });
 
+  /**
+   * The renderer half of the "Reduce transparency" fix. The main half withholds
+   * the vibrancy material; this has to withdraw the CSS that assumed it, or the
+   * app paints a see-through page over a window with nothing behind it.
+   */
+  describe('reduced transparency', () => {
+    const reduced = blurBlock.slice(
+      blurBlock.indexOf('@media (prefers-reduced-transparency: reduce)'),
+    );
+
+    it('is honoured at all', () => {
+      expect(blurBlock).toContain('@media (prefers-reduced-transparency: reduce)');
+    });
+
+    it('puts the opaque backdrop back on every surface the veil made transparent', () => {
+      // Not "no longer transparent" but the exact colour the unblurred app
+      // paints — the same value main writes as WINDOW_BACKDROP_OPAQUE.
+      expect(reduced).toMatch(
+        /html\[data-window-blur\],\s*html\[data-window-blur\] body,\s*html\[data-window-blur\] #root\s*\{\s*background: #0e1215;/,
+      );
+    });
+
+    it('hands .app-shell its theme background back at equal weight', () => {
+      // The rule it is undoing used `!important` to beat App.tsx's inline style,
+      // so anything less than `!important` here would lose to it and leave the
+      // shell transparent.
+      expect(reduced).toMatch(/\.app-shell\s*\{\s*background: var\(--bg\) !important;/);
+    });
+
+    it('removes the veil rather than merely opacifying it', () => {
+      expect(reduced).toMatch(/#root::before\s*\{\s*display: none;/);
+    });
+  });
+
   it('leaves panel, island and terminal surfaces alone', () => {
     // Terminal text sits on --task-panel-bg. If the veil ever touched these,
     // scrollback legibility would become a function of the user's wallpaper.

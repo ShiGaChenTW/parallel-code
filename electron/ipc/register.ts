@@ -1,4 +1,13 @@
-import { ipcMain, dialog, shell, app, clipboard, BrowserWindow, Notification } from 'electron';
+import {
+  ipcMain,
+  dialog,
+  shell,
+  app,
+  clipboard,
+  BrowserWindow,
+  Notification,
+  nativeTheme,
+} from 'electron';
 import crypto from 'crypto';
 import fs from 'fs';
 import os from 'os';
@@ -52,7 +61,7 @@ import {
 import { readCoverageSummary } from './coverage.js';
 import { applyAppIcon, isAppIconId, DEFAULT_APP_ICON } from './app-icon.js';
 import { applyWindowOpacity, normalizeWindowOpacity } from './window-opacity.js';
-import { applyWindowBlur, effectiveWindowOpacity, normalizeWindowBlur } from './window-blur.js';
+import { applyWindowBlur, effectiveWindowBlur, effectiveWindowOpacity } from './window-blur.js';
 import { startRemoteServer, getMCPLogs, type RemoteProject } from '../remote/server.js';
 import type { RemoteAttentionState } from '../remote/protocol.js';
 import { atomicWriteFileSync } from '../mcp/atomic.js';
@@ -919,7 +928,7 @@ export function registerAllHandlers(win: BrowserWindow): void {
   // opacity must not be composited together.
   ipcMain.handle(IPC.SetWindowOpacity, (_e, args) => {
     const opacity = normalizeWindowOpacity(args?.opacity);
-    const blur = normalizeWindowBlur(args?.blur);
+    const blur = effectiveWindowBlur(args?.blur, nativeTheme.prefersReducedTransparency);
     const applied = applyWindowOpacity(win, effectiveWindowOpacity(opacity, blur));
     if (!applied)
       logDebug('window-opacity', 'not applied', { opacity, platform: process.platform });
@@ -934,8 +943,13 @@ export function registerAllHandlers(win: BrowserWindow): void {
   // The opacity re-application is not incidental. Switching blur off has to hand
   // the window back the opacity the user still has stored, which was being held
   // at 1 for as long as blur was on.
+  // `effectiveWindowBlur` rather than `normalizeWindowBlur`: while macOS's
+  // "Reduce transparency" is on, every material collapses to off before it can
+  // reach the window. The user's choice still round-trips through the store and
+  // state.json — it is honoured again the moment the accessibility flag goes
+  // off, via the `nativeTheme` listener in `main.ts`.
   ipcMain.handle(IPC.SetWindowBlur, (_e, args) => {
-    const blur = normalizeWindowBlur(args?.blur);
+    const blur = effectiveWindowBlur(args?.blur, nativeTheme.prefersReducedTransparency);
     const opacity = normalizeWindowOpacity(args?.opacity);
     const applied = applyWindowBlur(win, blur);
     applyWindowOpacity(win, effectiveWindowOpacity(opacity, blur));

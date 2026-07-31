@@ -7,7 +7,9 @@ import {
   WINDOW_BACKDROP_OPAQUE,
   WINDOW_BACKDROP_TRANSPARENT,
   WINDOW_BLUR_MATERIALS,
+  WINDOW_VISUAL_EFFECT_STATE,
   applyWindowBlur,
+  effectiveWindowBlur,
   effectiveWindowOpacity,
   isWindowBlurSupported,
   normalizeWindowBlur,
@@ -80,6 +82,68 @@ describe('windowBlurFromState', () => {
     expect(windowBlurFromState('null')).toBe(DEFAULT_WINDOW_BLUR);
     expect(windowBlurFromState('[]')).toBe(DEFAULT_WINDOW_BLUR);
     expect(windowBlurFromState('"hud"')).toBe(DEFAULT_WINDOW_BLUR);
+  });
+});
+
+/**
+ * macOS "Reduce transparency". Apple's wording is imperative — "don't use
+ * semitransparent backgrounds ... use only opaque windows" — so this is not a
+ * hint the app gets to weigh against its own preference.
+ */
+describe('effectiveWindowBlur', () => {
+  it('passes the chosen material through when transparency is not reduced', () => {
+    for (const material of WINDOW_BLUR_MATERIALS) {
+      expect(effectiveWindowBlur(material, false)).toBe(material);
+    }
+    expect(effectiveWindowBlur('off', false)).toBe('off');
+  });
+
+  it('collapses every material to off when the accessibility flag is set', () => {
+    for (const material of WINDOW_BLUR_MATERIALS) {
+      expect(effectiveWindowBlur(material, true)).toBe('off');
+    }
+    expect(effectiveWindowBlur('off', true)).toBe('off');
+  });
+
+  it('does not consume the stored value, so the choice comes back', () => {
+    // Same reversibility contract as `effectiveWindowOpacity`: someone who turns
+    // "Reduce transparency" off again gets the material they picked, not a
+    // setting the app quietly forgot on their behalf.
+    const stored = 'under-window';
+    expect(effectiveWindowBlur(stored, true)).toBe('off');
+    expect(effectiveWindowBlur(stored, false)).toBe(stored);
+  });
+
+  it('still normalizes, so it is safe on the IPC boundary', () => {
+    // It is what the handlers call in place of `normalizeWindowBlur`, so it has
+    // to be at least as defensive — `setVibrancy` throws outside its union.
+    for (const bad of [undefined, null, 42, {}, 'menu', 'appearance-based', '']) {
+      expect(effectiveWindowBlur(bad, false)).toBe(DEFAULT_WINDOW_BLUR);
+      expect(effectiveWindowBlur(bad, true)).toBe(DEFAULT_WINDOW_BLUR);
+    }
+  });
+});
+
+/**
+ * The one-line fix for the most visible defect this feature had: the material
+ * turning into a flat grey panel every time the window lost focus.
+ */
+describe('WINDOW_VISUAL_EFFECT_STATE', () => {
+  it('pins the material active rather than following window focus', () => {
+    // Unset means `followWindow`, Electron's documented default, which is
+    // exactly the desaturate-on-blur behaviour users read as the effect breaking.
+    expect(WINDOW_VISUAL_EFFECT_STATE).toBe('active');
+  });
+
+  it('is handed to the constructor unconditionally on macOS', () => {
+    // There is no `setVisualEffectState()` — electron#25513 is still open — and
+    // the value is read when the vibrant NSView is first created, which for a
+    // launch-with-blur-off profile happens inside a later `setVibrancy()`. Tying
+    // it to the constructor `vibrancy` would give two different appearances for
+    // the same setting depending on how the user got there.
+    const main = readFileSync(resolve(__dirname, '..', 'main.ts'), 'utf8');
+    expect(main).toContain('visualEffectState: chrome.visualEffectState');
+    expect(main).toMatch(/visualEffectState = blurSupported \? WINDOW_VISUAL_EFFECT_STATE/);
   });
 });
 
@@ -211,8 +275,12 @@ describe('the stylesheet cannot leak translucency into the blur-off state', () =
     return css.slice(start, end);
   };
 
-  it('scopes every selector in the blur block under the attribute', () => {
-    const selectors = blurBlock()
+  /** Every selector in the block, with at-rule preludes (`@media …`) dropped —
+   * an at-rule is a condition on when its contents apply, not a thing that can
+   * be gated on an attribute. The rules *inside* it still come through this list
+   * and are still held to the same requirement. */
+  const selectorsInBlurBlock = (): string[] =>
+    blurBlock()
       .replace(/\/\*[\s\S]*?\*\//g, '')
       .split('{')
       .slice(0, -1)
@@ -221,14 +289,25 @@ describe('the stylesheet cannot leak translucency into the blur-off state', () =
         return afterLastRule[afterLastRule.length - 1].split(',');
       })
       .map((s) => s.trim())
-      .filter(Boolean);
+      .filter(Boolean)
+      .filter((s) => !s.startsWith('@'));
 
+  it('scopes every selector in the blur block under the attribute', () => {
+    const selectors = selectorsInBlurBlock();
     expect(selectors.length).toBeGreaterThan(0);
     for (const selector of selectors) {
       expect(selector, `${selector} is not gated on the blur attribute`).toContain(
         '[data-window-blur]',
       );
     }
+  });
+
+  it('gates its only at-rule on reduced transparency, and nothing else', () => {
+    // An at-rule escapes the scoping check above, so the set of them is pinned
+    // here instead: anything new in this block has to be justified by a test
+    // rather than slipping past on a technicality.
+    const atRules = [...blurBlock().matchAll(/@[a-z-]+[^{]*/g)].map((m) => m[0].trim());
+    expect(atRules).toEqual(['@media (prefers-reduced-transparency: reduce)']);
   });
 
   it('leaves the opaque backdrop declaration standing outside the block', () => {
