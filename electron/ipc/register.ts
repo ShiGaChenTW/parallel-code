@@ -60,8 +60,7 @@ import {
 } from './pr-checks.js';
 import { readCoverageSummary } from './coverage.js';
 import { applyAppIcon, isAppIconId, DEFAULT_APP_ICON } from './app-icon.js';
-import { applyWindowOpacity, normalizeWindowOpacity } from './window-opacity.js';
-import { applyWindowBlur, effectiveWindowBlur, effectiveWindowOpacity } from './window-blur.js';
+import { applyWindowBlur, effectiveWindowBlur } from './window-blur.js';
 import { startRemoteServer, getMCPLogs, type RemoteProject } from '../remote/server.js';
 import type { RemoteAttentionState } from '../remote/protocol.js';
 import { atomicWriteFileSync } from '../mcp/atomic.js';
@@ -914,35 +913,19 @@ export function registerAllHandlers(win: BrowserWindow): void {
     return { applied };
   });
 
-  // --- Window opacity ---
-  // `applied` is the honest answer, not a formality: Electron implements
-  // `setOpacity` on macOS and Windows only, and on Linux the call would return
-  // normally having done nothing. Settings withholds the control on unsupported
-  // platforms, so a false here means either a race with window teardown or a
-  // caller that got past that gate — both worth a debug line and neither worth
-  // an error dialog over a cosmetic setting.
-  //
-  // Both window-appearance channels carry both settings. Main holds no state of
-  // its own, so what the window should actually run at stays a pure function of
-  // the payload — see `effectiveWindowOpacity`, which exists because blur and
-  // opacity must not be composited together.
-  ipcMain.handle(IPC.SetWindowOpacity, (_e, args) => {
-    const opacity = normalizeWindowOpacity(args?.opacity);
-    const blur = effectiveWindowBlur(args?.blur, nativeTheme.prefersReducedTransparency);
-    const applied = applyWindowOpacity(win, effectiveWindowOpacity(opacity, blur));
-    if (!applied)
-      logDebug('window-opacity', 'not applied', { opacity, platform: process.platform });
-    return { applied };
-  });
-
   // --- Window blur (macOS vibrancy) ---
-  // Same honest `applied` contract as opacity: Electron implements vibrancy on
-  // macOS only, so on Linux this returns false having done nothing rather than
-  // reporting a success that never happened.
   //
-  // The opacity re-application is not incidental. Switching blur off has to hand
-  // the window back the opacity the user still has stored, which was being held
-  // at 1 for as long as blur was on.
+  // The only window-appearance channel left. Transparency used to have one of
+  // its own, carrying a number to `setOpacity`; it is now a CSS custom property
+  // the renderer owns end to end, so main has nothing to do with it and holds no
+  // handler that would imply otherwise. That also retires the rule that the two
+  // settings could not be on at once — an artefact of `setOpacity` fading the
+  // vibrancy layer along with everything else, which CSS alpha never touches.
+  //
+  // `applied` is the honest answer rather than a formality: Electron implements
+  // vibrancy on macOS only, so on Linux this returns false having done nothing
+  // instead of reporting a success that never happened.
+  //
   // `effectiveWindowBlur` rather than `normalizeWindowBlur`: while macOS's
   // "Reduce transparency" is on, every material collapses to off before it can
   // reach the window. The user's choice still round-trips through the store and
@@ -950,9 +933,7 @@ export function registerAllHandlers(win: BrowserWindow): void {
   // off, via the `nativeTheme` listener in `main.ts`.
   ipcMain.handle(IPC.SetWindowBlur, (_e, args) => {
     const blur = effectiveWindowBlur(args?.blur, nativeTheme.prefersReducedTransparency);
-    const opacity = normalizeWindowOpacity(args?.opacity);
     const applied = applyWindowBlur(win, blur);
-    applyWindowOpacity(win, effectiveWindowOpacity(opacity, blur));
     if (!applied) logDebug('window-blur', 'not applied', { blur, platform: process.platform });
     return { applied };
   });

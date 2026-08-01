@@ -15,6 +15,7 @@ import {
   getTerminalSearchDecorations,
   getTerminalTheme,
   getTerminalThemeForCustom,
+  terminalNeedsTransparency,
 } from '../lib/theme';
 import { matchesGlobalShortcut } from '../lib/shortcuts';
 import { isMac } from '../lib/platform';
@@ -404,12 +405,25 @@ export function TerminalView(props: TerminalViewProps) {
     term?.focus();
   }
 
+  /**
+   * Whether this terminal's canvas has to be see-through.
+   *
+   * Both halves of the condition matter. Blur is what makes the window
+   * translucent at all — without a vibrancy material there is nothing behind the
+   * page to reveal, so a transparent canvas would show the opaque window
+   * backdrop and cost the WebGL antialiasing quality for no visible gain. The
+   * alpha is what the user actually asked for.
+   */
+  function needsTransparency() {
+    return terminalNeedsTransparency(store.windowBlur !== 'off', store.windowOpacity);
+  }
+
   function activeTerminalTheme() {
     const id = store.activeCustomThemeId;
     const custom = id ? store.customThemes[id] : undefined;
     return custom
-      ? getTerminalThemeForCustom(custom.terminalBackground)
-      : getTerminalTheme(store.themePreset);
+      ? getTerminalThemeForCustom(custom.terminalBackground, needsTransparency())
+      : getTerminalTheme(store.themePreset, needsTransparency());
   }
 
   onMount(() => {
@@ -435,6 +449,7 @@ export function TerminalView(props: TerminalViewProps) {
       fontSize: initialFontSize,
       fontFamily: getTerminalFontFamily(store.terminalFont),
       theme: activeTerminalTheme(),
+      allowTransparency: needsTransparency(),
       allowProposedApi: true,
       scrollback: TERMINAL_SCROLLBACK_LINES,
       disableStdin: taskPtyDetached(),
@@ -1129,8 +1144,21 @@ export function TerminalView(props: TerminalViewProps) {
     markDirty(props.agentId);
   });
 
+  // Order matters: `allowTransparency` before `theme`. The WebGL addon's config
+  // comparison includes `allowTransparency`, and it is what decides whether the
+  // theme's alpha is honoured or flattened — setting the theme first would paint
+  // one frame with the new colour under the old rule.
+  //
+  // xterm's docs say `allowTransparency` "must be set before executing the
+  // Terminal.open() method and can't be changed later". That is stale for the
+  // renderers this app uses: xterm registers an `onSpecificOptionChange`
+  // listener for it, and the WebGL addon includes it in `configEquals`, so a
+  // change rebuilds the glyph atlas. It is still set correctly at construction
+  // above, so a profile that starts with the setting on never depends on this
+  // path — it only has to carry a live toggle.
   createEffect(() => {
     if (!term) return;
+    term.options.allowTransparency = needsTransparency();
     term.options.theme = activeTerminalTheme();
     markDirty(props.agentId);
   });

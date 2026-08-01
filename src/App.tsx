@@ -333,8 +333,16 @@ function App() {
   // The attribute is removed, not set to 'off'. Every rule in styles.css keys off
   // its mere presence, so absence means zero blur rules match and the original
   // opaque backdrops stand exactly as written.
+  //
+  // `--surface-alpha` rides along for the same reason and is written
+  // unconditionally, blur or no blur: it is inert while the attribute is absent
+  // (nothing outside the blur block reads it), and writing it on every pass means
+  // there is no state where the property and the attribute disagree about which
+  // frame they landed in. This is the whole of what used to be `setOpacity` — a
+  // number on the window, replaced by a number in the cascade.
   createEffect(() => {
     document.documentElement.dataset.look = store.themePreset;
+    document.documentElement.style.setProperty('--surface-alpha', String(store.windowOpacity));
     if (store.windowBlur !== 'off') {
       document.documentElement.dataset.windowBlur = store.windowBlur;
     } else {

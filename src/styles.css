@@ -42,6 +42,13 @@
   --task-container-bg: #151e28;
   --task-panel-bg: #1c2630;
 
+  /* How much of the app's own backgrounds gets painted, 0.60–1.00. App.tsx
+     writes the persisted setting here; 1 is declared so the stylesheet is
+     complete on its own and the first frame is opaque whatever the renderer has
+     managed to load. Read only by the window-blur block below, and applied only
+     to backgrounds — no text token is a function of it. */
+  --surface-alpha: 1;
+
   --shadow-soft: 0 14px 30px rgba(0, 0, 0, 0.28);
   --shadow-pop:
     0 0 0 1px color-mix(in srgb, var(--accent) 25%, transparent),
@@ -71,19 +78,51 @@ body,
    untouched. `window-blur.test.ts` asserts that scoping over this file's text,
    so an unscoped rule added here cannot quietly leave the app translucent.
 
-   Note what is *not* here: no theme variable is redefined. The alpha lives on a
-   layer, not on a colour, which is the only form that works when `--bg` is a
-   gradient in nine of the eleven presets and an unknown in every custom theme.
-   Islands, panels and terminal surfaces are not mentioned and stay exactly as
-   opaque as their theme author wrote them, so no theme's internal contrast — the
-   thing `custom-theme-contrast.test.ts` gates — changes at all.
+   No theme variable is redefined here. The alpha is applied to a *layer* or to a
+   *use* of a colour, never to the colour itself, which is the only form that
+   works when `--bg` is a gradient in nine of the eleven presets and an unknown
+   in every custom theme. That is also what keeps `custom-theme-contrast.test.ts`
+   meaningful: it audits the palette a theme author wrote, and this block never
+   edits that palette. What it no longer covers — the same text once these
+   surfaces have been composited over a desktop — is gated separately by
+   `worstCaseSurfaceContrast()` in `src/lib/window-opacity.ts`.
+
+   THE LAYER STACK, WHICH IS THE WHOLE DESIGN
+
+   Vibrancy is painted behind the web contents, so it is visible only through
+   whatever the renderer does *not* paint over it. Before this, the renderer
+   painted over all of it except the frame: `.task-column` and
+   `.shell-terminal-container` are opaque theme colours and they cover nearly the
+   entire window. The blur was working; it was underneath a lid.
+
+   So the stack from the desktop up is now:
+
+     desktop            (blurred by macOS)
+     #root::before      var(--bg)              at --surface-alpha
+     .task-column       var(--task-container-bg) at --surface-alpha
+     .shell-terminal-*  var(--task-panel-bg)     at --surface-alpha
+     xterm canvas       transparent when alpha < 1, its own colour otherwise
+     glyphs             never touched
+
+   Three painted layers, so the desktop reaches the text area at (1-alpha)^3 and
+   the frame at (1-alpha)^1. That asymmetry is deliberate and is the reason this
+   is safe: the effect is strongest in the gaps and the titlebar strip, where
+   there is nothing to read, and weakest under scrollback, where there is.
+
+   At `--surface-alpha: 1` — the default — every `color-mix` below resolves to
+   100% of the theme's own colour, so the painted result is byte-identical to a
+   window with blur off. Translucency is opt-in, in line with all six terminal
+   emulators surveyed, none of which default it on.
+
+   `.shell-terminals-row` is set to `transparent` rather than mixed. It paints
+   `--task-container-bg` directly on top of `.task-column`'s
+   `--task-container-bg` — the same colour over itself — so removing it is a
+   no-op at every alpha and one fewer multiplication in the stack.
 
    The veil hangs off `#root::before` rather than `.app-shell::before`, which the
    preset system already uses for its accent wash. `position: fixed` needs no
    positioned ancestor, and with `z-index` left auto it paints in tree order:
-   before `.app-shell`, therefore behind it. The 0.75 alpha is derived in
-   `src/lib/window-blur.ts` and pinned by its test; it is the lowest 0.05 step
-   whose worst case against a white desktop still clears WCAG 3:1. */
+   before `.app-shell`, therefore behind it. */
 
 html[data-window-blur],
 html[data-window-blur] body,
@@ -93,7 +132,8 @@ html[data-window-blur] #root {
 
 /* `!important` overrides the inline `background: theme.bg` App.tsx sets on the
    shell — the standard way to beat an inline declaration, and the same device
-   the preset overrides below already use. */
+   the preset overrides below already use. Every rule in this block that has to
+   beat a component's inline style needs it for the same reason. */
 html[data-window-blur] .app-shell {
   background: transparent !important;
 }
@@ -104,7 +144,27 @@ html[data-window-blur] #root::before {
   inset: 0;
   pointer-events: none;
   background: var(--bg);
-  opacity: 0.75;
+  opacity: var(--surface-alpha);
+}
+
+html[data-window-blur] .task-column {
+  background: color-mix(
+    in srgb,
+    var(--task-container-bg) calc(var(--surface-alpha) * 100%),
+    transparent
+  ) !important;
+}
+
+html[data-window-blur] .shell-terminals-row {
+  background: transparent !important;
+}
+
+html[data-window-blur] .shell-terminal-container {
+  background: color-mix(
+    in srgb,
+    var(--task-panel-bg) calc(var(--surface-alpha) * 100%),
+    transparent
+  ) !important;
 }
 
 /* macOS "Reduce transparency" (System Settings > Accessibility > Display).
@@ -128,6 +188,15 @@ html[data-window-blur] #root::before {
    from the window for the same flag. Chromium derives this media query from the
    same OS setting, so the two cannot disagree about when to engage. */
 @media (prefers-reduced-transparency: reduce) {
+  /* `!important` because App.tsx writes `--surface-alpha` as an inline style on
+     the same element, and an inline declaration otherwise wins. Forcing it to 1
+     is what neutralises every `color-mix()` above in one line — each resolves to
+     100% of its theme colour — rather than repeating the rules with different
+     values and leaving two lists to keep in sync. */
+  html[data-window-blur] {
+    --surface-alpha: 1 !important;
+  }
+
   html[data-window-blur],
   html[data-window-blur] body,
   html[data-window-blur] #root {

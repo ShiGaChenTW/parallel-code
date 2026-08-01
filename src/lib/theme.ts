@@ -75,12 +75,58 @@ export const LIGHT_TERMINAL_THEME = {
 } as const;
 
 /**
+ * Whether the terminal's own background has to stop being opaque.
+ *
+ * Hyper's exact condition, for its exact reason: `allowTransparency` costs
+ * something, so it is switched on only when the background actually needs it.
+ * The cost is not theoretical here. With `allowTransparency: true` the WebGL
+ * addon rasterises its glyph atlas onto a canvas created with `{alpha: true}`,
+ * which drops Chromium from subpixel to greyscale antialiasing — the mechanism
+ * behind xtermjs#4212 ("text is abnormally thin ... even when color is opaque"),
+ * open and unfixed. It applies to every cell, not only translucent ones.
+ *
+ * Gating it on the setting means the default install never pays it: at
+ * `--surface-alpha: 1`, or with blur off, this is false and the terminal renders
+ * exactly as it does today, subpixel AA included. Only a user who has both
+ * turned blur on and moved the slider off 1.00 opts into the trade.
+ */
+export function terminalNeedsTransparency(blurOn: boolean, surfaceAlpha: number): boolean {
+  return blurOn && surfaceAlpha < 1;
+}
+
+/**
+ * The background xterm should paint, given whether transparency is needed.
+ *
+ * When it is not, this is the theme's own opaque colour, exactly as before. When
+ * it is, the canvas goes fully transparent and the colour comes from
+ * `.shell-terminal-container` behind it — Hyper's
+ * `needTransparency ? 'rgba(0,0,0,0)' : props.backgroundColor` move.
+ *
+ * Handing the colour to the DOM rather than to xterm is what keeps the layer
+ * count honest. `styles.css` already paints that element at `--surface-alpha`;
+ * if the canvas also painted the same colour at the same alpha, the terminal
+ * region would sit one multiplication deeper than the model in
+ * `window-opacity.ts` describes, and the slider would mean something different
+ * under the text than everywhere else.
+ */
+export function terminalBackground(themeBackground: string, needsTransparency: boolean): string {
+  return needsTransparency ? 'rgba(0,0,0,0)' : themeBackground;
+}
+
+/**
  * Returns an xterm-compatible theme object for the given preset.
  * For light-background presets we override xterm's defaults (white text,
  * white-ish bright ANSI palette) so plain output stays readable.
+ *
+ * `needsTransparency` only ever changes `background`. The foreground and the
+ * sixteen ANSI colours are untouched at every alpha — the difference between
+ * this and `setOpacity`, stated as a function signature.
  */
-export function getTerminalTheme(preset: LookPreset) {
-  const background = readCssVarsForPreset(preset)['--task-panel-bg'] ?? '#000000';
+export function getTerminalTheme(preset: LookPreset, needsTransparency = false) {
+  const background = terminalBackground(
+    readCssVarsForPreset(preset)['--task-panel-bg'] ?? '#000000',
+    needsTransparency,
+  );
   if (preset === 'islands-light') {
     return { background, ...LIGHT_TERMINAL_THEME };
   }
@@ -125,8 +171,12 @@ export function readCssVarsForPreset(presetId: string): Partial<Record<CssVar, s
   return result;
 }
 
-/** Returns an xterm-compatible theme object for a custom theme. */
-export function getTerminalThemeForCustom(bg: string) {
+/** Returns an xterm-compatible theme object for a custom theme.
+ *
+ * Lightness is read from the theme's own colour, never from the value handed to
+ * xterm: `rgba(0,0,0,0)` has a luminance of 0 and would flip every light custom
+ * theme to the dark ANSI palette the moment the user moved the slider. */
+export function getTerminalThemeForCustom(bg: string, needsTransparency = false) {
   const isLight = (() => {
     try {
       return colord(bg).luminance() > 0.5;
@@ -134,11 +184,12 @@ export function getTerminalThemeForCustom(bg: string) {
       return false;
     }
   })();
+  const background = terminalBackground(bg, needsTransparency);
 
   if (isLight) {
-    return { background: bg, ...LIGHT_TERMINAL_THEME };
+    return { background, ...LIGHT_TERMINAL_THEME };
   }
-  return { background: bg };
+  return { background };
 }
 
 export function getTerminalSearchDecorations() {

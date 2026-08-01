@@ -147,45 +147,40 @@ export function setAppIcon(id: AppIconId): void {
 }
 
 /**
- * Persist the window opacity and ask main to apply it to the live window.
+ * Persist the surface alpha. No IPC — this one never leaves the renderer.
  *
- * Normalized here as well as in main: this is the value that reaches state.json
- * and is read back at the next launch, so it has to be a legal step whatever the
- * slider handed over.
+ * It used to invoke `SetWindowOpacity`, which called `win.setOpacity()` and faded
+ * the composited window, glyphs included. The number now drives the
+ * `--surface-alpha` custom property, written in `App.tsx` alongside `data-look`
+ * so the alpha and the theme it modulates land in the same frame. Main has
+ * nothing left to do with it, so the channel is gone rather than kept as a
+ * handler that acknowledges and returns.
  *
- * Not awaited, for the same reason as `setAppIcon` — the setting is cosmetic and
- * the value is stored either way, so a restart still lands on it. Settings only
- * offers the control where Electron implements opacity, so main applying it is
- * the expected case rather than a hope.
+ * Still normalized here, and now that is the only place it happens: this is the
+ * value that reaches state.json and is read back at the next launch, and main is
+ * no longer a second line of defence for it.
  */
 export function setWindowOpacity(value: number): void {
-  const opacity = normalizeWindowOpacity(value);
-  setStore('windowOpacity', opacity);
-  void invoke(IPC.SetWindowOpacity, { opacity, blur: store.windowBlur }).catch(() => {});
+  setStore('windowOpacity', normalizeWindowOpacity(value));
 }
 
 /**
  * Persist the window blur and ask main to apply it to the live window.
  *
- * Both settings are sent on both channels so main can decide what the window
- * should actually run at without holding any state of its own: blur and opacity
- * must not be composited together (see `effectiveWindowOpacity` in
- * `electron/ipc/window-blur.ts`), and a main process that remembered only the
- * last value it was told would answer that question differently depending on
- * which control the user touched last.
+ * Only the blur crosses IPC now. It used to carry the opacity too, so main could
+ * decide which of the two won — they could not be composited together, because
+ * `setOpacity` faded the vibrancy layer along with everything else and produced
+ * a doubled image rather than a fainter one. CSS alpha never touches that layer,
+ * so the exclusion is gone and both settings are simply on at the same time.
  *
- * The stored opacity is deliberately left alone while blur is on. Writing 1 into
- * it would make switching blur on destroy a setting the user chose, and make
- * switching it off again a different app than the one they had.
- *
- * The `data-window-blur` attribute that drives the CSS veil is applied in
- * `App.tsx` alongside `data-look`, not here, so the theme and the veil flip in
- * the same frame.
+ * The `data-window-blur` attribute that drives the CSS is applied in `App.tsx`
+ * alongside `data-look`, not here, so the theme and the layers that tint it flip
+ * in the same frame.
  */
 export function setWindowBlur(value: WindowBlur): void {
   const blur = normalizeWindowBlur(value);
   setStore('windowBlur', blur);
-  void invoke(IPC.SetWindowBlur, { blur, opacity: store.windowOpacity }).catch(() => {});
+  void invoke(IPC.SetWindowBlur, { blur }).catch(() => {});
 }
 
 export async function saveCustomTheme(theme: CustomTheme): Promise<void> {

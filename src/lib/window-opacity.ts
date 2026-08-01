@@ -1,63 +1,80 @@
 /**
- * Window opacity: the value model, the platform rule, and the readability floor.
+ * Surface alpha: how much of the desktop the app's own backgrounds let through.
  *
- * WHY THE FLOOR IS NOT A ROUND NUMBER PICKED BY FEEL
+ * WHAT THIS USED TO BE, AND WHY IT CHANGED
  *
- * Electron's `win.setOpacity()` alpha-blends the *composited window* — chrome,
- * panels, and glyphs alike — against whatever is behind it. That is not what a
- * terminal emulator means by transparency. iTerm2 and Alacritty fade the
- * terminal's background and leave the text opaque, which is why 0.7 looks fine
- * there; here 0.7 fades the text too, and the desktop wallpaper reads straight
- * through the letterforms. So the usable range is much narrower than a terminal
- * user's intuition suggests, and the floor has to come from contrast, not taste.
+ * This setting used to call Electron's `win.setOpacity()`. That sets the
+ * NSWindow's alpha, which alpha-blends the *composited window* against whatever
+ * is behind it — chrome, panels and glyphs alike. Mathematically it cannot do
+ * anything else: it is one number applied to the finished picture. So the
+ * wallpaper read straight through the letterforms, and the traffic-light buttons
+ * faded with them.
  *
- * `worstCaseTextContrast()` models the compositor: it blends the default dark
- * theme's body text (`--fg`) and its panel surface (`--bg-elevated`) against the
- * two extreme desktops a user can have — pure white and pure black — and returns
- * the lower of the two resulting WCAG ratios. Measured against `islands-dark`
- * (#bcbec4 on #181a1d, 9.38:1 opaque):
+ * That is not what transparency means in a terminal. iTerm2, Ghostty, Alacritty,
+ * kitty, WezTerm and Hyper all fade the *background* and leave glyphs at full
+ * opacity — six products, no exceptions. Hyper is the closest architecture to
+ * this one (Electron plus xterm.js) and does it in four lines: the user's alpha
+ * goes on `backgroundColor`, `foregroundColor` is never touched, and xterm's
+ * `allowTransparency` is switched on only when the background actually needs it.
  *
- *   1.00 → 9.38    0.85 → 6.56    0.75 → 4.89    0.65 → 3.68
- *   0.95 → 8.51    0.80 → 5.67    0.70 → 4.23    0.60 → 3.21    0.55 → 2.82
+ * So the number persisted here no longer reaches `setOpacity`. It drives the
+ * `--surface-alpha` custom property, which `styles.css` applies to background
+ * layers and to nothing else. No text token is a function of it.
  *
- * 4.5:1 is WCAG AA for body text; 3:1 is AA for large text and the last point at
- * which a glyph is reliably separable from what is behind it. 0.60 is the lowest
- * step that still clears 3:1 on the worst desktop; 0.55 does not. That is the
- * floor, and `window-opacity.test.ts` asserts exactly that boundary, so the
- * number cannot drift without the reason drifting with it.
+ * WHY THE DEFAULT IS 1.00
  *
- * The secondary argument for a floor — an app faded to nothing is an app whose
- * settings dialog the user cannot find again — is real but weaker: `setOpacity`
- * does not affect hit-testing, so a nearly invisible window is still clickable.
- * Contrast is the binding constraint, so contrast sets the number.
+ * Not inertia — it is what every comparable product ships. All six terminals
+ * above expose this as a slider and all six default it to fully opaque, so
+ * transparency is something a user opts into rather than something an update
+ * does to them. The old behaviour here was the opposite: switching blur on
+ * forced a fixed 0.75 veil that could not be adjusted at all.
  *
- * The existing theme contrast gate (`custom-theme-contrast.test.ts`) is
- * unaffected by any of this: it checks CSS variables against each other, and the
- * compositor runs after the renderer has already painted. Those ratios stay
- * exactly as tested *inside* the window. What this file models is the one thing
- * that gate never covered — the final composite against the desktop.
+ * WHY THE FLOOR MOVED FROM 0.60 TO 0.70
+ *
+ * `worstCaseSurfaceContrast()` models the layer stack rather than the
+ * compositor. Body text sits at full opacity on a surface painted at `alpha`
+ * over the window backdrop, which was itself painted at `alpha` over the
+ * desktop — so the alpha is paid twice before the text's background is reached,
+ * and the text term is not multiplied at all. Measured against `islands-dark`'s
+ * `#bcbec4` on `#1c2630` over `#26282c`:
+ *
+ *   1.00 -> 8.25    0.85 -> 7.70    0.70 -> 6.21    0.60 -> 4.89
+ *   0.95 -> 8.18    0.80 -> 7.30    0.65 -> 5.56    0.55 -> 4.22
+ *   0.90 -> 8.00    0.75 -> 6.80
+ *
+ * By that measure alone 0.60 would still be fine — it clears 4.5:1 with room to
+ * spare, where the `setOpacity` model it replaced needed 0.60 just to reach 3:1.
+ * The floor is not set by this theme, though. `surface-alpha-contrast.test.ts`
+ * runs the same composite across all eleven built-ins and two text tokens, and
+ * the binding case is `classic`'s `--fg-muted` (`#8b8d93` on `#2d2e32`), which
+ * starts at only 4.09:1 fully opaque because that theme puts its muted tone very
+ * close to its surface:
+ *
+ *   1.00 -> 4.09    0.85 -> 3.82    0.75 -> 3.37    0.65 -> 2.77
+ *   0.90 -> 3.97    0.80 -> 3.62    0.70 -> 3.08    0.60 -> 2.45
+ *
+ * 0.70 is the lowest step at which every built-in still clears 3:1 on secondary
+ * text and 4.5:1 on body text; 0.65 does not. So the floor is derived from the
+ * worst theme actually shipped rather than inherited from the mechanism this
+ * replaced — 0.60 was carried over from a model that no longer describes
+ * anything, and the new gate found it before a user did.
+ *
+ * A blurred desktop is not a gentler desktop: blurring removes spatial detail,
+ * not mean luminance, and a white wallpaper blurs to white. So #ffffff and
+ * #000000 stay the modelled extremes and no relaxation is available on the
+ * grounds that vibrancy is doing something underneath. macOS's own material tint
+ * sits between the app and the desktop and can only help; it is left out because
+ * it is not a value this code can read.
  */
 
 export const DEFAULT_WINDOW_OPACITY = 1;
 
-/** See the file header: the lowest step that still clears 3:1 on any desktop. */
-export const MIN_WINDOW_OPACITY = 0.6;
+/** See the file header: the lowest step at which every built-in theme still
+ * clears 4.5:1 on body text and 3:1 on secondary text once composited over the
+ * worst desktop. 0.65 does not — `classic` falls to 2.77:1. */
+export const MIN_WINDOW_OPACITY = 0.7;
 
 export const WINDOW_OPACITY_STEP = 0.05;
-
-/**
- * Whether the running platform actually applies window opacity.
- *
- * Electron 40's own type definitions are the source, not folklore:
- * `BrowserWindow.setOpacity` is tagged `@platform win32,darwin` and documented
- * "On Linux, does nothing"; `getOpacity` is documented "On Linux, always returns
- * 1"; the `opacity` constructor option says "only implemented on Windows and
- * macOS". Linux is a no-op, silently — which is why the setting is withheld
- * there rather than rendered and left inert.
- */
-export function isWindowOpacitySupported(platform: string): boolean {
-  return platform === 'darwin' || platform === 'win32';
-}
 
 /**
  * Coerce anything — a persisted value from an older build, a hand-edited
@@ -67,6 +84,13 @@ export function isWindowOpacitySupported(platform: string): boolean {
  * from someone who wanted the window faint, and 0.6 honours that better than
  * snapping back to fully opaque. Non-numbers are a different case entirely and
  * fall back to the default.
+ *
+ * Values written by the `setOpacity` era survive unchanged, and that is
+ * deliberate. The number meant "fade the whole window to 0.8"; it now means
+ * "paint backgrounds at 0.8". Both answer "how see-through do you want this",
+ * and the new reading is strictly more legible at the same figure — so
+ * migrating the value would be moving someone's setting to fix a problem they
+ * no longer have.
  */
 export function normalizeWindowOpacity(value: unknown): number {
   if (typeof value !== 'number' || !Number.isFinite(value)) return DEFAULT_WINDOW_OPACITY;
@@ -75,11 +99,31 @@ export function normalizeWindowOpacity(value: unknown): number {
   return Math.round((MIN_WINDOW_OPACITY + steps * WINDOW_OPACITY_STEP) * 100) / 100;
 }
 
-/** Body text and panel surface of `islands-dark`, the default theme. */
-const REFERENCE_TEXT = '#bcbec4';
-const REFERENCE_SURFACE = '#181a1d';
+/** Whether the setting can do anything on this platform.
+ *
+ * Not a CSS question — the custom property applies everywhere — but a window
+ * one. Painting a background at 0.8 only reveals the desktop if the window is
+ * translucent, and on macOS the only route to that which this app takes is a
+ * vibrancy material. Linux has no equivalent (`vibrancy` is `@platform darwin`),
+ * so the slider would move and change nothing there. Deliberately the same rule
+ * as `isWindowBlurSupported`, and the two settings are now one mechanism rather
+ * than two that had to be kept apart. */
+export function isWindowOpacitySupported(platform: string): boolean {
+  return platform === 'darwin';
+}
 
-/** The two extremes of what can sit behind the window. */
+/** Body text and terminal surface of `islands-dark`, the default theme.
+ * `--task-panel-bg` is the surface scrollback is actually read on, so it is the
+ * one worth modelling. */
+const REFERENCE_TEXT = '#bcbec4';
+const REFERENCE_SURFACE = '#1c2630';
+
+/** The window backdrop that surface is painted over — the colour `--bg` settles
+ * to past its gradient stop, which covers nearly all of the window. */
+const REFERENCE_BACKDROP = '#26282c';
+
+/** The two extremes of what can sit behind the window. Blur does not move them:
+ * it removes detail, not luminance. */
 const EXTREME_BACKDROPS = ['#ffffff', '#000000'] as const;
 
 type Rgb = readonly [number, number, number];
@@ -106,44 +150,50 @@ function contrastRatio(a: Rgb, b: Rgb): number {
   return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
 }
 
-/** What the compositor does: `opacity` of the window over `backdrop`. */
-function composite(color: Rgb, backdrop: Rgb, opacity: number): Rgb {
+/** One layer: `alpha` of `color` painted over `backdrop`. */
+function composite(color: Rgb, backdrop: Rgb, alpha: number): Rgb {
   return [
-    color[0] * opacity + backdrop[0] * (1 - opacity),
-    color[1] * opacity + backdrop[1] * (1 - opacity),
-    color[2] * opacity + backdrop[2] * (1 - opacity),
+    color[0] * alpha + backdrop[0] * (1 - alpha),
+    color[1] * alpha + backdrop[1] * (1 - alpha),
+    color[2] * alpha + backdrop[2] * (1 - alpha),
   ];
 }
 
 /**
- * WCAG contrast of default-theme body text on its panel, after the window has
- * been composited at `opacity` over the least forgiving desktop background.
+ * WCAG contrast of default-theme body text on the terminal surface, once that
+ * surface and the window backdrop beneath it have both been painted at `alpha`
+ * over the least forgiving desktop.
+ *
+ * Two composites, not one, because that is the layer stack `styles.css` builds:
+ * the backdrop veil at `--surface-alpha`, and the terminal surface at
+ * `--surface-alpha` on top of it. Text is composited zero times — the whole
+ * point of the mechanism — which is the structural difference from the
+ * `setOpacity` model this replaced, where the compositor faded text and surface
+ * together and the ratio collapsed about twice as fast.
  */
-export function worstCaseTextContrast(opacity: number): number {
+export function worstCaseSurfaceContrast(alpha: number): number {
   const text = toRgb(REFERENCE_TEXT);
   const surface = toRgb(REFERENCE_SURFACE);
+  const backdrop = toRgb(REFERENCE_BACKDROP);
   return Math.min(
-    ...EXTREME_BACKDROPS.map((hex) => {
-      const backdrop = toRgb(hex);
-      return contrastRatio(
-        composite(text, backdrop, opacity),
-        composite(surface, backdrop, opacity),
-      );
-    }),
+    ...EXTREME_BACKDROPS.map((hex) =>
+      contrastRatio(text, composite(surface, composite(backdrop, toRgb(hex), alpha), alpha)),
+    ),
   );
 }
 
 /**
- * How much the chosen opacity costs legibility, in WCAG terms.
+ * How much the chosen alpha costs legibility, in WCAG terms.
  *
- * `poor` is unreachable through the UI — that is the floor's whole job — but the
- * classification stays total so the boundary is testable and so a value arriving
- * from outside the slider is still described honestly.
+ * Both `reduced` and `poor` are now unreachable through the UI — that is what
+ * the numbers above say and it is the point of the change — but the
+ * classification stays total so the boundaries are testable and so a value
+ * arriving from outside the slider is still described honestly.
  */
 export type WindowOpacityReadability = 'ok' | 'reduced' | 'poor';
 
 export function windowOpacityReadability(opacity: number): WindowOpacityReadability {
-  const ratio = worstCaseTextContrast(opacity);
+  const ratio = worstCaseSurfaceContrast(opacity);
   if (ratio >= 4.5) return 'ok';
   if (ratio >= 3) return 'reduced';
   return 'poor';
