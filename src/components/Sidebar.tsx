@@ -40,6 +40,8 @@ import { RemoveProjectConfirm } from './RemoveProjectConfirm';
 import { EditProjectDialog } from './EditProjectDialog';
 import { SidebarFooter } from './SidebarFooter';
 import { IconButton } from './IconButton';
+import { SidebarPlusMenu, SidebarSectionHeader, SidebarSectionLabel } from './SidebarSection';
+import type { SidebarMenuItem } from './SidebarSection';
 import { UpdateButton } from './UpdateButton';
 import { StatusDot, getDotTooltip } from './StatusDot';
 import { TaskCurrentStateLine } from './TaskCurrentStateLine';
@@ -312,16 +314,20 @@ export function TaskRowShell(props: {
   );
 }
 
-/** The binding whose tooltip the sidebar terminal button advertises. */
+/** The bindings whose combos the Session menu advertises in its tooltips. */
 const NEW_TERMINAL_BINDING_ID = 'app.new-terminal';
+const NEW_TASK_BINDING_ID = 'app.new-task';
 
 /**
- * Tooltip for the sidebar terminal button.
+ * Tooltip for the Session menu's terminal entry.
  *
  * Reads the *resolved* binding rather than hardcoding `Cmd/Ctrl+Shift+D`, so a
  * user who rebinds `app.new-terminal` in Settings sees their own combo here.
  * `resolvedBindings()` already drops unbound entries, so a shortcut the user
  * cleared degrades to the plain label instead of advertising a dead key.
+ *
+ * The button this used to sit on is gone — the menu entry replaced it — but the
+ * shortcut it advertised is untouched, so the tooltip moved rather than went.
  *
  * `isMac` is threaded through rather than left to `formatKeyCombo`'s
  * platform default so the test can assert both platforms.
@@ -333,51 +339,79 @@ export function newTerminalTooltip(bindings: KeyBinding[], isMac?: boolean): str
 }
 
 /**
- * Sidebar entry point for opening a standalone terminal panel. Sits directly
- * above the phone button and copies its shape — no width of its own, so it
- * tracks the resizable sidebar instead of overflowing it at 160px.
+ * Tooltip for the Session menu's task entry, on the same terms as
+ * `newTerminalTooltip`: resolved binding, never a literal combo.
+ *
+ * Advertises `app.new-task` and not `app.new-task-alt`. Both fire the same
+ * action, and a tooltip that listed two combos would be noise; the alternate
+ * still works, it is just not the one named here.
+ *
+ * Uses the sentence-case `New task` keys that already exist in the catalogue,
+ * not the title-case `New Task` the button below the heading uses: it puts the
+ * entry in the same voice as `New terminal` beside it, and adds no catalogue
+ * key for a string that was already translated.
  */
-export function SidebarTerminalButton(props: {
-  label: string;
-  tooltip: string;
-  onClick: () => void;
-}) {
+export function newTaskTooltip(bindings: KeyBinding[], isMac?: boolean): string {
+  const binding = bindings.find((b) => b.id === NEW_TASK_BINDING_ID);
+  if (!binding) return tr('New task');
+  return tr('New task ({shortcut})', { shortcut: formatKeyCombo(binding, isMac) });
+}
+
+/** Terminal glyph, inherited from the sidebar button the Session menu replaced. */
+function TerminalGlyph() {
   return (
-    <button
-      onClick={() => props.onClick()}
-      title={props.tooltip}
-      aria-label={props.label}
-      style={{
-        display: 'flex',
-        'align-items': 'center',
-        gap: '8px',
-        padding: '8px 12px',
-        margin: '4px 8px',
-        background: 'transparent',
-        border: `1px solid ${theme.border}`,
-        'border-radius': '8px',
-        color: theme.fgMuted,
-        'font-size': sf(13),
-        cursor: 'pointer',
-        'flex-shrink': '0',
-      }}
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      aria-hidden="true"
     >
-      <svg
-        width="14"
-        height="14"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke={theme.fgMuted}
-        stroke-width="2"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-      >
-        <polyline points="4 17 10 11 4 5" />
-        <line x1="12" y1="19" x2="20" y2="19" />
-      </svg>
-      {props.label}
-    </button>
+      <polyline points="4 17 10 11 4 5" />
+      <line x1="12" y1="19" x2="20" y2="19" />
+    </svg>
   );
+}
+
+/** Plus glyph, matching the one on the section headings' own `+` buttons. */
+function PlusGlyph() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+      <path d="M7.75 2a.75.75 0 0 1 .75.75V7h4.25a.75.75 0 0 1 0 1.5H8.5v4.25a.75.75 0 0 1-1.5 0V8.5H2.75a.75.75 0 0 1 0-1.5H7V2.75A.75.75 0 0 1 7.75 2Z" />
+    </svg>
+  );
+}
+
+/**
+ * The two things a Session can start.
+ *
+ * "New task" is disabled with no projects linked, for the reason the New
+ * Task button below the heading has always been swapped for "Link Project" in
+ * that state: the dialog needs a project to put the task in. "New terminal"
+ * stays enabled either way — opening a terminal has no preconditions, which is
+ * why its old button was rendered unconditionally.
+ */
+export function sessionMenuItems(bindings: KeyBinding[]): SidebarMenuItem[] {
+  const hasProject = store.projects.length > 0;
+  return [
+    {
+      label: tr('New task'),
+      tooltip: hasProject ? newTaskTooltip(bindings) : tr('Link a project first'),
+      icon: <PlusGlyph />,
+      disabled: !hasProject,
+      onSelect: () => toggleNewTaskDialog(true),
+    },
+    {
+      label: tr('New terminal'),
+      tooltip: newTerminalTooltip(bindings),
+      icon: <TerminalGlyph />,
+      onSelect: () => createTerminal(),
+    },
+  ];
 }
 
 export function Sidebar() {
@@ -682,13 +716,19 @@ export function Sidebar() {
             'min-height': '0',
           }}
         >
-          <div
-            style={{
-              display: 'flex',
-              'align-items': 'center',
-              'justify-content': 'space-between',
-              padding: '0 2px',
-            }}
+          <SidebarSectionHeader
+            trailing={
+              <IconButton
+                icon={
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                    <path d="M7.75 2a.75.75 0 0 1 .75.75V7h4.25a.75.75 0 0 1 0 1.5H8.5v4.25a.75.75 0 0 1-1.5 0V8.5H2.75a.75.75 0 0 1 0-1.5H7V2.75A.75.75 0 0 1 7.75 2Z" />
+                  </svg>
+                }
+                onClick={() => void startAddProject()}
+                title={tr('Add project')}
+                size="sm"
+              />
+            }
           >
             <button
               type="button"
@@ -735,17 +775,7 @@ export function Sidebar() {
                 {tr('Projects')}
               </span>
             </button>
-            <IconButton
-              icon={
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                  <path d="M7.75 2a.75.75 0 0 1 .75.75V7h4.25a.75.75 0 0 1 0 1.5H8.5v4.25a.75.75 0 0 1-1.5 0V8.5H2.75a.75.75 0 0 1 0-1.5H7V2.75A.75.75 0 0 1 7.75 2Z" />
-                </svg>
-              }
-              onClick={() => void startAddProject()}
-              title={tr('Add project')}
-              size="sm"
-            />
-          </div>
+          </SidebarSectionHeader>
 
           {/* Scrollable project list — outer grid-rows wrapper animates the
               collapse smoothly without needing a measured height. */}
@@ -863,7 +893,23 @@ export function Sidebar() {
           </div>
         </div>
 
-        <div style={{ height: '1px', background: theme.border }} />
+        {/* Session section heading.
+            Replaces the 1px rule that used to sit here. That rule existed only
+            to mark where the project list stopped and the task list started —
+            two unlabelled regions needed *something* between them. A framed
+            heading that names the second region does that job and says what the
+            region is, so keeping both would be drawing the same boundary twice. */}
+        <SidebarSectionHeader
+          trailing={
+            <SidebarPlusMenu
+              triggerLabel={tr('Add to session')}
+              menuLabel={tr('Add to session')}
+              items={sessionMenuItems(resolvedBindings())}
+            />
+          }
+        >
+          <SidebarSectionLabel>{tr('Session')}</SidebarSectionLabel>
+        </SidebarSectionHeader>
 
         {/* New task / Link project button */}
         <Show
@@ -1065,14 +1111,6 @@ export function Sidebar() {
             <div class="drop-indicator" />
           </Show>
         </div>
-
-        {/* New terminal button — unconditional: opening a terminal has no
-            preconditions, and every click adds another panel. */}
-        <SidebarTerminalButton
-          label={tr('New terminal')}
-          tooltip={newTerminalTooltip(resolvedBindings())}
-          onClick={() => createTerminal()}
-        />
 
         {/* Connect / Disconnect Phone button */}
         {(() => {

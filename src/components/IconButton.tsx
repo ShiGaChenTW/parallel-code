@@ -13,6 +13,20 @@ interface IconButtonProps {
    * without this looks the same whether or not its panel is showing.
    */
   active?: boolean;
+  /**
+   * The block below exists so a menu trigger can be an IconButton rather than a
+   * hand-rolled copy of one. The sidebar puts a `+` on both section headings;
+   * one opens a folder picker and one opens a menu, and they sit in matching
+   * frames a few rows apart, so they have to be the same button down to the
+   * pixel. Every field is optional — a plain icon button passes none of them.
+   */
+  ref?: (el: HTMLButtonElement) => void;
+  onKeyDown?: (e: KeyboardEvent) => void;
+  /** Needed when the visible content is a glyph and `title` is not enough. */
+  ariaLabel?: string;
+  ariaHasPopup?: 'menu' | 'dialog' | 'listbox';
+  ariaExpanded?: boolean;
+  ariaControls?: string;
 }
 
 export function IconButton(props: IconButtonProps) {
@@ -20,8 +34,14 @@ export function IconButton(props: IconButtonProps) {
 
   return (
     <button
+      ref={props.ref}
       class="icon-btn"
       title={props.title}
+      aria-label={props.ariaLabel}
+      aria-haspopup={props.ariaHasPopup}
+      aria-expanded={props.ariaExpanded}
+      aria-controls={props.ariaControls}
+      onKeyDown={(e) => props.onKeyDown?.(e)}
       onClick={(e) => {
         e.stopPropagation();
         props.onClick(e);
