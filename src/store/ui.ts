@@ -10,6 +10,7 @@ import type { AppIconId } from '../lib/app-icon';
 import { normalizeWindowOpacity } from '../lib/window-opacity';
 import { normalizeWindowBlur } from '../lib/window-blur';
 import type { WindowBlur } from '../lib/window-blur';
+import type { TerminalTarget } from '../lib/native-terminal';
 import { themeToCss } from '../lib/custom-theme';
 import type { PersistedWindowState, TaskViewportVisibility } from './types';
 import { invoke } from '../lib/ipc';
@@ -88,6 +89,10 @@ export function toggleSidebar(): void {
 
 export function setTerminalFont(terminalFont: string): void {
   setStore('terminalFont', terminalFont);
+}
+
+export function setTerminalTarget(target: TerminalTarget): void {
+  setStore('terminalTarget', target);
 }
 
 export function applyAppearanceMode(): void {

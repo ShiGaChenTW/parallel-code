@@ -32,6 +32,7 @@ const NEVER_SAFE: ReadonlySet<string> = new Set<string>([
   IPC.SaveKeybindings,
   IPC.LoadKeybindings,
   IPC.ShellOpenInEditor,
+  IPC.ShellOpenTerminal,
   IPC.ShellOpenFile,
   IPC.ShellReveal,
   IPC.ShellOpenExternal,

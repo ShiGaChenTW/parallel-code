@@ -132,7 +132,26 @@ afterEach(() => {
 
 describe('focus navigation neighbor map', () => {
   it('moves down through stacked layout using explicit neighbors', () => {
+    // Was `shell-toolbar:0`, when cell 0 of that row was the terminal button
+    // and the row therefore existed for every task. The button is in the task
+    // title bar now and the row holds bookmarks only, so this fixture — a
+    // project with no bookmarks — renders no toolbar at all. Landing focus on
+    // a row that is not on screen would be a keypress that appears to do
+    // nothing, so the row is skipped and the AI terminal is the next stop.
     setTask('task-1');
+    mockStore.focusedPanel['task-1'] = 'notes';
+
+    navigateRow('down');
+
+    expect(mockStore.focusedPanel['task-1']).toBe('ai-terminal:agent-1');
+  });
+
+  it('still stops at the shell toolbar on the way down when the project has bookmarks', () => {
+    // The other half of the change above, and the one that keeps the original
+    // intent under test: when the row does render, it is still reachable, and
+    // its first cell is now the first bookmark rather than the terminal button.
+    setTask('task-1');
+    mockStore.projects[0].terminalBookmarks = [{ id: 'bookmark-1', command: 'npm test' }];
     mockStore.focusedPanel['task-1'] = 'notes';
 
     navigateRow('down');
@@ -215,7 +234,12 @@ describe('focus navigation neighbor map', () => {
       { id: 'bookmark-2', command: 'npm run lint' },
     ];
     mockStore.taskSplitMode['task-1'] = true;
-    mockStore.focusedPanel['task-1'] = 'shell-toolbar:2';
+    // Was `shell-toolbar:2`. Two bookmarks used to mean three cells — button,
+    // bookmark, bookmark — and index 2 was the rightmost one. With the button
+    // gone the same two bookmarks are cells 0 and 1, so the rightmost cell this
+    // case is about is index 1. The assertion below is unchanged: from the last
+    // toolbar cell, down still clamps to the last available shell.
+    mockStore.focusedPanel['task-1'] = 'shell-toolbar:1';
 
     navigateRow('down');
 
