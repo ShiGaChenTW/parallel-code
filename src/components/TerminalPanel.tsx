@@ -17,6 +17,7 @@ import { IconButton } from './IconButton';
 import { TerminalView } from './TerminalView';
 import { CloseIcon } from './icons';
 import { theme } from '../lib/theme';
+import { PANEL_TITLE_BAR_HEIGHT_PX } from '../lib/panelChrome';
 import { handleDragReorder } from '../lib/dragReorder';
 import type { Terminal } from '../store/types';
 
@@ -72,7 +73,14 @@ export function TerminalPanel(props: TerminalPanelProps) {
       }}
       onClick={() => setActiveTask(props.terminal.id)}
     >
-      {/* Title bar */}
+      {/* Title bar. Height comes from the shared metric rather than a local
+          literal because this bar sits beside the task panel's own title bar in
+          the tiling strip, and the two bottom borders have to resolve to the
+          same line. The bar holds one `>_` glyph, the name and a close button
+          against the task bar's status dot, name and eight buttons — but every
+          control is the same `IconButton` at the same intrinsic height, and both
+          bars centre their row, so the extra space reads as the same padding
+          the task panel already shows rather than as emptiness. */}
       <div
         class={props.isActive ? 'island-header-active' : ''}
         style={{
@@ -80,8 +88,8 @@ export function TerminalPanel(props: TerminalPanelProps) {
           'align-items': 'center',
           'justify-content': 'space-between',
           padding: '0 10px',
-          height: '36px',
-          'min-height': '36px',
+          height: `${PANEL_TITLE_BAR_HEIGHT_PX}px`,
+          'min-height': `${PANEL_TITLE_BAR_HEIGHT_PX}px`,
           background: 'transparent',
           'border-bottom': `1px solid ${theme.border}`,
           'user-select': 'none',

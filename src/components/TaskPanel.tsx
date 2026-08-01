@@ -40,6 +40,7 @@ import { invoke } from '../lib/ipc';
 import { IPC } from '../../electron/ipc/channels';
 import { SubTaskStrip } from './SubTaskStrip';
 import { theme } from '../lib/theme';
+import { PANEL_TITLE_BAR_HEIGHT_PX } from '../lib/panelChrome';
 import { isMac } from '../lib/platform';
 import type { Task } from '../store/types';
 import type { CommitInfo } from '../ipc/types';
@@ -606,7 +607,7 @@ export function TaskPanel(props: TaskPanelProps) {
         }}
       >
         {/* Title + branch bars live outside <Show> so they don't remount on layout flips. */}
-        <div style={{ flex: '0 0 50px', overflow: 'hidden' }}>
+        <div style={{ flex: `0 0 ${PANEL_TITLE_BAR_HEIGHT_PX}px`, overflow: 'hidden' }}>
           <TaskTitleBar
             task={props.task}
             isActive={props.isActive}
