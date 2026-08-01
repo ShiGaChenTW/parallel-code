@@ -42,6 +42,7 @@ import { SidebarFooter } from './SidebarFooter';
 import { IconButton } from './IconButton';
 import { SidebarPlusMenu, SidebarSectionHeader, SidebarSectionLabel } from './SidebarSection';
 import type { SidebarMenuItem } from './SidebarSection';
+import { ProjectPlusMenu } from './ProjectPlusMenu';
 import { UpdateButton } from './UpdateButton';
 import { StatusDot, getDotTooltip } from './StatusDot';
 import { TaskCurrentStateLine } from './TaskCurrentStateLine';
@@ -716,20 +717,10 @@ export function Sidebar() {
             'min-height': '0',
           }}
         >
-          <SidebarSectionHeader
-            trailing={
-              <IconButton
-                icon={
-                  <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                    <path d="M7.75 2a.75.75 0 0 1 .75.75V7h4.25a.75.75 0 0 1 0 1.5H8.5v4.25a.75.75 0 0 1-1.5 0V8.5H2.75a.75.75 0 0 1 0-1.5H7V2.75A.75.75 0 0 1 7.75 2Z" />
-                  </svg>
-                }
-                onClick={() => void startAddProject()}
-                title={tr('Add project')}
-                size="sm"
-              />
-            }
-          >
+          {/* The `+` is a menu now — local folder, clone from a URL, or a new
+              empty project. The items and all their wiring live in
+              ProjectPlusMenu; this file only says where the trigger goes. */}
+          <SidebarSectionHeader trailing={<ProjectPlusMenu />}>
             <button
               type="button"
               class="projects-toggle"

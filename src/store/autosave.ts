@@ -53,6 +53,7 @@ export function persistedSnapshot(): string {
     transcriptEnabled: store.transcriptEnabled,
     inactiveColumnOpacity: store.inactiveColumnOpacity,
     editorCommand: store.editorCommand,
+    cloneParentDir: store.cloneParentDir,
     dockerImage: store.dockerImage,
     askCodeProvider: store.askCodeProvider,
     customAgents: store.customAgents,

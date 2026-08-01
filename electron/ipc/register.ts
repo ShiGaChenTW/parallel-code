@@ -17,6 +17,13 @@ import { resolveCommandPath } from '../command-path.js';
 import { awaitEnvImport, envImportHint, type EnvImportStatus } from '../env-import.js';
 import { appendGitInfoExcludeBlock } from './git-exclude.js';
 import {
+  cancelClone,
+  cloneRepository,
+  normalizeCloneUrl,
+  repoFolderNameFromUrl,
+} from './git-clone.js';
+import { scaffoldNewProject, validateProjectFolderName } from './project-scaffold.js';
+import {
   spawnAgent,
   writeToAgent,
   resizeAgent,
@@ -838,6 +845,54 @@ export function registerAllHandlers(win: BrowserWindow): void {
   ipcMain.handle(IPC.CheckIsGitRepo, (_e, args) => {
     validatePath(args.path, 'path');
     return isGitRepo(args.path);
+  });
+
+  // --- Clone / scaffold ---
+  // The URL is re-validated here and not merely in the renderer. The renderer
+  // check exists to disable a button; this one is the boundary. A URL that
+  // reached `git clone` unfiltered would be a command-execution primitive (see
+  // git-clone.ts), so the allowlist has to be enforced on the trusted side.
+  ipcMain.handle(IPC.CloneRepo, (_e, args) => {
+    assertString(args.url, 'url');
+    validatePath(args.parentDir, 'parentDir');
+    assertString(args.cloneId, 'cloneId');
+    assertString(args.onOutput?.__CHANNEL_ID__, 'channelId');
+
+    const url = normalizeCloneUrl(args.url);
+    if (!url) {
+      throw new Error(
+        'That is not a repository address Parallel Code will clone. Use an https:// or SSH URL, ' +
+          'or the owner/repo shorthand for GitHub.',
+      );
+    }
+
+    const requested = typeof args.folderName === 'string' ? args.folderName.trim() : '';
+    const folderName = requested || repoFolderNameFromUrl(url);
+    if (!folderName) {
+      throw new Error('Enter a folder name — the URL does not suggest a usable one.');
+    }
+    const nameCheck = validateProjectFolderName(folderName);
+    if (!nameCheck.ok) throw new Error(nameCheck.reason);
+
+    return cloneRepository(win, {
+      url,
+      parentDir: args.parentDir,
+      folderName: nameCheck.name,
+      channelId: args.onOutput.__CHANNEL_ID__,
+      cloneId: args.cloneId,
+    });
+  });
+
+  ipcMain.handle(IPC.CancelClone, (_e, args) => {
+    assertString(args.cloneId, 'cloneId');
+    return cancelClone(args.cloneId);
+  });
+
+  ipcMain.handle(IPC.ScaffoldNewProject, (_e, args) => {
+    validatePath(args.parentDir, 'parentDir');
+    assertString(args.name, 'name');
+    assertOptionalBoolean(args.initSpecgate, 'initSpecgate');
+    return scaffoldNewProject(args.parentDir, args.name, args.initSpecgate !== false);
   });
   ipcMain.handle(IPC.GetBranches, (_e, args) => {
     return getBranches(projectRootArg(args));

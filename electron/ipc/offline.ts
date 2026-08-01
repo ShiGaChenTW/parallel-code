@@ -26,6 +26,7 @@ export const OUTBOUND_SURFACES = [
   'huly',
   'git-push',
   'git-remote-head',
+  'git-clone',
   'docker-build',
   'docker-run',
   'font-download',
@@ -43,6 +44,8 @@ const SURFACE_MESSAGES: Record<OutboundSurface, string> = {
   huly: 'Offline mode is on, so Parallel Code did not connect to your Huly server.',
   'git-push': 'Offline mode is on, so the branch was not pushed to origin.',
   'git-remote-head': 'Offline mode is on, so the default branch was resolved from local refs only.',
+  'git-clone':
+    'Offline mode is on, so the repository was not cloned — fetching it requires reaching the remote host.',
   'docker-build': 'Offline mode is on, so the Docker image was not built.',
   'docker-run':
     'Offline mode is on, so the Docker container was not started — its image is not on this machine, and starting it would pull from a registry.',
