@@ -7,6 +7,23 @@ import { menuKeyAction, triggerKeyAction } from './sidebar-menu';
 import type { MenuAction } from './sidebar-menu';
 
 /**
+ * The box geometry every framed control in the sidebar column shares.
+ *
+ * These numbers are not new. They are the ones the "New Task" button carried
+ * until it was removed — that button was the biggest, most deliberate box in
+ * the column, so it is what the section headings were asked to look like. The
+ * button is gone; the measurements outlived it and live here.
+ *
+ * Exported rather than inlined because two things still need to agree: the
+ * section headings below, and the full-width "Link Project" button that is all
+ * a user with no projects sees. Those two stack directly on top of each other
+ * in the same column, so a radius or padding that drifts on one shows up
+ * immediately as a mismatched edge on the other.
+ */
+export const SECTION_BOX_RADIUS = '8px';
+export const SECTION_BOX_PADDING = '8px 14px';
+
+/**
  * A framed, transparent-backed heading for one region of the sidebar.
  *
  * The frame is what tells the two regions apart now that both carry a `+`:
@@ -39,10 +56,10 @@ export function SidebarSectionHeader(props: {
         'align-items': 'center',
         'justify-content': 'space-between',
         gap: '4px',
-        padding: '2px 4px',
+        padding: SECTION_BOX_PADDING,
         background: 'transparent',
         border: `1px solid ${theme.border}`,
-        'border-radius': '6px',
+        'border-radius': SECTION_BOX_RADIUS,
         'flex-shrink': '0',
       }}
     >
@@ -53,11 +70,14 @@ export function SidebarSectionHeader(props: {
 }
 
 /**
- * The heading text for a section that does not collapse.
+ * The heading text for a section.
  *
- * Carries the same type treatment as the label inside the Projects toggle —
- * and the same `2px 4px` padding the toggle button applies — so both headings
- * start their text at the same x, which is the whole point of framing them.
+ * Carries no padding of its own. It used to carry `2px 4px` to match the
+ * padding on the Projects collapse toggle, so the two headings started their
+ * text at the same x. That toggle is gone and both headings are now this same
+ * component, so the frame's own `SECTION_BOX_PADDING` is the only inset —
+ * keeping the old value here would inset the text a second time and leave the
+ * label floating well off the frame's left edge.
  */
 export function SidebarSectionLabel(props: { children: JSX.Element }) {
   return (
@@ -67,7 +87,6 @@ export function SidebarSectionLabel(props: { children: JSX.Element }) {
         'text-transform': 'uppercase',
         'letter-spacing': '0.05em',
         color: theme.fgMuted,
-        padding: '2px 4px',
         'min-width': '0',
         overflow: 'hidden',
         'text-overflow': 'ellipsis',

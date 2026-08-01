@@ -189,8 +189,6 @@ const ZH_TW: Record<string, string> = {
   'Add project': '新增專案',
   'Remove project': '移除專案',
   'Click to restore': '點擊以復原',
-  'Expand projects': '展開專案',
-  'Collapse projects': '收合專案',
   'Folder not found': '找不到資料夾',
   'Connect Phone': '連接手機',
   'Phone Connected': '手機已連接',

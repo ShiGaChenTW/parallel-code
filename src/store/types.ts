@@ -330,7 +330,6 @@ export interface PersistedState {
   showPlans?: boolean;
   showSidebarTips?: boolean;
   showSidebarProgress?: boolean;
-  projectsCollapsed?: boolean;
   desktopNotificationsEnabled?: boolean;
   /** Master privacy switch: when true the app makes no outbound request of
    *  its own. Does not cover third-party CLI traffic — see PRIVACY.md. */
@@ -447,7 +446,6 @@ export interface AppStore {
   showPlans: boolean;
   showSidebarTips: boolean;
   showSidebarProgress: boolean;
-  projectsCollapsed: boolean;
   desktopNotificationsEnabled: boolean;
   /** Master privacy switch: when true the app makes no outbound request of
    *  its own. Does not cover third-party CLI traffic — see PRIVACY.md. */
