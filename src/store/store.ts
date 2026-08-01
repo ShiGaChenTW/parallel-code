@@ -125,7 +125,6 @@ export {
   toggleTaskFocusMode,
   setTaskSplitMode,
   setTerminalFont,
-  setTerminalTarget,
   applyAppearanceMode,
   markCustomThemesReady,
   setAppearanceMode,

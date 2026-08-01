@@ -7,7 +7,6 @@ import type { CustomTheme } from '../lib/custom-theme';
 import type { AppIconId } from '../lib/app-icon';
 import type { PromptHistoryEntry } from '../lib/prompt-history';
 import type { WindowBlur } from '../lib/window-blur';
-import type { TerminalTarget } from '../lib/native-terminal';
 
 /** A user override for a binding: partial key/modifiers to apply, or null to unbind. */
 export type KeybindingOverride = Partial<Pick<KeyBinding, 'key' | 'modifiers'>> | null;
@@ -323,9 +322,6 @@ export interface PersistedState {
   /** The user has opened the diff viewer at least once. Absent for older state. */
   diffReviewed?: boolean;
   terminalFont?: string;
-  /** What the task title bar's terminal button opens. Absent means the
-   *  built-in panel, which is what the button did before it was configurable. */
-  terminalTarget?: TerminalTarget;
   themePreset?: LookPreset;
   showPromptInput?: boolean;
   fontSmoothing?: boolean;
@@ -443,7 +439,6 @@ export interface AppStore {
   peakConcurrentTasks: number;
   diffReviewed: boolean;
   terminalFont: string;
-  terminalTarget: TerminalTarget;
   themePreset: LookPreset;
   showPromptInput: boolean;
   fontSmoothing: boolean;

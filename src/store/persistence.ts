@@ -22,7 +22,6 @@ import type {
 import type { AgentDef, HulyIssue } from '../ipc/types';
 import { inferDockerSource } from '../lib/docker';
 import { DEFAULT_TERMINAL_FONT } from '../lib/fonts';
-import { isTerminalTarget } from '../lib/native-terminal';
 import { isLookPreset } from '../lib/look';
 import { isLocale } from '../lib/i18n';
 import { readPersistedOfflineMode } from '../lib/offline-mode';
@@ -214,10 +213,6 @@ export function buildPersistedState(): PersistedState {
     peakConcurrentTasks: store.peakConcurrentTasks || undefined,
     diffReviewed: store.diffReviewed || undefined,
     terminalFont: store.terminalFont,
-    // Omitted at the default so a state file only carries the setting once the
-    // user has actually chosen an external terminal, matching how every other
-    // opt-in on this list is written.
-    terminalTarget: store.terminalTarget !== 'builtin' ? store.terminalTarget : undefined,
     themePreset: store.themePreset,
     showPromptInput: store.showPromptInput,
     fontSmoothing: store.fontSmoothing,
@@ -406,7 +401,6 @@ interface LegacyPersistedState {
   peakConcurrentTasks?: unknown;
   diffReviewed?: unknown;
   terminalFont?: unknown;
-  terminalTarget?: unknown;
   themePreset?: unknown;
   showPromptInput?: unknown;
   fontSmoothing?: unknown;
@@ -569,9 +563,6 @@ export async function loadState(): Promise<void> {
         typeof raw.terminalFont === 'string' && raw.terminalFont.trim()
           ? raw.terminalFont
           : DEFAULT_TERMINAL_FONT;
-      // Anything unrecognised — including the pre-release `system` id, which
-      // meant a different thing — falls back rather than reaching the launcher.
-      s.terminalTarget = isTerminalTarget(raw.terminalTarget) ? raw.terminalTarget : 'builtin';
       s.themePreset = isLookPreset(raw.themePreset) ? raw.themePreset : 'minimal';
       s.showPromptInput = typeof raw.showPromptInput === 'boolean' ? raw.showPromptInput : true;
       s.fontSmoothing = typeof raw.fontSmoothing === 'boolean' ? raw.fontSmoothing : true;
