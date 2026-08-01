@@ -65,7 +65,7 @@ export function TerminalPanel(props: TerminalPanelProps) {
         'flex-direction': 'column',
         height: '100%',
         background: theme.taskContainerBg,
-        'border-radius': '0',
+        'border-radius': '12px',
         border: `1px solid ${theme.border}`,
         overflow: 'clip',
         position: 'relative',
@@ -126,13 +126,22 @@ export function TerminalPanel(props: TerminalPanelProps) {
         </div>
       </div>
 
-      {/* Terminal */}
+      {/* Terminal. Unlike the task panel — where every focusable panel sits
+          inside resizable cells that carry no radius — this one is a direct
+          child of the rounded root, so the `border-radius: inherit` on
+          `.focusable-panel`'s focus ring would resolve to the card's own 12px
+          and draw rounded top corners in the middle of the panel, against the
+          flat title-bar seam. Pinning the radius keeps the ring square where it
+          meets that seam and curved where it meets the card's clip. The bottom
+          11px is the card's 12px less its 1px frame: `overflow` clips against
+          the padding box, so that is the curve the ring has to trace. */}
       <div
         class="focusable-panel"
         data-panel-focused={isPanelFocused(props.terminal.id, 'terminal') ? 'true' : 'false'}
         style={{
           height: '100%',
           position: 'relative',
+          'border-radius': '0 0 11px 11px',
         }}
         onClick={() => setTaskFocusedPanel(props.terminal.id, 'terminal')}
       >
