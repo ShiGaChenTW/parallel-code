@@ -13,12 +13,24 @@ update-test/
 .claude
 .DS_Store
 # Generated docs content stays ignored; authored documents are tracked by name.
+#
+# ⚠️ This is an allowlist. A new file under docs/ is INVISIBLE to git until it is
+# named below, and `git status` will not warn you — it stays silent about ignored
+# paths. Adding or renaming anything here means adding a rule here in the same
+# commit. Verify with `git check-ignore -v docs/<file>`: no output means tracked.
+#
+# Subdirectories cannot be re-included file-by-file: `docs/*` excludes the
+# directory itself, and git does not descend into an excluded directory. A
+# `docs/sub/` would need `!docs/sub/` before any rule inside it can apply. This is
+# why the wave logs are archived under plans/, which carries no allowlist at all.
 docs/*
 !docs/architecture-overview.html
 !docs/PRD.md
 !docs/research-*.md
 !docs/HANDOFF-*.md
 !docs/ROADMAP.md
+!docs/README.md
+!docs/archive-report-*.md
 
 # Sandbox bind-mount artifacts from user home (not project files).
 # Root-anchored so legitimate nested files with these names are still tracked.
