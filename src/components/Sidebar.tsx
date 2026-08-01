@@ -22,7 +22,11 @@ import {
   setProjectsCollapsed,
   uncollapseTask,
   isProjectMissing,
+  createTerminal,
+  resolvedBindings,
 } from '../store/store';
+import { formatKeyCombo } from '../lib/keybindings';
+import type { KeyBinding } from '../lib/keybindings';
 import { tr } from '../store/i18n';
 import type { Project } from '../store/types';
 import type { TaskAttentionState } from '../store/store';
@@ -305,6 +309,74 @@ export function TaskRowShell(props: {
       <Show when={props.connector}>{(connector) => <TaskTreeRail connector={connector()} />}</Show>
       {props.children}
     </div>
+  );
+}
+
+/** The binding whose tooltip the sidebar terminal button advertises. */
+const NEW_TERMINAL_BINDING_ID = 'app.new-terminal';
+
+/**
+ * Tooltip for the sidebar terminal button.
+ *
+ * Reads the *resolved* binding rather than hardcoding `Cmd/Ctrl+Shift+D`, so a
+ * user who rebinds `app.new-terminal` in Settings sees their own combo here.
+ * `resolvedBindings()` already drops unbound entries, so a shortcut the user
+ * cleared degrades to the plain label instead of advertising a dead key.
+ *
+ * `isMac` is threaded through rather than left to `formatKeyCombo`'s
+ * platform default so the test can assert both platforms.
+ */
+export function newTerminalTooltip(bindings: KeyBinding[], isMac?: boolean): string {
+  const binding = bindings.find((b) => b.id === NEW_TERMINAL_BINDING_ID);
+  if (!binding) return tr('New terminal');
+  return tr('New terminal ({shortcut})', { shortcut: formatKeyCombo(binding, isMac) });
+}
+
+/**
+ * Sidebar entry point for opening a standalone terminal panel. Sits directly
+ * above the phone button and copies its shape — no width of its own, so it
+ * tracks the resizable sidebar instead of overflowing it at 160px.
+ */
+export function SidebarTerminalButton(props: {
+  label: string;
+  tooltip: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={() => props.onClick()}
+      title={props.tooltip}
+      aria-label={props.label}
+      style={{
+        display: 'flex',
+        'align-items': 'center',
+        gap: '8px',
+        padding: '8px 12px',
+        margin: '4px 8px',
+        background: 'transparent',
+        border: `1px solid ${theme.border}`,
+        'border-radius': '8px',
+        color: theme.fgMuted,
+        'font-size': sf(13),
+        cursor: 'pointer',
+        'flex-shrink': '0',
+      }}
+    >
+      <svg
+        width="14"
+        height="14"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke={theme.fgMuted}
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <polyline points="4 17 10 11 4 5" />
+        <line x1="12" y1="19" x2="20" y2="19" />
+      </svg>
+      {props.label}
+    </button>
   );
 }
 
@@ -993,6 +1065,14 @@ export function Sidebar() {
             <div class="drop-indicator" />
           </Show>
         </div>
+
+        {/* New terminal button — unconditional: opening a terminal has no
+            preconditions, and every click adds another panel. */}
+        <SidebarTerminalButton
+          label={tr('New terminal')}
+          tooltip={newTerminalTooltip(resolvedBindings())}
+          onClick={() => createTerminal()}
+        />
 
         {/* Connect / Disconnect Phone button */}
         {(() => {
