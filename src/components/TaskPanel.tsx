@@ -40,7 +40,11 @@ import { invoke } from '../lib/ipc';
 import { IPC } from '../../electron/ipc/channels';
 import { SubTaskStrip } from './SubTaskStrip';
 import { theme } from '../lib/theme';
-import { PANEL_TITLE_BAR_HEIGHT_PX } from '../lib/panelChrome';
+import {
+  PANEL_TITLE_BAR_HEIGHT_PX,
+  TASK_BRANCH_BAR_HEIGHT_PX,
+  taskHeaderStackHeightPx,
+} from '../lib/panelChrome';
 import { isMac } from '../lib/platform';
 import type { Task } from '../store/types';
 import type { CommitInfo } from '../ipc/types';
@@ -600,7 +604,7 @@ export function TaskPanel(props: TaskPanelProps) {
       <div
         class="task-header-stack"
         style={{
-          flex: `0 0 ${props.task.stepsEnabled ? 102 : 78}px`,
+          flex: `0 0 ${taskHeaderStackHeightPx(props.task.stepsEnabled)}px`,
           display: 'flex',
           'flex-direction': 'column',
           overflow: 'hidden',
@@ -631,7 +635,7 @@ export function TaskPanel(props: TaskPanelProps) {
         <Show when={props.task.stepsEnabled}>
           <TaskCurrentStateLine task={props.task} nowMs={nowMs()} variant="card" />
         </Show>
-        <div style={{ flex: '0 0 28px', overflow: 'hidden' }}>
+        <div style={{ flex: `0 0 ${TASK_BRANCH_BAR_HEIGHT_PX}px`, overflow: 'hidden' }}>
           <TaskBranchInfoBar task={props.task} onEditProject={(id) => setEditingProjectId(id)} />
         </div>
       </div>
