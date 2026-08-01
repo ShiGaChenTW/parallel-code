@@ -1096,3 +1096,58 @@ describe('onboarding progress persistence', () => {
     expect(saved.diffReviewed).toBeUndefined();
   });
 });
+
+/**
+ * `terminalTarget` was a real persisted field for one release: the task title
+ * bar's terminal button could be pointed at Ghostty or Alacritty instead of the
+ * built-in panel. The option is gone, so the field is gone — but the state files
+ * that already carry it are still on disk, and a user who chose Ghostty has
+ * `"terminalTarget": "ghostty"` sitting in theirs right now.
+ *
+ * `loadState` reads named fields off `raw` and never enumerates it, so a field
+ * nothing reads is simply not read. These tests pin that: the removal is
+ * silent, not a crash, and the value does not leak back into the store or into
+ * the next save.
+ */
+describe('state written while the external-terminal setting existed', () => {
+  function stateWithTerminalTarget(target: string): string {
+    return JSON.stringify({
+      projects: [{ id: 'project-1', name: 'Repo', path: '/repo', color: 'hsl(0, 70%, 75%)' }],
+      lastProjectId: 'project-1',
+      lastAgentId: null,
+      taskOrder: [],
+      collapsedTaskOrder: [],
+      tasks: {},
+      activeTaskId: null,
+      sidebarVisible: true,
+      terminalFont: 'JetBrains Mono',
+      terminalTarget: target,
+    });
+  }
+
+  for (const target of ['ghostty', 'alacritty', 'builtin', 'system']) {
+    it(`loads a state file carrying terminalTarget: ${target} without throwing`, async () => {
+      mockInvoke.mockResolvedValueOnce(stateWithTerminalTarget(target));
+
+      await expect(loadState()).resolves.toBeUndefined();
+
+      // Hydration ran to completion rather than bailing at the unknown field.
+      expect(store.projects.map((p) => p.id)).toEqual(['project-1']);
+      expect(store.terminalFont).toBe('JetBrains Mono');
+      expect(store).not.toHaveProperty('terminalTarget');
+    });
+  }
+
+  it('does not write the field back out on the next save', async () => {
+    mockInvoke.mockResolvedValueOnce(stateWithTerminalTarget('ghostty'));
+    await loadState();
+
+    mockInvoke.mockResolvedValueOnce(undefined);
+    await saveState();
+
+    const call = mockInvoke.mock.calls.find((args) => args[0] === IPC.SaveAppState);
+    if (!call) throw new Error('saveState did not invoke SaveAppState');
+    const saved = JSON.parse(call[1].json) as Record<string, unknown>;
+    expect(saved).not.toHaveProperty('terminalTarget');
+  });
+});

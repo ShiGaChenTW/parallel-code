@@ -409,15 +409,6 @@ const ZH_TW: Record<string, string> = {
     '此組建不支援自動更新。請到 GitHub 下載最新版本。',
   'You are on the latest version.': '你已是最新版本。',
   'Check for updates': '檢查更新',
-  'Terminal Button': '終端機按鈕',
-  'What the terminal button in each task title bar opens. Its keyboard shortcut follows the same choice.':
-    '每個任務標題列上的終端機按鈕要開啟什麼。它的鍵盤快捷鍵也跟著這個選擇。',
-  'Built-in panel': '內建面板',
-  'Opens a new {app} window at the task worktree. Says so if it is not installed.':
-    '在該任務的 worktree 目錄開一個新的 {app} 視窗。沒安裝的話會直接告訴你。',
-  'Opens a shell inside the task panel. Always available.':
-    '在任務面板裡開一個 shell，任何平台都能用。',
-  'This task has no directory to open a terminal in': '這個任務沒有可以開啟終端機的目錄',
   'This font includes ligatures which may impact rendering performance.':
     '此字型含連字，可能影響算繪效能。',
   'Terminal Font': '終端機字型',
@@ -739,7 +730,6 @@ const ZH_TW: Record<string, string> = {
   'Copy {label}': '複製{label}',
   'Hue {hue}': '色相 {hue}',
   'Open terminal ({shortcut})': '開啟終端機（{shortcut}）',
-  'Open terminal in {app} ({shortcut})': '用 {app} 開啟終端機（{shortcut}）',
   'New task ({shortcut})': '新增任務（{shortcut}）',
   'New terminal ({shortcut})': '新增終端機（{shortcut}）',
   'Show sidebar ({shortcut})': '顯示側欄（{shortcut}）',

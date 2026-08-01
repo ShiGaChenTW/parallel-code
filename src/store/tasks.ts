@@ -7,10 +7,6 @@ import { saveState } from './persistence';
 import { setTaskFocusedPanel } from './focused-panel';
 import { getProject, getProjectPath, getProjectBranchPrefix, isProjectMissing } from './projects';
 import { setPendingShellCommand } from '../lib/bookmarks';
-import { openInNativeTerminal } from '../lib/shell';
-import { isExternalTerminalApp } from '../lib/native-terminal';
-import { showNotification } from './notification';
-import { tr } from './i18n';
 import {
   markAgentSpawned,
   markAgentBusy,
@@ -976,39 +972,16 @@ export function spawnShellForTask(taskId: string, initialCommand?: string): stri
  * does for a task.
  *
  * One function rather than two call sites, so the button's tooltip cannot end
- * up promising a shortcut that does something else. The setting decides which
- * of the two branches runs; nothing else in the app asks.
- *
- * The external branch never falls back to the built-in panel. A user who chose
- * Ghostty and got the built-in panel would reasonably conclude the setting
- * works, which is exactly why that bug would never be reported.
+ * up promising a shortcut that does something else.
  */
 export function openTerminalForTask(taskId: string): void {
-  const task = store.tasks[taskId];
-  if (!task) return;
+  if (!store.tasks[taskId]) return;
 
-  const target = store.terminalTarget;
-  if (!isExternalTerminalApp(target)) {
-    const shellId = spawnShellForTask(taskId);
-    // The button no longer lives in the shell toolbar, so there is no toolbar
-    // cell left to focus. The terminal it just opened is the honest target.
-    const index = store.tasks[taskId]?.shellAgentIds.indexOf(shellId) ?? -1;
-    if (index >= 0) setTaskFocusedPanel(taskId, `shell:${index}`);
-    return;
-  }
-
-  if (!task.worktreePath) {
-    showNotification(tr('This task has no directory to open a terminal in'));
-    return;
-  }
-
-  openInNativeTerminal(target, task.worktreePath).catch((err: unknown) => {
-    // Main attributes the failure — a missing app, or a PATH import that never
-    // landed — and that sentence is the whole value of surfacing it here.
-    const message = err instanceof Error ? err.message : String(err);
-    logWarn('tasks.shell', 'native terminal launch failed', { err: message });
-    showNotification(message);
-  });
+  const shellId = spawnShellForTask(taskId);
+  // The button no longer lives in the shell toolbar, so there is no toolbar
+  // cell left to focus. The terminal it just opened is the honest target.
+  const index = store.tasks[taskId]?.shellAgentIds.indexOf(shellId) ?? -1;
+  if (index >= 0) setTaskFocusedPanel(taskId, `shell:${index}`);
 }
 
 /** Send a bookmark command to an existing idle shell, or spawn a new one. */

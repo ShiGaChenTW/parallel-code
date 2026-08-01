@@ -69,7 +69,6 @@
   "ShellReveal": "__shell_reveal",
   "ShellOpenFile": "__shell_open_file",
   "ShellOpenInEditor": "__shell_open_in_editor",
-  "ShellOpenTerminal": "__shell_open_terminal",
   "ShellOpenExternal": "__shell_open_external",
   "SaveArenaData": "save_arena_data",
   "LoadArenaData": "load_arena_data",

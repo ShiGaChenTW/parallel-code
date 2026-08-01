@@ -9,7 +9,6 @@ import {
   resolveSpawnExecutable,
   selectMcpJsonDir,
   validateEditorCommand,
-  validateExternalTerminalApp,
   validateExternalHttpUrl,
   worktreePathArg,
 } from './register.js';
@@ -163,32 +162,6 @@ describe('validateEditorCommand', () => {
       'code\\x',
     ]) {
       expect(() => validateEditorCommand(cmd)).toThrow('shell metacharacters');
-    }
-  });
-});
-
-/**
- * The terminal picker's gate. Deliberately an allowlist rather than the
- * character filter `validateEditorCommand` uses: this value is never typed by a
- * user, only chosen from two cards, so anything else arriving here came from a
- * hand-edited state file or a bug — and in both cases the right answer is to
- * refuse before spawning, not to sanitise.
- */
-describe('validateExternalTerminalApp', () => {
-  it('accepts the two launchable apps', () => {
-    expect(validateExternalTerminalApp('ghostty')).toBe('ghostty');
-    expect(validateExternalTerminalApp('alacritty')).toBe('alacritty');
-  });
-
-  it('refuses the built-in panel, which is not a thing main can launch', () => {
-    // The renderer handles this branch itself and never reaches IPC with it, so
-    // seeing it here means the setting leaked into the wrong path.
-    expect(() => validateExternalTerminalApp('builtin')).toThrow('app must be one of');
-  });
-
-  it('refuses anything outside the list rather than guessing', () => {
-    for (const bad of [undefined, null, 42, {}, '', 'iterm2', 'system', 'x-terminal-emulator']) {
-      expect(() => validateExternalTerminalApp(bad)).toThrow('app must be one of');
     }
   });
 });

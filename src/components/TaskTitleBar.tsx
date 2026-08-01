@@ -18,7 +18,6 @@ import { StatusDot } from './StatusDot';
 import { CheckIcon, CloseIcon } from './icons';
 import { theme } from '../lib/theme';
 import { mod } from '../lib/platform';
-import { EXTERNAL_TERMINAL_LABELS, isExternalTerminalApp } from '../lib/native-terminal';
 import { badgeStyle } from '../lib/badgeStyle';
 import { handleDragReorder } from '../lib/dragReorder';
 import { getTaskDockerBadgeLabel } from '../lib/docker';
@@ -128,16 +127,8 @@ export function TaskTitleBar(props: TaskTitleBarProps) {
     const ci = ciTitle();
     return ci ? `Push to remote\n${ci}` : 'Push to remote';
   };
-  const terminalButtonTitle = () => {
-    const shortcut = `${mod}+Shift+T`;
-    const target = store.terminalTarget;
-    return isExternalTerminalApp(target)
-      ? tr('Open terminal in {app} ({shortcut})', {
-          app: EXTERNAL_TERMINAL_LABELS[target],
-          shortcut,
-        })
-      : tr('Open terminal ({shortcut})', { shortcut });
-  };
+  const terminalButtonTitle = () =>
+    tr('Open terminal ({shortcut})', { shortcut: `${mod}+Shift+T` });
 
   function handleTitleMouseDown(e: MouseEvent) {
     handleDragReorder(e, {
@@ -245,9 +236,7 @@ export function TaskTitleBar(props: TaskTitleBarProps) {
             used to be a labelled button in the shell toolbar under the notes,
             and moving it up cost it that label — so the glyph carries the whole
             meaning, which is why it is the literal prompt characters every
-            terminal emulator uses for itself rather than a drawn icon. The
-            tooltip names the target, so a user who pointed this at Ghostty is
-            told before clicking rather than after. */}
+            terminal emulator uses for itself rather than a drawn icon. */}
         <IconButton
           icon={
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor">
