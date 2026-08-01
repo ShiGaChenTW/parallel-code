@@ -47,6 +47,8 @@
     "@hcengineering/core": "0.7.423",
     "@hcengineering/tracker": "0.7.423",
     "@modelcontextprotocol/sdk": "^1.27.1",
+    "@shikijs/langs": "4.0.2",
+    "@shikijs/themes": "4.0.2",
     "@xterm/addon-fit": "^0.12.0-beta.195",
     "@xterm/addon-search": "^0.17.0-beta.195",
     "@xterm/addon-web-links": "^0.13.0-beta.195",
