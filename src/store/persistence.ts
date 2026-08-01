@@ -221,7 +221,6 @@ export function buildPersistedState(): PersistedState {
     showPlans: store.showPlans,
     showSidebarTips: store.showSidebarTips,
     showSidebarProgress: store.showSidebarProgress,
-    projectsCollapsed: store.projectsCollapsed,
     desktopNotificationsEnabled: store.desktopNotificationsEnabled,
     offlineMode: store.offlineMode || undefined,
     transcriptEnabled: store.transcriptEnabled || undefined,
@@ -410,7 +409,6 @@ interface LegacyPersistedState {
   showSteps?: unknown;
   showSidebarTips?: unknown;
   showSidebarProgress?: unknown;
-  projectsCollapsed?: unknown;
   desktopNotificationsEnabled?: unknown;
   offlineMode?: unknown;
   transcriptEnabled?: unknown;
@@ -572,8 +570,6 @@ export async function loadState(): Promise<void> {
       s.showSidebarTips = typeof raw.showSidebarTips === 'boolean' ? raw.showSidebarTips : true;
       s.showSidebarProgress =
         typeof raw.showSidebarProgress === 'boolean' ? raw.showSidebarProgress : true;
-      s.projectsCollapsed =
-        typeof raw.projectsCollapsed === 'boolean' ? raw.projectsCollapsed : false;
       s.desktopNotificationsEnabled =
         typeof raw.desktopNotificationsEnabled === 'boolean'
           ? raw.desktopNotificationsEnabled

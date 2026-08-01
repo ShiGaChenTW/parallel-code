@@ -47,7 +47,6 @@ export function persistedSnapshot(): string {
     defaultPropagateSkipPermissions: store.defaultPropagateSkipPermissions,
     showSidebarTips: store.showSidebarTips,
     showSidebarProgress: store.showSidebarProgress,
-    projectsCollapsed: store.projectsCollapsed,
     desktopNotificationsEnabled: store.desktopNotificationsEnabled,
     offlineMode: store.offlineMode,
     transcriptEnabled: store.transcriptEnabled,

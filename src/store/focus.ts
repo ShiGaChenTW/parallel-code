@@ -249,9 +249,9 @@ export function navigateRow(direction: 'up' | 'down'): void {
   if (store.sidebarFocused) {
     const { projects, sidebarFocusedProjectId, sidebarFocusedTaskId } = store;
     const allTasks = computeSidebarTaskOrder();
-    // When the Projects section is collapsed, hidden items aren't a navigable
-    // axis — ↑/↓ stays in task mode regardless of any leftover project focus.
-    const projectsNavigable = !store.projectsCollapsed && projects.length > 0;
+    // The project list is always visible now that it cannot be collapsed, so
+    // having any project at all is the whole condition for ↑/↓ to walk them.
+    const projectsNavigable = projects.length > 0;
 
     if (projectsNavigable && sidebarFocusedProjectId !== null) {
       // Project mode: navigate within projects

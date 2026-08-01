@@ -695,46 +695,48 @@ describe('auto-start remote access persistence', () => {
   });
 });
 
-describe('projects section collapsed persistence', () => {
-  it('defaults to expanded when not in saved state', async () => {
-    setStore('projectsCollapsed', true);
-    mockInvoke.mockResolvedValueOnce(basePayload());
+// The Projects section used to collapse, and `projectsCollapsed: true` was
+// written to disk. The chevron that toggled it was the only way to toggle it
+// back, so anyone who collapsed the section and then took the build that
+// removed the chevron would have been stuck looking at a hidden project list
+// with no control anywhere in the app to reveal it again.
+//
+// The escape is that the flag no longer exists: the reader does not look for
+// it, so a `true` sitting in an old state file has nothing to act on, and the
+// writer does not emit it, so the next save drops it from the file for good.
+// These tests exist to keep that true — a reintroduced read of this key is
+// exactly the regression that would lock a real user out.
+describe('legacy projectsCollapsed field', () => {
+  for (const stored of [true, false]) {
+    it(`loads a state file carrying projectsCollapsed: ${stored} without throwing`, async () => {
+      mockInvoke.mockResolvedValueOnce(basePayload({ projectsCollapsed: stored }));
+
+      await expect(loadState()).resolves.toBeUndefined();
+
+      // Hydration ran to completion rather than bailing at the unknown field,
+      // and the dead value did not leak back into the store.
+      expect(store.projects.map((p) => p.id)).toEqual(['p1']);
+      expect(store).not.toHaveProperty('projectsCollapsed');
+    });
+  }
+
+  it('hydrates neighbouring flags normally alongside the dead one', async () => {
+    mockInvoke.mockResolvedValueOnce(
+      basePayload({ projectsCollapsed: true, showSidebarTips: false }),
+    );
 
     await loadState();
 
-    expect(store.projectsCollapsed).toBe(false);
+    expect(store.showSidebarTips).toBe(false);
   });
 
-  it('restores projectsCollapsed=true from saved state', async () => {
-    mockInvoke.mockResolvedValueOnce(basePayload({ projectsCollapsed: true }));
-
-    await loadState();
-
-    expect(store.projectsCollapsed).toBe(true);
-  });
-
-  it.each([
-    ['string', 'yes'],
-    ['number', 1],
-    ['null', null],
-    ['object', { collapsed: true }],
-  ])('ignores a non-boolean projectsCollapsed value (%s)', async (_label, value) => {
-    setStore('projectsCollapsed', true);
-    mockInvoke.mockResolvedValueOnce(basePayload({ projectsCollapsed: value }));
-
-    await loadState();
-
-    expect(store.projectsCollapsed).toBe(false);
-  });
-
-  it('persists the collapsed flag through saveState', async () => {
-    setStore('projectsCollapsed', true);
+  it('drops the flag on the next save rather than round-tripping it', async () => {
     mockInvoke.mockResolvedValueOnce(undefined);
 
     await saveState();
 
     const saved = JSON.parse(mockInvoke.mock.calls[0][1].json);
-    expect(saved.projectsCollapsed).toBe(true);
+    expect(saved).not.toHaveProperty('projectsCollapsed');
   });
 });
 

@@ -36,7 +36,6 @@ describe('main stylesheet reduced-motion styles', () => {
   it('pairs each main-app selector group with its reduced-motion override', () => {
     const { block, end } = reducedMotionBlock();
 
-    expectRule(block, ['.projects-collapser'], /transition:\s*none\s*;/);
     expectRule(
       block,
       [
