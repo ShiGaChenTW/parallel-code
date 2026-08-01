@@ -1,16 +1,21 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 336 56" fill="none" stroke="#2ec8ff" stroke-width="4">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 345 56" fill="none">
+  <!-- Brand plate (squared variant) -->
+  <rect width="345" height="56" fill="#0E1F17"/>
 
-  <!-- Parallel lines -->
-  <line x1="10" y1="6" x2="10" y2="50"/>
-  <line x1="22" y1="6" x2="22" y2="50"/>
-
-  <!-- ] bracket (top) -->
-  <path d="M30 8 H47 V24 H30"/>
-  <!-- [ bracket (bottom) -->
-  <path d="M49 32 H32 V48 H49"/>
+  <!-- Logo icon — build/icon.svg artwork, scaled from its 512 grid into the
+       leading 56 box. The artwork is centred within that grid, so no offset
+       is needed beyond the scale. -->
+  <g fill="none" stroke-width="50" stroke-linecap="round" transform="scale(0.109375)">
+    <path d="M152 120 V 392" stroke="#1E3A2C"/>
+    <path d="M256 120 V 392" stroke="#1E3A2C"/>
+    <path d="M360 120 V 392" stroke="#1E3A2C"/>
+    <path d="M152 120 V 214" stroke="#7DFF9B"/>
+    <path d="M256 120 V 296" stroke="#7DFF9B"/>
+    <path d="M360 120 V 392" stroke="#7DFF9B"/>
+  </g>
 
   <!-- "Parallel Code" in JetBrains Mono SemiBold (font glyphs as paths) -->
-  <g fill="#2ec8ff" stroke="none" transform="translate(68, 42)">
+  <g fill="#7DFF9B" stroke="none" transform="translate(68, 42)">
     <path transform="translate(0.0,0) scale(0.034,-0.034)" d="M84 0V730H323Q394 730 446.5 703.0Q499 676 527.5 626.5Q556 577 556 510Q556 443 527.0 393.5Q498 344 446.0 317.0Q394 290 323 290H192V0ZM192 386H323Q379 386 412.5 420.0Q446 454 446 510Q446 566 412.5 600.0Q379 634 323 634H192Z"/>
     <path transform="translate(20.4,0) scale(0.034,-0.034)" d="M245 -10Q161 -10 111.5 37.5Q62 85 62 162Q62 240 115.0 287.5Q168 335 256 335H408V375Q408 470 301 470Q253 470 224.0 452.0Q195 434 193 402H87Q92 471 149.0 515.5Q206 560 302 560Q404 560 460.0 511.5Q516 463 516 376V0H410V103H409Q402 50 359.0 20.0Q316 -10 245 -10ZM276 79Q337 79 372.5 108.5Q408 138 408 188V259H264Q221 259 195.5 234.0Q170 209 170 170Q170 128 198.0 103.5Q226 79 276 79Z"/>
     <path transform="translate(40.8,0) scale(0.034,-0.034)" d="M104 0V550H211V442Q219 497 258.0 528.5Q297 560 361 560Q446 560 493.0 507.0Q540 454 540 358V309H432V355Q432 466 323 466Q269 466 240.5 434.5Q212 403 212 343V0Z"/>

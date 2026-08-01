@@ -540,19 +540,31 @@ export function Sidebar() {
           style={{ display: 'flex', 'align-items': 'center', 'justify-content': 'space-between' }}
         >
           <div style={{ display: 'flex', 'align-items': 'center', gap: '8px', padding: '0 2px' }}>
+            {/*
+              The app-icon mark (build/icon.svg), cropped to its artwork bounds so
+              it fills 24px. The icon separates full-height tracks from the filled
+              portion by colour; here both are stroked with the active foreground
+              and the tracks are dimmed instead, so the mark stays readable across
+              all look presets rather than pinning the brand green into every theme.
+            */}
             <svg
               width="24"
               height="24"
-              viewBox="0 0 56 56"
+              viewBox="91 91 330 330"
               fill="none"
               stroke={theme.fg}
-              stroke-width="4"
+              stroke-width="50"
+              stroke-linecap="round"
               style={{ 'flex-shrink': '0' }}
             >
-              <line x1="10" y1="6" x2="10" y2="50" />
-              <line x1="22" y1="6" x2="22" y2="50" />
-              <path d="M30 8 H47 V24 H30" />
-              <path d="M49 32 H32 V48 H49" />
+              <g opacity="0.3">
+                <path d="M152 120 V 392" />
+                <path d="M256 120 V 392" />
+                <path d="M360 120 V 392" />
+              </g>
+              <path d="M152 120 V 214" />
+              <path d="M256 120 V 296" />
+              <path d="M360 120 V 392" />
             </svg>
             <span
               style={{
