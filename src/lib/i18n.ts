@@ -116,11 +116,13 @@ const ZH_TW: Record<string, string> = {
   General: '一般',
   Language: '語言',
   Notifications: '通知',
-  Terminal: '終端機',
   Advanced: '進階',
   // Settings left-nav groups introduced with the card layout. 'General',
-  // 'Appearance', 'Terminal', 'Tasks', 'Privacy', 'Updates' and 'Experimental'
-  // already exist in this catalogue and are reused as nav labels.
+  // 'Appearance', 'Tasks', 'Privacy', 'Updates' and 'Experimental' already
+  // exist in this catalogue and are reused as nav labels. The bare 'Terminal'
+  // stood here too, until its group was folded into 'Appearance' and left it
+  // with no caller — 'Terminal Font' and the sidebar's 'New terminal' are
+  // separate entries and unaffected.
   'AI tools': 'AI 工具',
   Integrations: '整合',
   // Card headings that had no group of their own before.

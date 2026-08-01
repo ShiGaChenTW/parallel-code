@@ -741,17 +741,23 @@ function WindowBlurSection() {
 /**
  * The left-hand navigation.
  *
- * Nine groups replace three tabs. The old split was `general` / `themes` /
+ * Eight groups replace three tabs. The old split was `general` / `themes` /
  * `experimental`, which meant `general` held everything that was not a theme —
  * fourteen unrelated groups in one 600-line scroll, with the language picker
  * filed under "themes" because that tab happened to exist.
  *
  * The order is not alphabetical and not arbitrary. It runs from what a new user
  * changes first (language, what the app does, how it looks) through what a
- * working user changes occasionally (terminals, task defaults, AI tools) to what
- * is consulted rather than set (privacy, integrations, updates), with the
+ * working user changes occasionally (task defaults, AI tools) to what is
+ * consulted rather than set (privacy, integrations, updates), with the
  * unfinished work last. `experimental` stays last for the same reason it was a
  * separate tab: it is the one group whose contents can change under you.
+ *
+ * There were nine. `terminal` was dropped once `4dacc39` removed the external
+ * terminal cards from it, leaving a group whose entire contents were two font
+ * pickers — the same subject `appearance` already covers, one card below the
+ * setting for how those glyphs are drawn. A group earns its place in this list
+ * by being a subject; two font pickers are a card and a half.
  *
  * The list is fixed rather than filtered by availability — `dockerAvailable`
  * hides a card inside `tasks`, not the group. A navigation whose items appear
@@ -760,7 +766,6 @@ function WindowBlurSection() {
 const SETTINGS_SECTIONS = [
   'general',
   'appearance',
-  'terminal',
   'tasks',
   'ai',
   'privacy',
@@ -781,8 +786,6 @@ function sectionLabel(id: SettingsSectionId): string {
       return tr('General');
     case 'appearance':
       return tr('Appearance');
-    case 'terminal':
-      return tr('Terminal');
     case 'tasks':
       return tr('Tasks');
     case 'ai':
@@ -1289,6 +1292,44 @@ export function SettingsDialog(props: SettingsDialogProps) {
                 />
               </SettingsCard>
 
+              {/* Directly below "Text rendering": that card is how interface
+                  text is drawn, these two are which face the terminal draws
+                  with, and the CJK fallback belongs against the Latin face it
+                  falls back from. Everything after this point is window chrome
+                  rather than type, so appending the fonts to the end of the
+                  group would have split the three type settings around it. */}
+              <SettingsCard
+                title={tr('Terminal Font')}
+                description={tr('Font used to draw every terminal panel.')}
+              >
+                <div class="settings-font-grid">
+                  <For each={fonts()}>
+                    {(font) => (
+                      <button
+                        type="button"
+                        class={`settings-font-card${store.terminalFont === font ? ' active' : ''}`}
+                        onClick={() => setTerminalFont(font)}
+                      >
+                        <span class="settings-font-name">{font}</span>
+                        <span
+                          class="settings-font-preview"
+                          style={{ 'font-family': getTerminalFontFamily(font) }}
+                        >
+                          AaBb 0Oo1Il →
+                        </span>
+                      </button>
+                    )}
+                  </For>
+                </div>
+                <Show when={LIGATURE_FONTS.has(store.terminalFont)}>
+                  <span style={{ 'font-size': '12px', color: theme.fgSubtle }}>
+                    {tr('This font includes ligatures which may impact rendering performance.')}
+                  </span>
+                </Show>
+              </SettingsCard>
+
+              <CjkFontSection />
+
               <AppIconSection />
 
               <WindowOpacitySection />
@@ -1347,40 +1388,6 @@ export function SettingsDialog(props: SettingsDialogProps) {
                   </div>
                 </div>
               </SettingsCard>
-            </Match>
-
-            <Match when={activeSection() === 'terminal'}>
-              <SettingsCard
-                title={tr('Terminal Font')}
-                description={tr('Font used to draw every terminal panel.')}
-              >
-                <div class="settings-font-grid">
-                  <For each={fonts()}>
-                    {(font) => (
-                      <button
-                        type="button"
-                        class={`settings-font-card${store.terminalFont === font ? ' active' : ''}`}
-                        onClick={() => setTerminalFont(font)}
-                      >
-                        <span class="settings-font-name">{font}</span>
-                        <span
-                          class="settings-font-preview"
-                          style={{ 'font-family': getTerminalFontFamily(font) }}
-                        >
-                          AaBb 0Oo1Il →
-                        </span>
-                      </button>
-                    )}
-                  </For>
-                </div>
-                <Show when={LIGATURE_FONTS.has(store.terminalFont)}>
-                  <span style={{ 'font-size': '12px', color: theme.fgSubtle }}>
-                    {tr('This font includes ligatures which may impact rendering performance.')}
-                  </span>
-                </Show>
-              </SettingsCard>
-
-              <CjkFontSection />
             </Match>
 
             <Match when={activeSection() === 'tasks'}>
