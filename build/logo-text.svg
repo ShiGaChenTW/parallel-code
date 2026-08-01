@@ -1,17 +1,19 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 378 84" fill="none">
-  <!-- Black background -->
-  <rect width="378" height="84" rx="14" fill="#000000"/>
+  <!-- Brand plate (rounded variant) -->
+  <rect width="378" height="84" rx="14" fill="#0E1F17"/>
 
-  <!-- Logo icon -->
-  <g stroke="#2ec8ff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" transform="translate(20, 14)">
-    <line x1="10" y1="6" x2="10" y2="50"/>
-    <line x1="22" y1="6" x2="22" y2="50"/>
-    <path d="M30 8 H47 V24 H30"/>
-    <path d="M49 32 H32 V48 H49"/>
+  <!-- Logo icon — build/icon.svg artwork, scaled from its 512 grid into a 56 box -->
+  <g fill="none" stroke-width="50" stroke-linecap="round" transform="translate(20, 14) scale(0.109375)">
+    <path d="M152 120 V 392" stroke="#1E3A2C"/>
+    <path d="M256 120 V 392" stroke="#1E3A2C"/>
+    <path d="M360 120 V 392" stroke="#1E3A2C"/>
+    <path d="M152 120 V 214" stroke="#7DFF9B"/>
+    <path d="M256 120 V 296" stroke="#7DFF9B"/>
+    <path d="M360 120 V 392" stroke="#7DFF9B"/>
   </g>
 
   <!-- "Parallel Code" in JetBrains Mono SemiBold (paths from font glyphs) -->
-  <g fill="#2ec8ff" transform="translate(88, 55)">
+  <g fill="#7DFF9B" transform="translate(88, 55)">
     <!-- P -->
     <path transform="translate(0.0,0) scale(0.034,-0.034)" d="M84 0V730H323Q394 730 446.5 703.0Q499 676 527.5 626.5Q556 577 556 510Q556 443 527.0 393.5Q498 344 446.0 317.0Q394 290 323 290H192V0ZM192 386H323Q379 386 412.5 420.0Q446 454 446 510Q446 566 412.5 600.0Q379 634 323 634H192Z"/>
     <!-- a -->
