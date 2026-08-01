@@ -156,6 +156,20 @@ const ZH_TW: Record<string, string> = {
   'New Task': '新增任務',
   Tasks: '任務',
   Projects: '專案',
+  // Sidebar section heading over the task list, and its `+` menu.
+  //
+  // Translated rather than left English. The header above carves out product
+  // and vendor names, git vocabulary, and CLI agent names; a section heading
+  // naming the region that holds tasks and terminals is none of those — it is
+  // an ordinary UI noun, the same kind of word as `Projects` on the line above.
+  // And `Projects` is translated, so leaving this one English would put 專案 and
+  // Session in matching frames a few rows apart, which reads as a translation
+  // somebody abandoned halfway rather than a decision.
+  Session: '工作階段',
+  'Add to session': '新增至工作階段',
+  // Why the Session menu's task entry is disabled: the New Task dialog needs a
+  // project to put the task in.
+  'Link a project first': '請先連結專案',
   Notes: '筆記',
   Plan: '計劃',
   Steps: '步驟',
