@@ -2,7 +2,6 @@ import { onMount, onCleanup, createEffect, createMemo, createSignal, Show } from
 import { tr } from '../store/i18n';
 import { Terminal, type IMarker } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
-import { WebglAddon } from '@xterm/addon-webgl';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { SearchAddon } from '@xterm/addon-search';
 import { TerminalSearchOverlay } from './TerminalSearchOverlay';
@@ -47,6 +46,7 @@ import { cleanCopiedTerminalText } from '../lib/copy-text';
 import { hasTerminalUserActivity, nextTerminalInputPending } from '../lib/terminalInputPending';
 import { computeWrappedPathLinks, createTerminalHttpLinkHandler } from '../lib/terminalLinks';
 import { createMarkerNav, type MarkerNavApi } from '../lib/terminalMarkerNav';
+import { attachWebglRenderer, type WebglRenderer } from '../lib/terminal-webgl';
 import type { PtyOutput } from '../ipc/types';
 
 let windowUnloading = false;
@@ -187,7 +187,7 @@ export function TerminalView(props: TerminalViewProps) {
   let containerRef!: HTMLDivElement;
   let term: Terminal | undefined;
   let fitAddon: FitAddon | undefined;
-  let webglAddon: WebglAddon | undefined;
+  let webglRenderer: WebglRenderer | undefined;
   let searchAddon: SearchAddon | undefined;
   let searchInputRef: HTMLInputElement | undefined;
   const [searchOpen, setSearchOpen] = createSignal(false);
@@ -1009,18 +1009,14 @@ export function TerminalView(props: TerminalViewProps) {
       });
     }
 
-    // Load WebGL addon for all terminals. On context loss (e.g. too many
+    // Load the WebGL addon for all terminals. On context loss (e.g. too many
     // WebGL contexts), the terminal gracefully falls back to the DOM renderer.
-    try {
-      webglAddon = new WebglAddon();
-      webglAddon.onContextLoss(() => {
-        webglAddon?.dispose();
-        webglAddon = undefined;
-      });
-      term.loadAddon(webglAddon);
-    } catch {
-      // WebGL2 not supported — DOM renderer used automatically
-    }
+    //
+    // The addon arrives in its own chunk rather than the entry chunk: 247 KB of
+    // GPU renderer is not needed to put a terminal on screen, and `term.open()`
+    // above already painted one via the DOM renderer. See `terminal-webgl.ts`
+    // for why the swap is not visible and what the unmount race costs.
+    webglRenderer = attachWebglRenderer(term);
 
     let spawnTimer: number | undefined;
     let spawnStarted = false;
@@ -1114,8 +1110,8 @@ export function TerminalView(props: TerminalViewProps) {
       if (resizeFlushTimer !== undefined) clearTimeout(resizeFlushTimer);
       if (outputRaf !== undefined) cancelAnimationFrame(outputRaf);
       onOutput.cleanup?.();
-      webglAddon?.dispose();
-      webglAddon = undefined;
+      webglRenderer?.dispose();
+      webglRenderer = undefined;
       searchAddon?.dispose();
       searchAddon = undefined;
       unregisterTerminal(agentId);
