@@ -7,6 +7,10 @@ import { saveState } from './persistence';
 import { setTaskFocusedPanel } from './focused-panel';
 import { getProject, getProjectPath, getProjectBranchPrefix, isProjectMissing } from './projects';
 import { setPendingShellCommand } from '../lib/bookmarks';
+import { openInNativeTerminal } from '../lib/shell';
+import { isExternalTerminalApp } from '../lib/native-terminal';
+import { showNotification } from './notification';
+import { tr } from './i18n';
 import {
   markAgentSpawned,
   markAgentBusy,
@@ -967,6 +971,46 @@ export function spawnShellForTask(taskId: string, initialCommand?: string): stri
   return shellId;
 }
 
+/**
+ * What the terminal button — and `Cmd/Ctrl+Shift+T`, which is the same action —
+ * does for a task.
+ *
+ * One function rather than two call sites, so the button's tooltip cannot end
+ * up promising a shortcut that does something else. The setting decides which
+ * of the two branches runs; nothing else in the app asks.
+ *
+ * The external branch never falls back to the built-in panel. A user who chose
+ * Ghostty and got the built-in panel would reasonably conclude the setting
+ * works, which is exactly why that bug would never be reported.
+ */
+export function openTerminalForTask(taskId: string): void {
+  const task = store.tasks[taskId];
+  if (!task) return;
+
+  const target = store.terminalTarget;
+  if (!isExternalTerminalApp(target)) {
+    const shellId = spawnShellForTask(taskId);
+    // The button no longer lives in the shell toolbar, so there is no toolbar
+    // cell left to focus. The terminal it just opened is the honest target.
+    const index = store.tasks[taskId]?.shellAgentIds.indexOf(shellId) ?? -1;
+    if (index >= 0) setTaskFocusedPanel(taskId, `shell:${index}`);
+    return;
+  }
+
+  if (!task.worktreePath) {
+    showNotification(tr('This task has no directory to open a terminal in'));
+    return;
+  }
+
+  openInNativeTerminal(target, task.worktreePath).catch((err: unknown) => {
+    // Main attributes the failure — a missing app, or a PATH import that never
+    // landed — and that sentence is the whole value of surfacing it here.
+    const message = err instanceof Error ? err.message : String(err);
+    logWarn('tasks.shell', 'native terminal launch failed', { err: message });
+    showNotification(message);
+  });
+}
+
 /** Send a bookmark command to an existing idle shell, or spawn a new one. */
 export function runBookmarkInTask(taskId: string, command: string): void {
   const task = store.tasks[taskId];
@@ -992,6 +1036,7 @@ export function runBookmarkInTask(taskId: string, command: string): void {
 
 export async function closeShell(taskId: string, shellId: string): Promise<void> {
   const closedIndex = store.tasks[taskId]?.shellAgentIds.indexOf(shellId) ?? -1;
+  const projectId = store.tasks[taskId]?.projectId ?? '';
 
   await invoke(IPC.KillAgent, { agentId: shellId }).catch((err) => {
     logWarn('tasks.shell', 'KillAgent failed during closeShell', { err });
@@ -1009,7 +1054,11 @@ export async function closeShell(taskId: string, shellId: string): Promise<void>
   if (closedIndex >= 0) {
     const remaining = store.tasks[taskId]?.shellAgentIds.length ?? 0;
     if (remaining === 0) {
-      setTaskFocusedPanel(taskId, 'shell-toolbar:0');
+      // The shell toolbar now holds bookmarks and nothing else, so a project
+      // without bookmarks has no cell 0 to land on — and the row is not even
+      // rendered. Falling back to the AI terminal keeps focus somewhere real.
+      const hasBookmarks = (getProject(projectId)?.terminalBookmarks?.length ?? 0) > 0;
+      setTaskFocusedPanel(taskId, hasBookmarks ? 'shell-toolbar:0' : 'ai-terminal');
     } else {
       const focusIndex = Math.min(closedIndex, remaining - 1);
       setTaskFocusedPanel(taskId, `shell:${focusIndex}`);

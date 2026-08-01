@@ -41,6 +41,7 @@ export const [store, setStore] = createStore<AppStore>({
   peakConcurrentTasks: 0,
   diffReviewed: false,
   terminalFont: DEFAULT_TERMINAL_FONT,
+  terminalTarget: 'builtin',
   themePreset: 'islands-dark',
   appearanceMode: 'dark',
   locale: 'en',

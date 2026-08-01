@@ -15,6 +15,11 @@ import { fileURLToPath } from 'url';
 import { IPC } from './channels.js';
 import { resolveCommandPath } from '../command-path.js';
 import { awaitEnvImport, envImportHint, type EnvImportStatus } from '../env-import.js';
+import {
+  EXTERNAL_TERMINAL_LABELS,
+  terminalLaunchSpec,
+  type ExternalTerminalApp,
+} from '../terminal-launch.js';
 import { appendGitInfoExcludeBlock } from './git-exclude.js';
 import {
   spawnAgent,
@@ -301,14 +306,27 @@ export function validateEditorCommand(rawCommand: unknown): string {
   return cmd;
 }
 
-export interface ResolveEditorDeps {
+/**
+ * Accept a terminal app id from the renderer.
+ *
+ * Narrower than `validateEditorCommand` and for a better reason: this value is
+ * never a user-typed command, only one of two ids chosen from a picker, so the
+ * gate is an allowlist rather than a character filter. A state file naming a
+ * third app reaches here and is refused before anything is spawned.
+ */
+export function validateExternalTerminalApp(rawApp: unknown): ExternalTerminalApp {
+  if (rawApp === 'ghostty' || rawApp === 'alacritty') return rawApp;
+  throw new Error('app must be one of: ghostty, alacritty');
+}
+
+export interface ResolveSpawnDeps {
   resolve?: (command: string) => string | null;
   waitForEnv?: () => Promise<EnvImportStatus>;
   hint?: (status: EnvImportStatus) => string | null;
 }
 
 /**
- * Turn an accepted editor command into an absolute executable path.
+ * Turn an accepted command name into an absolute executable path.
  *
  * Two things happen here that did not before.
  *
@@ -322,10 +340,14 @@ export interface ResolveEditorDeps {
  * editor setting — which is usually fine — instead of at the PATH import that
  * actually failed. Joining the two facts here is the whole point: the user only
  * hears about the import when it is the thing standing in their way.
+ *
+ * Named for the act rather than for editors: the terminal launcher resolves its
+ * emulator binary on Linux through exactly this path, and needs the same PATH
+ * wait and the same attribution for the same reason.
  */
-export async function resolveEditorExecutable(
+export async function resolveSpawnExecutable(
   command: string,
-  deps: ResolveEditorDeps = {},
+  deps: ResolveSpawnDeps = {},
 ): Promise<string> {
   const status = await (deps.waitForEnv ?? awaitEnvImport)();
   const resolved = (deps.resolve ?? resolveCommandPath)(command);
@@ -1383,7 +1405,7 @@ export function registerAllHandlers(win: BrowserWindow): void {
   ipcMain.handle(IPC.ShellOpenInEditor, async (_e, args) => {
     validatePath(args.worktreePath, 'worktreePath');
     const cmd = validateEditorCommand(args.editorCommand);
-    const executable = await resolveEditorExecutable(cmd);
+    const executable = await resolveSpawnExecutable(cmd);
     return new Promise<void>((resolve, reject) => {
       let settled = false;
       const child = spawn(executable, [args.worktreePath], {
@@ -1402,6 +1424,89 @@ export function registerAllHandlers(win: BrowserWindow): void {
           child.unref();
           resolve();
         }
+      });
+    });
+  });
+
+  /**
+   * Open a task's worktree in a real terminal emulator.
+   *
+   * Every rejection here becomes a message the user reads, because the
+   * alternative — quietly opening the built-in panel when the app they chose is
+   * missing — looks like success and is the kind of bug nobody reports.
+   *
+   * Two shapes of success, because the two platforms hand off differently.
+   * macOS runs `/usr/bin/open`, which launches the bundle and exits; that exit
+   * status is the only place "Ghostty is not installed" is ever visible, since
+   * `open` itself always resolves no matter how bare the PATH is. Linux runs
+   * the emulator binary directly, and that process lives as long as its window
+   * — waiting for it would hang the call until the user quit the terminal they
+   * just asked for.
+   */
+  ipcMain.handle(IPC.ShellOpenTerminal, async (_e, args) => {
+    validatePath(args.worktreePath, 'worktreePath');
+    const app = validateExternalTerminalApp(args.app);
+    const label = EXTERNAL_TERMINAL_LABELS[app];
+
+    const launch = terminalLaunchSpec(app, process.platform, args.worktreePath);
+    if (!launch) {
+      throw new Error(`${label} cannot be opened on this platform.`);
+    }
+
+    const executable = await resolveSpawnExecutable(launch.command);
+    return new Promise<void>((resolve, reject) => {
+      let settled = false;
+      const settle = (fn: () => void) => {
+        if (settled) return;
+        settled = true;
+        fn();
+      };
+
+      const child = spawn(executable, [...launch.args], {
+        cwd: launch.cwd,
+        detached: true,
+        // The launcher's stderr is the whole error report on macOS ("Unable to
+        // find application named 'Ghostty'"), so it is captured rather than
+        // discarded. stdin and stdout stay closed.
+        stdio: launch.exitsAfterLaunch ? ['ignore', 'ignore', 'pipe'] : 'ignore',
+      });
+
+      let stderr = '';
+      child.stderr?.on('data', (chunk: Buffer) => {
+        // Bounded: a wedged launcher must not be able to grow this without end.
+        if (stderr.length < 2000) stderr += chunk.toString();
+      });
+
+      child.on('error', (err) => {
+        settle(() => reject(new Error(`Failed to launch ${label}: ${err.message}`)));
+      });
+
+      if (!launch.exitsAfterLaunch) {
+        child.on('spawn', () =>
+          settle(() => {
+            child.unref();
+            resolve();
+          }),
+        );
+        return;
+      }
+
+      child.on('exit', (code) => {
+        settle(() => {
+          if (code === 0) {
+            child.unref();
+            resolve();
+            return;
+          }
+          const detail = stderr.trim();
+          reject(
+            new Error(
+              detail
+                ? `Could not open ${label}: ${detail}`
+                : `Could not open ${label}. Check that it is installed.`,
+            ),
+          );
+        });
       });
     });
   });

@@ -57,7 +57,7 @@ import {
   toggleHelpDialog,
   toggleSettingsDialog,
   sendActivePrompt,
-  spawnShellForTask,
+  openTerminalForTask,
   closeShell,
   clearNotification,
   setWindowState,
@@ -770,7 +770,9 @@ function App() {
       },
       spawnShell: () => {
         const id = store.activeTaskId;
-        if (id && store.tasks[id]) spawnShellForTask(id);
+        // Same entry point as the title-bar button, so the shortcut its tooltip
+        // advertises cannot open something else.
+        if (id && store.tasks[id]) openTerminalForTask(id);
       },
       sendPrompt: () => sendActivePrompt(),
       createTerminal: (e) => {

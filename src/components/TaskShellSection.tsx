@@ -4,7 +4,6 @@ import { createStore } from 'solid-js/store';
 import {
   store,
   getProject,
-  spawnShellForTask,
   runBookmarkInTask,
   closeShell,
   markAgentOutput,
@@ -21,7 +20,6 @@ import { TerminalView } from './TerminalView';
 import { CloseIcon } from './icons';
 import { theme } from '../lib/theme';
 import { sf } from '../lib/fontScale';
-import { mod } from '../lib/platform';
 import { extractLabel, consumePendingShellCommand } from '../lib/bookmarks';
 import type { Task } from '../store/types';
 
@@ -54,12 +52,25 @@ export function TaskShellSection(props: TaskShellSectionProps) {
 
   const projectBookmarks = () => getProject(props.task.projectId)?.terminalBookmarks ?? [];
 
+  // The terminal button used to occupy cell 0 of this row, which is why every
+  // bookmark was registered, focused and activated at `i() + 1`. It now lives
+  // in the task title bar, so the row holds bookmarks and nothing else and the
+  // offset is gone — including from `focus.ts`, which builds the same cell ids
+  // for arrow-key navigation and would otherwise claim one more column than
+  // this row renders.
+  //
+  // With no bookmarks the row has no cells at all, and an empty 28 px strip
+  // above the AI terminal on every task — the default, since bookmarks are
+  // opt-in — would be the visible cost of moving one button. So it is not
+  // rendered, and `focus.ts` leaves it out of the grid to match.
+  const hasToolbar = () => projectBookmarks().length > 0;
+
   // Reactively register shell-toolbar:N focus fns
   createEffect(() => {
     const id = props.task.id;
-    const count = 1 + projectBookmarks().length;
+    const count = projectBookmarks().length;
     if (shellToolbarIdx() >= count) {
-      setShellToolbarIdx(count - 1);
+      setShellToolbarIdx(Math.max(0, count - 1));
     }
     for (let n = 0; n < count; n++) {
       const idx = n;
@@ -89,7 +100,7 @@ export function TaskShellSection(props: TaskShellSectionProps) {
   // the terminal output gets clipped by the wrapper's overflow:hidden. Fall
   // back to 0 in that case and let the wrapper's allocated size drive xterm.
   const intrinsicHeight = () => {
-    if (!hasShell()) return '28px';
+    if (!hasShell()) return hasToolbar() ? '28px' : '0';
     if (store.focusMode && store.taskSplitMode[props.task.id]) return '0';
     if (store.focusMode) return 'max(200px, 33vh)';
     return '140px';
@@ -106,91 +117,73 @@ export function TaskShellSection(props: TaskShellSectionProps) {
         display: 'flex',
         'flex-direction': 'column',
         background: 'transparent',
-        'padding-top': hasShell() ? '0' : '6px',
-        'padding-bottom': hasShell() ? '0' : '6px',
+        'padding-top': hasShell() || !hasToolbar() ? '0' : '6px',
+        'padding-bottom': hasShell() || !hasToolbar() ? '0' : '6px',
       }}
     >
-      <div
-        ref={(el) => {
-          shellToolbarEl = el;
-        }}
-        class="focusable-panel shell-toolbar-panel"
-        data-panel-focused={
-          isPanelFocusedPrefix(props.task.id, 'shell-toolbar:') ? 'true' : 'false'
-        }
-        tabIndex={0}
-        onClick={() => setTaskFocusedPanel(props.task.id, `shell-toolbar:${shellToolbarIdx()}`)}
-        onFocus={() => setShellToolbarFocused(true)}
-        onBlur={() => setShellToolbarFocused(false)}
-        onKeyDown={(e) => {
-          if (e.altKey) return;
-          const itemCount = 1 + projectBookmarks().length;
-          if (e.key === 'ArrowRight') {
-            e.preventDefault();
-            const next = Math.min(itemCount - 1, shellToolbarIdx() + 1);
-            setShellToolbarIdx(next);
-            setTaskFocusedPanel(props.task.id, `shell-toolbar:${next}`);
-          } else if (e.key === 'ArrowLeft') {
-            e.preventDefault();
-            const next = Math.max(0, shellToolbarIdx() - 1);
-            setShellToolbarIdx(next);
-            setTaskFocusedPanel(props.task.id, `shell-toolbar:${next}`);
-          } else if (e.key === 'Enter') {
-            e.preventDefault();
-            const idx = shellToolbarIdx();
-            if (idx === 0) {
-              spawnShellForTask(props.task.id);
-            } else {
-              const bm = projectBookmarks()[idx - 1];
+      <Show when={hasToolbar()}>
+        <div
+          ref={(el) => {
+            shellToolbarEl = el;
+          }}
+          class="focusable-panel shell-toolbar-panel"
+          data-panel-focused={
+            isPanelFocusedPrefix(props.task.id, 'shell-toolbar:') ? 'true' : 'false'
+          }
+          tabIndex={0}
+          onClick={() => setTaskFocusedPanel(props.task.id, `shell-toolbar:${shellToolbarIdx()}`)}
+          onFocus={() => setShellToolbarFocused(true)}
+          onBlur={() => setShellToolbarFocused(false)}
+          onKeyDown={(e) => {
+            if (e.altKey) return;
+            const itemCount = projectBookmarks().length;
+            if (e.key === 'ArrowRight') {
+              e.preventDefault();
+              const next = Math.min(itemCount - 1, shellToolbarIdx() + 1);
+              setShellToolbarIdx(next);
+              setTaskFocusedPanel(props.task.id, `shell-toolbar:${next}`);
+            } else if (e.key === 'ArrowLeft') {
+              e.preventDefault();
+              const next = Math.max(0, shellToolbarIdx() - 1);
+              setShellToolbarIdx(next);
+              setTaskFocusedPanel(props.task.id, `shell-toolbar:${next}`);
+            } else if (e.key === 'Enter') {
+              e.preventDefault();
+              const bm = projectBookmarks()[shellToolbarIdx()];
               if (bm) runBookmarkInTask(props.task.id, bm.command);
             }
-          }
-        }}
-        style={{
-          height: '28px',
-          'min-height': '28px',
-          display: 'flex',
-          'align-items': 'center',
-          padding: '0 8px',
-          background: 'transparent',
-          gap: '4px',
-          outline: 'none',
-        }}
-      >
-        <button
-          class="icon-btn"
-          onClick={(e) => {
-            e.stopPropagation();
-            setActiveTask(props.task.id);
-            setTaskFocusedPanel(props.task.id, 'shell-toolbar:0');
-            spawnShellForTask(props.task.id);
           }}
-          tabIndex={-1}
-          title={tr('Open terminal ({shortcut})', { shortcut: `${mod}+Shift+T` })}
-          style={toolbarBtnStyle(shellToolbarIdx() === 0 && shellToolbarFocused())}
+          style={{
+            height: '28px',
+            'min-height': '28px',
+            display: 'flex',
+            'align-items': 'center',
+            padding: '0 8px',
+            background: 'transparent',
+            gap: '4px',
+            outline: 'none',
+          }}
         >
-          <span style={{ 'font-family': 'monospace', 'font-size': sf(14) }}>&gt;_</span>
-          <span>{tr('Terminal')}</span>
-        </button>
-        <For each={projectBookmarks()}>
-          {(bookmark, i) => (
-            <button
-              class="icon-btn"
-              onClick={(e) => {
-                e.stopPropagation();
-                setActiveTask(props.task.id);
-                setTaskFocusedPanel(props.task.id, `shell-toolbar:${i() + 1}`);
-                runBookmarkInTask(props.task.id, bookmark.command);
-              }}
-              tabIndex={-1}
-              title={bookmark.command}
-              style={toolbarBtnStyle(shellToolbarIdx() === i() + 1 && shellToolbarFocused())}
-            >
-              <span>{extractLabel(bookmark.command)}</span>
-            </button>
-          )}
-        </For>
-      </div>
+          <For each={projectBookmarks()}>
+            {(bookmark, i) => (
+              <button
+                class="icon-btn"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setActiveTask(props.task.id);
+                  setTaskFocusedPanel(props.task.id, `shell-toolbar:${i()}`);
+                  runBookmarkInTask(props.task.id, bookmark.command);
+                }}
+                tabIndex={-1}
+                title={bookmark.command}
+                style={toolbarBtnStyle(shellToolbarIdx() === i() && shellToolbarFocused())}
+              >
+                <span>{extractLabel(bookmark.command)}</span>
+              </button>
+            )}
+          </For>
+        </div>
+      </Show>
       <Show when={props.task.shellAgentIds.length > 0}>
         <div
           class="shell-terminals-row"

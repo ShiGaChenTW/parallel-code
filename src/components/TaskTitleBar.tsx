@@ -17,6 +17,8 @@ import { IconButton } from './IconButton';
 import { StatusDot } from './StatusDot';
 import { CheckIcon, CloseIcon } from './icons';
 import { theme } from '../lib/theme';
+import { mod } from '../lib/platform';
+import { EXTERNAL_TERMINAL_LABELS, isExternalTerminalApp } from '../lib/native-terminal';
 import { badgeStyle } from '../lib/badgeStyle';
 import { handleDragReorder } from '../lib/dragReorder';
 import { getTaskDockerBadgeLabel } from '../lib/docker';
@@ -39,6 +41,7 @@ interface TaskTitleBarProps {
    *  to open before it is opened. */
   promptHistoryCount: number;
   onTogglePromptHistory: () => void;
+  onOpenTerminal: () => void;
   onTitleEditRef: (h: EditableTextHandle) => void;
 }
 
@@ -124,6 +127,16 @@ export function TaskTitleBar(props: TaskTitleBarProps) {
   const pushTitle = () => {
     const ci = ciTitle();
     return ci ? `Push to remote\n${ci}` : 'Push to remote';
+  };
+  const terminalButtonTitle = () => {
+    const shortcut = `${mod}+Shift+T`;
+    const target = store.terminalTarget;
+    return isExternalTerminalApp(target)
+      ? tr('Open terminal in {app} ({shortcut})', {
+          app: EXTERNAL_TERMINAL_LABELS[target],
+          shortcut,
+        })
+      : tr('Open terminal ({shortcut})', { shortcut });
   };
 
   function handleTitleMouseDown(e: MouseEvent) {
@@ -227,6 +240,29 @@ export function TaskTitleBar(props: TaskTitleBarProps) {
         />
       </div>
       <div style={{ display: 'flex', gap: '4px', 'margin-left': '8px', 'flex-shrink': '0' }}>
+        {/* Leftmost, and first in the row for a reason: it is the only control
+            here that opens something rather than acting on the task itself. It
+            used to be a labelled button in the shell toolbar under the notes,
+            and moving it up cost it that label — so the glyph carries the whole
+            meaning, which is why it is the literal prompt characters every
+            terminal emulator uses for itself rather than a drawn icon. The
+            tooltip names the target, so a user who pointed this at Ghostty is
+            told before clicking rather than after. */}
+        <IconButton
+          icon={
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor">
+              <path
+                d="M3.25 4.5 6.5 8l-3.25 3.5"
+                stroke-width="1.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+              <path d="M8 11.75h4.75" stroke-width="1.5" stroke-linecap="round" />
+            </svg>
+          }
+          onClick={() => props.onOpenTerminal()}
+          title={terminalButtonTitle()}
+        />
         {/* Hidden rather than disabled when there is no worktree yet: usage is
             attributed per path, so with no path there is nothing to show. This
             row's established idiom for "does not apply to this task" is absence

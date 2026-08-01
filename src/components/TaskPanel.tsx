@@ -13,6 +13,7 @@ import {
   clearPendingAction,
   showNotification,
   setTaskSplitMode,
+  openTerminalForTask,
 } from '../store/store';
 import { useFocusRegistration } from '../lib/focus-registration';
 import { ResizablePanel, type PanelChild } from './ResizablePanel';
@@ -619,6 +620,10 @@ export function TaskPanel(props: TaskPanelProps) {
             promptHistoryOpen={showPromptHistory()}
             promptHistoryCount={props.task.promptHistory?.length ?? 0}
             onTogglePromptHistory={() => setShowPromptHistory((open) => !open)}
+            onOpenTerminal={() => {
+              setActiveTask(props.task.id);
+              openTerminalForTask(props.task.id);
+            }}
             onTitleEditRef={(h) => (titleEditHandle = h)}
           />
         </div>

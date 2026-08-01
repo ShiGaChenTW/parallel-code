@@ -10,6 +10,11 @@ import {
 } from '../lib/fonts';
 import { CJK_TERMINAL_FONTS, formatFontSize, isCjkFontInstalled } from '../lib/cjk-fonts';
 import {
+  EXTERNAL_TERMINAL_LABELS,
+  availableTerminalTargets,
+  type TerminalTarget,
+} from '../lib/native-terminal';
+import {
   chooseCjkFont,
   cjkFontStatus,
   dismissCjkFontStatus,
@@ -27,6 +32,7 @@ import { themeToCss, detectThemeTone } from '../lib/custom-theme';
 import {
   store,
   setTerminalFont,
+  setTerminalTarget,
   setAutoTrustFolders,
   setShowPlans,
   setShowPromptInput,
@@ -130,6 +136,56 @@ function SettingsCard(props: { title: string; description: JSX.Element; children
       </div>
       {props.children}
     </section>
+  );
+}
+
+/**
+ * What the terminal button in each task title bar opens.
+ *
+ * One setting, three answers, and the default is the one that cannot fail: the
+ * app's own shell panel, which is what the button did before it was
+ * configurable. The two emulators are offered on both shipped platforms —
+ * hiding them on Linux would leave the only users who can pick a native
+ * terminal being the ones who already have a good one.
+ *
+ * A picker, not a text box. Terminal emulators disagree about the
+ * working-directory flag and about whether a new window or a new tab is the
+ * default, so a free-form command — the shape the editor setting uses — would
+ * turn every untested emulator into a bug report.
+ */
+function TerminalButtonSection() {
+  const targets = () => availableTerminalTargets(rendererPlatform);
+  const describe = (target: TerminalTarget) =>
+    target === 'builtin'
+      ? tr('Opens a shell inside the task panel. Always available.')
+      : tr('Opens a new {app} window at the task worktree. Says so if it is not installed.', {
+          app: EXTERNAL_TERMINAL_LABELS[target],
+        });
+
+  return (
+    <SettingsCard
+      title={tr('Terminal Button')}
+      description={tr(
+        'What the terminal button in each task title bar opens. Its keyboard shortcut follows the same choice.',
+      )}
+    >
+      <div class="settings-font-grid">
+        <For each={targets()}>
+          {(target) => (
+            <button
+              type="button"
+              class={`settings-font-card${store.terminalTarget === target ? ' active' : ''}`}
+              onClick={() => setTerminalTarget(target)}
+            >
+              <span class="settings-font-name">
+                {target === 'builtin' ? tr('Built-in panel') : EXTERNAL_TERMINAL_LABELS[target]}
+              </span>
+              <span style={{ 'font-size': '11px', color: theme.fgSubtle }}>{describe(target)}</span>
+            </button>
+          )}
+        </For>
+      </div>
+    </SettingsCard>
   );
 }
 
@@ -1381,6 +1437,8 @@ export function SettingsDialog(props: SettingsDialogProps) {
               </SettingsCard>
 
               <CjkFontSection />
+
+              <TerminalButtonSection />
             </Match>
 
             <Match when={activeSection() === 'tasks'}>

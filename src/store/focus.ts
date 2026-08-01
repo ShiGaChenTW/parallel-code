@@ -53,10 +53,19 @@ export function triggerAction(key: string): void {
 const SHELL_PANEL_PREFIX = 'shell:';
 const SHELL_TOOLBAR_PANEL_PREFIX = 'shell-toolbar:';
 
+/**
+ * The cells this task's shell toolbar renders — one per bookmark.
+ *
+ * The `1 +` this used to carry was the terminal button sitting in cell 0. That
+ * button lives in the task title bar now, so the count is the bookmark count,
+ * and a project with no bookmarks has no cells at all: `TaskShellSection` does
+ * not render the row in that case, and a grid row pointing at a panel that is
+ * not on screen is a keypress that appears to do nothing.
+ */
 function shellToolbarPanels(task: { projectId: string }): string[] {
   const bookmarkCount =
     store.projects.find((p) => p.id === task.projectId)?.terminalBookmarks?.length ?? 0;
-  return Array.from({ length: 1 + bookmarkCount }, (_, i) => `${SHELL_TOOLBAR_PANEL_PREFIX}${i}`);
+  return Array.from({ length: bookmarkCount }, (_, i) => `${SHELL_TOOLBAR_PANEL_PREFIX}${i}`);
 }
 
 function isShellPanel(panel: string): boolean {
@@ -132,7 +141,9 @@ function buildGrid(panelId: string): string[][] {
 
     const grid: string[][] = [['title']];
     grid.push(['notes', 'changed-files']);
-    grid.push(toolbarCols);
+    // Skipped rather than pushed empty when the project has no bookmarks: an
+    // empty row is a stop on the up/down path that no key can ever leave.
+    if (toolbarCols.length > 0) grid.push(toolbarCols);
     if (task.shellAgentIds.length > 0) {
       grid.push(task.shellAgentIds.map((_, i) => `shell:${i}`));
     }

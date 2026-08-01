@@ -36,6 +36,7 @@ export function persistedSnapshot(): string {
     peakConcurrentTasks: store.peakConcurrentTasks,
     diffReviewed: store.diffReviewed,
     terminalFont: store.terminalFont,
+    terminalTarget: store.terminalTarget,
     themePreset: store.themePreset,
     showPromptInput: store.showPromptInput,
     fontSmoothing: store.fontSmoothing,

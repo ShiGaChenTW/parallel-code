@@ -6,9 +6,10 @@ import {
   openExternalHttpUrl,
   optionalBaseBranch,
   projectRootArg,
-  resolveEditorExecutable,
+  resolveSpawnExecutable,
   selectMcpJsonDir,
   validateEditorCommand,
+  validateExternalTerminalApp,
   validateExternalHttpUrl,
   worktreePathArg,
 } from './register.js';
@@ -166,7 +167,33 @@ describe('validateEditorCommand', () => {
   });
 });
 
-describe('resolveEditorExecutable', () => {
+/**
+ * The terminal picker's gate. Deliberately an allowlist rather than the
+ * character filter `validateEditorCommand` uses: this value is never typed by a
+ * user, only chosen from two cards, so anything else arriving here came from a
+ * hand-edited state file or a bug — and in both cases the right answer is to
+ * refuse before spawning, not to sanitise.
+ */
+describe('validateExternalTerminalApp', () => {
+  it('accepts the two launchable apps', () => {
+    expect(validateExternalTerminalApp('ghostty')).toBe('ghostty');
+    expect(validateExternalTerminalApp('alacritty')).toBe('alacritty');
+  });
+
+  it('refuses the built-in panel, which is not a thing main can launch', () => {
+    // The renderer handles this branch itself and never reaches IPC with it, so
+    // seeing it here means the setting leaked into the wrong path.
+    expect(() => validateExternalTerminalApp('builtin')).toThrow('app must be one of');
+  });
+
+  it('refuses anything outside the list rather than guessing', () => {
+    for (const bad of [undefined, null, 42, {}, '', 'iterm2', 'system', 'x-terminal-emulator']) {
+      expect(() => validateExternalTerminalApp(bad)).toThrow('app must be one of');
+    }
+  });
+});
+
+describe('resolveSpawnExecutable', () => {
   const okStatus = {
     state: 'ok' as const,
     attempts: 1,
@@ -182,7 +209,7 @@ describe('resolveEditorExecutable', () => {
 
   it('returns the absolute path so spawn never has to search PATH itself', async () => {
     await expect(
-      resolveEditorExecutable('code', {
+      resolveSpawnExecutable('code', {
         waitForEnv: async () => okStatus,
         resolve: () => '/usr/local/bin/code',
       }),
@@ -193,7 +220,7 @@ describe('resolveEditorExecutable', () => {
     // The race the retry introduces: resolving first would consult the stale
     // PATH and report a perfectly installed editor as missing.
     const order: string[] = [];
-    await resolveEditorExecutable('code', {
+    await resolveSpawnExecutable('code', {
       waitForEnv: async () => {
         order.push('wait');
         return okStatus;
@@ -208,7 +235,7 @@ describe('resolveEditorExecutable', () => {
 
   it('blames the editor setting when PATH was imported correctly', async () => {
     await expect(
-      resolveEditorExecutable('code', {
+      resolveSpawnExecutable('code', {
         waitForEnv: async () => okStatus,
         resolve: () => null,
       }),
@@ -219,7 +246,7 @@ describe('resolveEditorExecutable', () => {
     // The whole fix in one assertion: the user set `code`, `code` is installed,
     // and the reason it will not launch has nothing to do with the setting.
     await expect(
-      resolveEditorExecutable('code', {
+      resolveSpawnExecutable('code', {
         waitForEnv: async () => failedStatus,
         resolve: () => null,
       }),
@@ -228,7 +255,7 @@ describe('resolveEditorExecutable', () => {
 
   it('shows the PATH it can actually see, so the claim is checkable', async () => {
     await expect(
-      resolveEditorExecutable('code', {
+      resolveSpawnExecutable('code', {
         waitForEnv: async () => failedStatus,
         resolve: () => null,
       }),
@@ -239,7 +266,7 @@ describe('resolveEditorExecutable', () => {
 
   it('reproduces the bug end to end with a real PATH search', async () => {
     await expect(
-      resolveEditorExecutable('code', {
+      resolveSpawnExecutable('code', {
         waitForEnv: async () => failedStatus,
         resolve: (command) => resolveCommandPath(command, { pathValue: DOCK_PATH }),
       }),
@@ -251,7 +278,7 @@ describe('resolveEditorExecutable', () => {
     // through the resolver must not regress the case that already worked.
     const systemBinary = process.platform === 'darwin' ? 'open' : 'sh';
     await expect(
-      resolveEditorExecutable(systemBinary, {
+      resolveSpawnExecutable(systemBinary, {
         waitForEnv: async () => failedStatus,
         resolve: (command) => resolveCommandPath(command, { pathValue: DOCK_PATH }),
       }),
@@ -261,7 +288,7 @@ describe('resolveEditorExecutable', () => {
   it('finds the same command once the login PATH has been imported', async () => {
     const loginPath = `${path.dirname(process.execPath)}:${DOCK_PATH}`;
     await expect(
-      resolveEditorExecutable(path.basename(process.execPath), {
+      resolveSpawnExecutable(path.basename(process.execPath), {
         waitForEnv: async () => okStatus,
         resolve: (command) => resolveCommandPath(command, { pathValue: loginPath }),
       }),
