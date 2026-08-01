@@ -1,4 +1,5 @@
 import { store, setStore } from './core';
+import { formatDateTime } from '../lib/date';
 import {
   translate,
   translateParts,
@@ -39,6 +40,20 @@ export function tr(text: string, params?: TranslationParams): string {
  */
 export function trParts(text: string): TemplateSegment[] {
   return translateParts(store.locale, text);
+}
+
+/**
+ * `tr` for a timestamp. Renders an ISO date the way the active language writes
+ * dates — `Mar 5, 08:00 PM` against `3月5日 下午08:00`.
+ *
+ * Shares the `tr` prefix on purpose: the prefix is the rule that this reads
+ * `store.locale` and therefore has to be *called inside JSX*, not hoisted into
+ * a module-level helper, or the text will not re-render when the language
+ * changes. `lib/date.ts` holds the pure formatting, exactly as `lib/i18n.ts`
+ * holds the pure catalogue behind `tr`.
+ */
+export function trDate(iso: string): string {
+  return formatDateTime(store.locale, iso);
 }
 
 export function setLocale(locale: Locale): void {

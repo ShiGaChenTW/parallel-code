@@ -4,18 +4,8 @@ import { saveArenaHistory } from './persistence';
 import { formatDuration } from './utils';
 import { confirm } from '../lib/dialog';
 import { invoke } from '../lib/ipc';
-import { tr } from '../store/i18n';
+import { tr, trDate } from '../store/i18n';
 import { IPC } from '../../electron/ipc/channels';
-
-function formatDate(iso: string): string {
-  const d = new Date(iso);
-  return d.toLocaleDateString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
 
 function formatTimeMs(ms: number | null): string {
   if (ms === null) return tr('DNF');
@@ -112,7 +102,7 @@ export function HistoryScreen() {
               style={{ cursor: 'pointer' }}
             >
               <div class="arena-history-row-top">
-                <span>{formatDate(match.date)}</span>
+                <span>{trDate(match.date)}</span>
                 <div class="arena-history-row-actions">
                   <Show when={worktreeStatus()[match.id]}>
                     <span class="arena-history-badge">{tr('View Results')}</span>
