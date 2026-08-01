@@ -13,6 +13,7 @@ import type { ImportableWorktree } from '../ipc/types';
 import type { Project, ProjectSettings } from '../store/types';
 import { EditProjectDialog } from './EditProjectDialog';
 import { ImportWorktreesDialog } from './ImportWorktreesDialog';
+import { CreateProjectDialog } from './CreateProjectDialog';
 
 /**
  * The whole "add a project" flow, mounted once.
@@ -68,6 +69,11 @@ export function AddProjectFlow() {
 
   return (
     <>
+      {/* Clone and New Project both end by parking a `pendingProjectDraft`,
+          which is what the EditProjectDialog below already opens on. They are
+          mounted here rather than in the sidebar for the same reason that
+          dialog is: the sidebar can be collapsed while the flow is running. */}
+      <CreateProjectDialog />
       <EditProjectDialog
         project={null}
         draft={store.pendingProjectDraft}

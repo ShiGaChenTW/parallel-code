@@ -353,6 +353,8 @@ export interface PersistedState {
   hulyProjectIdentifier?: string;
   hulyIssues?: HulyIssue[];
   hulyIssuesFetchedAt?: number;
+  /** Remembered destination for cloned and newly created projects. */
+  cloneParentDir?: string;
   lightThemePreset?: LookPreset;
   lightThemeCustomId?: string | null;
   darkThemePreset?: LookPreset;
@@ -400,6 +402,21 @@ export interface AppStore {
   /** Folder picked for a project that does not exist yet. Non-null exactly
    *  while the add-project dialog is open; never persisted. */
   pendingProjectDraft: ProjectDraft | null;
+  /** Which of the two "create a project" flows is open, or null for closed. */
+  createProjectMode: 'clone' | 'new' | null;
+  /** True while a clone or folder creation is in flight. Blocks the dialog's close. */
+  createProjectBusy: boolean;
+  /** Already-worded failure from the main process. Rendered verbatim. */
+  createProjectError: string;
+  /** 0-100 while a clone reports progress, null between phases. */
+  cloneProgress: number | null;
+  /** Tail of git's clone output, capped. */
+  cloneOutput: string;
+  /**
+   * Destination folder for clones and new projects. Persisted, so the user is
+   * asked once and the choice is reused (and shown) thereafter.
+   */
+  cloneParentDir: string;
   lastProjectId: string | null;
   lastAgentId: string | null;
   taskOrder: string[];

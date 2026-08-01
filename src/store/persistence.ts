@@ -240,6 +240,9 @@ export function buildPersistedState(): PersistedState {
     activeCustomThemeId: store.activeCustomThemeId ?? undefined,
     appearanceMode: store.appearanceMode !== 'dark' ? store.appearanceMode : undefined,
     locale: store.locale !== 'en' ? store.locale : undefined,
+    // Written only once a destination has been chosen, so an install that
+    // never clones adds nothing to state.json.
+    cloneParentDir: store.cloneParentDir || undefined,
     hulyProjectIdentifier: store.hulyProjectIdentifier || undefined,
     // Cached so the picker renders instantly and still works offline. Refreshed
     // on open when stale; never treated as authoritative.
@@ -414,6 +417,7 @@ interface LegacyPersistedState {
   transcriptEnabled?: unknown;
   inactiveColumnOpacity?: unknown;
   editorCommand?: unknown;
+  cloneParentDir?: unknown;
   dockerImage?: unknown;
   askCodeProvider?: unknown;
   minimaxApiKey?: unknown;
@@ -589,6 +593,12 @@ export async function loadState(): Promise<void> {
 
       const rawEditorCommand = raw.editorCommand;
       s.editorCommand = typeof rawEditorCommand === 'string' ? rawEditorCommand.trim() : '';
+
+      // Anything non-string means a corrupt or hand-edited file; falling back
+      // to empty makes the dialog ask for a destination again rather than
+      // cloning into a path nobody chose.
+      const rawCloneParentDir = raw.cloneParentDir;
+      s.cloneParentDir = typeof rawCloneParentDir === 'string' ? rawCloneParentDir.trim() : '';
 
       s.focusMode = raw.focusMode === true;
 

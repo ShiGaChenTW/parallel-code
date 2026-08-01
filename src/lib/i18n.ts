@@ -187,6 +187,31 @@ const ZH_TW: Record<string, string> = {
 
   // Sidebar
   'Add project': '新增專案',
+  // The Projects `+` menu. "S.CodingFlow" and `scvb-specgate` are a product
+  // name and a command name, left alone for the same reason 'Docker' is.
+  'Choose a local folder': '選擇本機資料夾',
+  'Add a project that is already on this machine': '加入這台電腦上已經有的專案',
+  'Clone from a URL': '從網址 clone',
+  'Clone a repository, then add it as a project': 'clone 一個 repository，然後加入為專案',
+  'New project': '新建專案',
+  'Create an empty folder and start S.CodingFlow in it':
+    '建立一個空資料夾，並在其中啟動 S.CodingFlow',
+  'Repository URL': 'repository 網址',
+  'An https:// or SSH address, or the owner/repo shorthand for GitHub.':
+    'https:// 或 SSH 位址，或 GitHub 的 owner/repo 簡寫。',
+  'Folder name': '資料夾名稱',
+  Destination: '目的地',
+  'No destination chosen yet.': '尚未選擇目的地。',
+  'Choose a destination folder first.': '請先選擇目的地資料夾。',
+  'Change…': '變更…',
+  'Choose…': '選擇…',
+  'Start S.CodingFlow in the new folder': '在新資料夾中啟動 S.CodingFlow',
+  'Runs `scvb-specgate init`, which adds openspec/, PRD.md and facet-brief.md. Nothing is overwritten. Skipped with a note if the CLI is not installed.':
+    '執行 `scvb-specgate init`，會建立 openspec/、PRD.md 與 facet-brief.md，不會覆蓋既有檔案。若未安裝該 CLI 則跳過並顯示說明。',
+  'Clone progress': 'clone 進度',
+  // 'Clone' and 'Create' are already in this catalogue further down; a second
+  // entry for either is a duplicate key, not a second translation.
+  'Cancel clone': '取消 clone',
   'Remove project': '移除專案',
   'Click to restore': '點擊以復原',
   'Folder not found': '找不到資料夾',

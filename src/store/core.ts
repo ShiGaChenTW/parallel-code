@@ -6,6 +6,12 @@ import type { AppStore } from './types';
 export const [store, setStore] = createStore<AppStore>({
   projects: [],
   pendingProjectDraft: null,
+  createProjectMode: null,
+  createProjectBusy: false,
+  createProjectError: '',
+  cloneProgress: null,
+  cloneOutput: '',
+  cloneParentDir: '',
   lastProjectId: null,
   lastAgentId: null,
   taskOrder: [],

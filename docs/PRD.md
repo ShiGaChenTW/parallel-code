@@ -225,8 +225,9 @@ Parallel Code 應成為「本機 AI 軟體團隊的控制台」：開發者保�
 - 原始碼、task metadata、notes、設定與 terminal buffer 預設只存於本機。
 - UI 與隱私政策須清楚區分 Parallel Code 自身網路活動與第三方 CLI 的網路活動。
 - 渲染 Markdown 允許的外部圖片可能洩漏 IP，須在文件中揭露。
-- **Parallel Code 自身的對外連線點共有十一個**（此數字先前記為三個，實際盤點後為九個；
-  R4 終端中文字體下載加入後為十個；S2 補上盤點時漏掉的 `docker run` 後為十一個）：
+- **Parallel Code 自身的對外連線點共有十二個**（此數字先前記為三個，實際盤點後為九個；
+  R4 終端中文字體下載加入後為十個；S2 補上盤點時漏掉的 `docker run` 後為十一個；
+  S3 加入專案 `+` 選單的 `git clone` 後為十二個）：
   1. 更新檢查／下載（GitHub Releases，`electron/ipc/updater.ts`）
   2. PR check 狀態輪詢（`gh` CLI，`electron/ipc/pr-checks.ts`）
   3. Ask About Code — Claude CLI（`electron/ipc/ask-code.ts`）
@@ -245,13 +246,21 @@ Parallel Code 應成為「本機 AI 軟體團隊的控制台」：開發者保�
       因為 argv 是 `buildPtySpawnSpec()` 回傳的資料再交給 node-pty，
       `rg "spawn\(" -e "execFile\("` 掃不到字面上的 `'docker'`。
       image 已在本機時照常啟動（零連線）並補 `--pull never`；不在本機時在呼叫 `docker` 前拒絕
-- 上述十一個必須全部受單一「離線模式」總開關控制（見 §13 Q3 裁決）。開關關閉時，
+  12. `git clone`（`electron/ipc/git-clone.ts`）——專案 `+` 選單的「從網址 clone」，
+      **只有使用者貼上網址並按下確認才會發出**。認證一律委派給本機既有的 git 憑證
+      （`gh auth setup-git`、SSH key 或 credential helper）；**app 自身不儲存任何 token**，
+      因此沒有新的密鑰落地。clone 期間強制關閉互動提示（`GIT_TERMINAL_PROMPT=0`、
+      `ssh -o BatchMode=yes`），沒有憑證時立刻失敗並說明如何設定，不得卡在看不見的密碼提示；
+      host key 檢查沿用使用者自己的 `ssh` 設定，**不得以 `StrictHostKeyChecking=accept-new` 放寬**。
+      傳輸協定採允許清單：只接受 `https://` 與 SSH，`git://`、明文 `http://`、`file://`
+      與 `ext::`（可執行任意指令）在呼叫 `git` 前就被拒絕
+- 上述十二個必須全部受單一「離線模式」總開關控制（見 §13 Q3 裁決）。開關關閉時，
   每個連線點都必須回報明確原因，不得靜默逾時或無限等待。
 - 離線模式**不涵蓋**第三方 AI CLI 自身的網路活動；文件必須明確寫出這條界線，
   避免使用者誤以為開關能管到 Claude Code 等工具自己的連線。
 - 離線模式不得以網路層攔截（`session.webRequest` 之類）實作 —— 那會一併影響第三方 CLI，
   且會把失敗模式變成靜默逾時。
-- Remote Access 與 MCP coordinator 是 **inbound** listener，不屬於這十一個對外連線點，
+- Remote Access 與 MCP coordinator 是 **inbound** listener，不屬於這十二個對外連線點，
   由各自的啟動／停止控制，不受離線模式管轄。
 
 ### 7.2 安全
