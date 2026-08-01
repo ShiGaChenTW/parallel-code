@@ -2,6 +2,7 @@ import { Show, createMemo } from 'solid-js';
 import { getTaskCurrentState } from '../lib/task-current-state';
 import { theme } from '../lib/theme';
 import { sf } from '../lib/fontScale';
+import { TASK_STEPS_LINE_HEIGHT_PX } from '../lib/panelChrome';
 import type { Task } from '../store/types';
 
 interface TaskCurrentStateLineProps {
@@ -36,7 +37,10 @@ export function TaskCurrentStateLine(props: TaskCurrentStateLineProps) {
             'align-items': 'center',
             gap: props.variant === 'card' ? '6px' : '5px',
             'min-width': '0',
-            height: props.variant === 'card' ? '24px' : undefined,
+            // The card variant is a fixed row inside the task header stack,
+            // which sizes itself from this same metric and clips; the sidebar
+            // variant is free-flowing and has no such contract.
+            height: props.variant === 'card' ? `${TASK_STEPS_LINE_HEIGHT_PX}px` : undefined,
             padding: props.variant === 'card' ? '0 12px' : '1px 0 0 12px',
             background: props.variant === 'card' ? theme.bgSelectedSubtle : 'transparent',
             'border-bottom': props.variant === 'card' ? `1px solid ${theme.border}` : undefined,
