@@ -167,6 +167,11 @@ const ZH_TW: Record<string, string> = {
   // somebody abandoned halfway rather than a decision.
   Session: '工作階段',
   'Add to session': '新增至工作階段',
+  // Heading over the standalone-terminal group at the foot of the Session list.
+  // Translated on the same footing as `Projects` and `Session` above it: an
+  // ordinary UI noun naming a region, not product or git vocabulary. The
+  // catalogue already renders the singular inside 'New terminal' as 終端機.
+  Terminals: '終端機',
   // Why the Session menu's task entry is disabled: the New Task dialog needs a
   // project to put the task in.
   'Link a project first': '請先連結專案',

@@ -43,7 +43,7 @@ import {
   clampCoordinatorConcurrentTasks,
   DEFAULT_COORDINATOR_CONCURRENT_TASKS,
 } from '../lib/coordinator-limits';
-import { getCoordinatorChildren, isCoordinatedChild } from './sidebar-order';
+import { getCoordinatorChildren, isDraggableTask } from './sidebar-order';
 import { isLandedTaskState } from './landing';
 import { resolveDependencyBaseBranch } from '../lib/task-dependency';
 
@@ -919,8 +919,15 @@ export function reorderTask(fromIndex: number, toIndex: number): void {
  * @param targetVisibleIdx - target position in the visible draggable order (after removal of movedId)
  */
 export function reorderTaskVisually(movedId: string, targetVisibleIdx: number): void {
-  // Visible draggable order: active tasks excluding coordinated children
-  const draggableOrder = store.taskOrder.filter((id) => !isCoordinatedChild(id));
+  // Visible draggable order: active tasks excluding coordinated children.
+  //
+  // `taskOrder` also holds standalone terminals, which get a panel in the strip
+  // but no draggable row in the sidebar. Counting one here would let it be
+  // picked as `insertBeforeId` and drop the moved task at a terminal's
+  // position — not the row the drop indicator pointed at. The insertion below
+  // still resolves against the raw `taskOrder`, so terminals keep their own
+  // places in it either way.
+  const draggableOrder = store.taskOrder.filter(isDraggableTask);
 
   // After removing the moved item, find what task should come after it
   const remainingDraggable = draggableOrder.filter((id) => id !== movedId);

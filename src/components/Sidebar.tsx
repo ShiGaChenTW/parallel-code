@@ -27,12 +27,13 @@ import {
 import { formatKeyCombo } from '../lib/keybindings';
 import type { KeyBinding } from '../lib/keybindings';
 import { tr } from '../store/i18n';
-import type { Project } from '../store/types';
+import type { Project, Terminal } from '../store/types';
 import type { TaskAttentionState } from '../store/store';
 import {
   computeGroupedTasks,
+  computeSidebarTerminals,
   getCoordinatorChildren,
-  isCoordinatedChild,
+  isDraggableTask,
 } from '../store/sidebar-order';
 import { ConnectPhoneModal } from './ConnectPhoneModal';
 import { RemoveProjectConfirm } from './RemoveProjectConfirm';
@@ -363,12 +364,18 @@ export function newTaskTooltip(bindings: KeyBinding[], isMac?: boolean): string 
   return tr('New task ({shortcut})', { shortcut: formatKeyCombo(binding, isMac) });
 }
 
-/** Terminal glyph, inherited from the sidebar button the Session menu replaced. */
-function TerminalGlyph() {
+/**
+ * Terminal glyph, inherited from the sidebar button the Session menu replaced.
+ *
+ * `size` and `opacity` exist for the terminal rows in the list below, which
+ * want the smaller, quieter treatment `CoordinatorIcon` already uses on its own
+ * rows; the Session menu keeps the defaults it has always had.
+ */
+function TerminalGlyph(props: { size?: number; opacity?: string }) {
   return (
     <svg
-      width="14"
-      height="14"
+      width={props.size ?? 14}
+      height={props.size ?? 14}
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
@@ -376,6 +383,7 @@ function TerminalGlyph() {
       stroke-linecap="round"
       stroke-linejoin="round"
       aria-hidden="true"
+      style={{ 'flex-shrink': '0', opacity: props.opacity ?? '1' }}
     >
       <polyline points="4 17 10 11 4 5" />
       <line x1="12" y1="19" x2="20" y2="19" />
@@ -433,13 +441,14 @@ export function Sidebar() {
 
   const sidebarWidth = () => getPanelUserSize(SIDEBAR_SIZE_KEY) ?? SIDEBAR_DEFAULT_WIDTH;
 
-  // Maps each visible draggable task ID to its visual position (0-based, excluding coordinated children).
+  // Maps each visible draggable task ID to its visual position (0-based, excluding
+  // coordinated children and standalone terminals).
   // This keeps drag signals, drop indicators, and data-task-index in the same coordinate space.
   const taskIndexById = createMemo(() => {
     const map = new Map<string, number>();
     let visIdx = 0;
     for (const taskId of store.taskOrder) {
-      if (!isCoordinatedChild(taskId)) {
+      if (isDraggableTask(taskId)) {
         map.set(taskId, visIdx++);
       }
     }
@@ -450,6 +459,7 @@ export function Sidebar() {
   const draggableTaskCount = createMemo(() => taskIndexById().size);
 
   const groupedTasks = createMemo(() => computeGroupedTasks());
+  const sidebarTerminals = createMemo(() => computeSidebarTerminals());
   const sidebarTaskCount = createMemo(
     () => store.taskOrder.length + store.collapsedTaskOrder.length,
   );
@@ -494,7 +504,7 @@ export function Sidebar() {
         if (!target) return;
         const visibleIndex = Number(target.dataset.taskIndex);
         // data-task-index is now the visible draggable index; look up the task ID from the visible order
-        const draggableOrder = store.taskOrder.filter((id) => !isCoordinatedChild(id));
+        const draggableOrder = store.taskOrder.filter(isDraggableTask);
         const taskId = draggableOrder[visibleIndex];
         if (taskId === undefined || taskId === null) return;
         handleTaskMouseDown(e, taskId, visibleIndex);
@@ -1034,8 +1044,49 @@ export function Sidebar() {
             </For>
           </Show>
 
+          {/* End-of-list drop indicator. Sits above the terminals group, not
+              below it: the end of the drag index space is the end of the
+              *tasks*, and terminals are not in that space. */}
           <Show when={dropTargetIndex() === draggableTaskCount()}>
             <div class="drop-indicator" />
+          </Show>
+
+          {/* Standalone terminals.
+              Their own group, last, and with no colour dot on the heading:
+              a terminal opened from the Session `+` has no `projectId`, and it
+              is not an accident that it does not — nothing about opening a
+              terminal names a project. So it cannot join a project group, and
+              filing it under one would invent an ownership the data does not
+              have. It sits below the orphan bucket for the same reason that
+              bucket is below the groups: the further a row is from having a
+              parent, the further down it goes.
+
+              Nothing renders when there are none, which is what every other
+              group in this list already does — the project groups and the
+              orphan bucket are each behind a `> 0` Show. A standing "no
+              terminals" line would be the one row here that is always present,
+              and the Session `+` above already says how to make one. */}
+          <Show when={sidebarTerminals().length > 0}>
+            <span
+              style={{
+                'font-size': sf(11),
+                color: theme.fgSubtle,
+                'text-transform': 'uppercase',
+                'letter-spacing': '0.05em',
+                'margin-top': '8px',
+                'margin-bottom': '4px',
+                padding: '0 2px',
+              }}
+            >
+              {tr('Terminals')} ({sidebarTerminals().length})
+            </span>
+            <For each={sidebarTerminals()}>
+              {(terminalId) => (
+                <Show when={store.terminals[terminalId]}>
+                  {(terminal) => <SidebarTerminalRow terminal={terminal()} />}
+                </Show>
+              )}
+            </For>
           </Show>
         </div>
 
@@ -1237,6 +1288,78 @@ function CoordinatorFolder(props: TaskEntryProps) {
         </>
       )}
     </Show>
+  );
+}
+
+// --- Standalone terminal row ---
+
+/**
+ * A terminal opened from the Session `+`, listed beside the tasks.
+ *
+ * Terminals have always been in `taskOrder` — that is how `TilingLayout` gives
+ * one a panel — but every sidebar reader skipped them with a bare
+ * `if (!task) continue`, so the list rendered none of them and the only way
+ * back to a terminal was to find its panel by scrolling the strip. This row is
+ * that way back.
+ *
+ * Built on the same `TaskRowShell` as `TaskRow`, with the same `task-item`
+ * class and the same appearance/removal animation, because in the strip a
+ * terminal *is* a peer of a task: same `taskOrder`, same `activeTaskId`, same
+ * ←/→ traversal. A row that looked like a different species would be a lie
+ * about how the app already treats it. What it drops is everything that is
+ * specifically about a task — the status dot, the branch badge, the dependency
+ * pill, the current-state line — none of which a terminal has an answer for.
+ *
+ * Takes the `Terminal` rather than an id, the way `TerminalPanel` does. The
+ * caller already has the record in hand from its `Show`, and it lets the row be
+ * rendered in a test with no store standing behind it.
+ */
+export function SidebarTerminalRow(props: { terminal: Terminal }) {
+  const id = () => props.terminal.id;
+  return (
+    <TaskRowShell
+      taskId={id()}
+      class={`task-item${
+        props.terminal.closingStatus === 'removing' ? ' task-item-removing' : ' task-item-appearing'
+      }`}
+      // No `taskIndex`: terminals are not draggable, and `data-task-index` is
+      // exactly what the list's mousedown handler picks rows up by. The
+      // `sidebarTaskId` is still needed — it is how the keyboard-focus effect
+      // scrolls a row it cannot find an index for.
+      sidebarTaskId={id()}
+      title={props.terminal.name}
+      // Same two calls a task row makes. `setActiveTask` already accepts a
+      // terminal id (it looks in `store.terminals` when `store.tasks` misses),
+      // and `activeTaskId` is what scrolls the panel strip to the right panel,
+      // so clicking here brings the terminal into view exactly as clicking a
+      // task brings that task in.
+      onClick={() => {
+        setActiveTask(id());
+        focusSidebar();
+      }}
+      // No connector: the hierarchy rail descends from a project header's
+      // colour dot, and this group's heading has none to descend from — the
+      // same answer the orphan bucket gets, for the same reason.
+      fontSize={sf(12)}
+      cursor="pointer"
+      opacity="1"
+      style={{
+        background: 'transparent',
+        color: store.activeTaskId === id() ? theme.fg : theme.fgMuted,
+        'font-weight': store.activeTaskId === id() ? '500' : '400',
+        border:
+          store.sidebarFocused && store.sidebarFocusedTaskId === id()
+            ? `1.5px solid var(--border-focus)`
+            : '1.5px solid transparent',
+      }}
+    >
+      <div style={{ display: 'flex', 'align-items': 'center', gap: '6px' }}>
+        <TerminalGlyph size={12} opacity="0.7" />
+        <span style={{ overflow: 'hidden', 'text-overflow': 'ellipsis' }}>
+          {props.terminal.name}
+        </span>
+      </div>
+    </TaskRowShell>
   );
 }
 
