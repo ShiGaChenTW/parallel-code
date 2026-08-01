@@ -4,14 +4,13 @@ import { describe, it, expect } from 'vitest';
 import {
   DEFAULT_WINDOW_BLUR,
   WINDOW_BLUR_MATERIALS,
-  WINDOW_BLUR_VEIL_ALPHA,
   isWindowBlurSupported,
   normalizeWindowBlur,
-  worstCaseChromeContrast,
 } from './window-blur';
+import { CSS_VARS } from './custom-theme';
 
 describe('isWindowBlurSupported', () => {
-  it('is macOS only — narrower than the opacity rule', () => {
+  it('is macOS only', () => {
     expect(isWindowBlurSupported('darwin')).toBe(true);
     expect(isWindowBlurSupported('win32')).toBe(false);
     expect(isWindowBlurSupported('linux')).toBe(false);
@@ -51,72 +50,124 @@ describe('the offered material set', () => {
 });
 
 /**
- * The veil floor, derived rather than chosen. See the file header of
- * `window-blur.ts`: body text is *not* faded by the veil (unlike `setOpacity`,
- * which fades glyphs and surface together), so the only question is how much
- * desktop is allowed to wash out the backdrop behind the chrome that sits
- * directly on it.
+ * The fixed veil alpha is gone, and this is the assertion that keeps it gone.
+ *
+ * It was 0.75, derived as the lowest 0.05 step clearing WCAG 3:1 and fixed on
+ * the argument that a slider "can only make things worse". Two things were wrong
+ * with that. 3:1 is the AA threshold for large text and graphical objects, and
+ * this app is a full-screen terminal at small monospace sizes, where the line is
+ * 4.5:1 — so the number was checked against the wrong one. And every terminal
+ * emulator surveyed makes this adjustable and defaults it to opaque, where this
+ * forced 0.75 on anyone who turned blur on with no way back.
  */
-describe('worstCaseChromeContrast', () => {
-  it('is the opaque theme contrast when nothing shows through', () => {
-    expect(worstCaseChromeContrast(1)).toBeCloseTo(7.95, 1);
+describe('the veil alpha is the user’s, not a constant', () => {
+  const source = readFileSync(resolve(__dirname, 'window-blur.ts'), 'utf8');
+
+  it('exports no fixed alpha', () => {
+    expect(source).not.toContain('WINDOW_BLUR_VEIL_ALPHA');
   });
 
-  it('degrades monotonically as more desktop shows through', () => {
-    const samples = [1, 0.9, 0.8, 0.75, 0.7, 0.6].map(worstCaseChromeContrast);
-    for (let i = 1; i < samples.length; i++) {
-      expect(samples[i]).toBeLessThan(samples[i - 1]);
-    }
-  });
-
-  it('puts the boundary exactly where the shipped alpha sits', () => {
-    // This is the assertion that pins the number to its reason. 3:1 is WCAG AA
-    // for large text and graphical objects; 0.75 is the lowest 0.05 step that
-    // clears it and 0.70 does not, which is why 0.75 is what ships.
-    expect(worstCaseChromeContrast(0.75)).toBeGreaterThanOrEqual(3);
-    expect(worstCaseChromeContrast(0.7)).toBeLessThan(3);
-    expect(WINDOW_BLUR_VEIL_ALPHA).toBe(0.75);
-    expect(worstCaseChromeContrast(WINDOW_BLUR_VEIL_ALPHA)).toBeGreaterThanOrEqual(3);
+  it('keeps no contrast model of its own', () => {
+    // There is one model now, in `window-opacity.ts`, and it covers the deeper
+    // and therefore harder case: text on a surface that is itself over the
+    // composited backdrop. Two models would have drifted.
+    expect(source).not.toContain('worstCaseChromeContrast');
+    expect(source).not.toContain('EXTREME_BACKDROPS');
   });
 
   it('models a blurred desktop as no gentler than a sharp one', () => {
     // Blur removes spatial detail, not mean luminance: a white wallpaper blurs
     // to white. So the extremes stay #ffffff / #000000 and no relaxation is
-    // available on the grounds that the backdrop is blurred now. If someone
-    // narrows the modelled extremes, this goes red.
-    const source = readFileSync(resolve(__dirname, 'window-blur.ts'), 'utf8');
-    expect(source).toContain("EXTREME_BACKDROPS = ['#ffffff', '#000000']");
+    // available on the grounds that the backdrop is blurred now. The assertion
+    // followed the model to the file that now owns it.
+    const opacity = readFileSync(resolve(__dirname, 'window-opacity.ts'), 'utf8');
+    expect(opacity).toContain("EXTREME_BACKDROPS = ['#ffffff', '#000000']");
   });
 });
 
 /**
  * The mechanism's central claim, asserted against the stylesheet: the alpha is
- * applied to a *layer*, never to a theme value. This is what makes it work
- * across eleven presets and every user-authored theme without any of them being
- * edited — and what keeps `custom-theme-contrast.test.ts` valid, since the
- * variables it gates are untouched.
+ * applied to a *layer* or to a *use* of a colour, never to the colour itself.
+ * That is what makes it work across eleven presets and every user-authored theme
+ * without any of them being edited — and what keeps
+ * `custom-theme-contrast.test.ts` meaningful, since the variables it gates are
+ * untouched.
  */
-describe('the veil never rewrites a theme value', () => {
+describe('the blur block never rewrites a theme value', () => {
   const css = readFileSync(resolve(__dirname, '..', 'styles.css'), 'utf8');
   const blurBlock = css.slice(
     css.indexOf('/* --- Window blur (macOS vibrancy)'),
     css.indexOf('\nbody {', css.indexOf('/* --- Window blur (macOS vibrancy)')),
   );
 
-  it('carries the alpha on opacity, not on a colour', () => {
-    // `--bg` is a radial-gradient in nine of the eleven presets, so there is no
-    // colour function that could do this even in principle.
-    expect(blurBlock).toContain(`opacity: ${WINDOW_BLUR_VEIL_ALPHA}`);
+  it('drives the veil from the setting rather than a hard-coded number', () => {
+    // `--bg` is a radial-gradient in nine of the eleven presets, so no colour
+    // function could carry this alpha even in principle. It has to be `opacity`
+    // on a layer — and the number is now the user's, not a constant.
+    expect(blurBlock).toContain('opacity: var(--surface-alpha)');
+    expect(blurBlock).not.toMatch(/opacity: 0\.\d+/);
   });
 
   it('consumes var(--bg) rather than naming any colour of its own', () => {
     expect(blurBlock).toContain('background: var(--bg)');
   });
 
-  it('redefines no custom property at all', () => {
-    // A `--foo:` declaration inside this block would mean a theme value was
-    // being overridden, which is exactly what this design refuses to do.
-    expect(blurBlock).not.toMatch(/^\s*--[a-z-]+:/m);
+  it('redefines no theme variable', () => {
+    // The audited palette — everything `custom-theme-contrast.test.ts` checks —
+    // must survive this block untouched. `--surface-alpha` is the one custom
+    // property allowed here, and it is an input to the block rather than a
+    // colour a theme author wrote.
+    const declared = [...blurBlock.matchAll(/^\s*(--[a-z-]+):/gm)].map((m) => m[1]);
+    expect(declared).toEqual(['--surface-alpha']);
+    for (const themeVar of CSS_VARS) {
+      expect(declared, `${themeVar} must not be redefined here`).not.toContain(themeVar);
+    }
+  });
+
+  /**
+   * The layer stack, which is the whole reason the effect was invisible before.
+   *
+   * Vibrancy is painted behind the web contents, and `.task-column` and
+   * `.shell-terminal-container` are opaque theme colours covering nearly the
+   * entire window — so the blur was working underneath a lid. These rules are
+   * what lift it.
+   */
+  describe('the surfaces that used to hide the vibrancy', () => {
+    for (const [selector, token] of [
+      ['.task-column', '--task-container-bg'],
+      ['.shell-terminal-container', '--task-panel-bg'],
+    ] as const) {
+      it(`paints ${selector} at the surface alpha`, () => {
+        // color-mix on the *use*, never on the token: the token stays whatever
+        // its theme author wrote, and only this painting of it is thinned.
+        const rule = new RegExp(
+          `html\\[data-window-blur\\] \\${selector} \\{\\s*background: color-mix\\(\\s*in srgb,\\s*var\\(${token}\\) calc\\(var\\(--surface-alpha\\) \\* 100%\\),\\s*transparent\\s*\\) !important;`,
+        );
+        expect(blurBlock).toMatch(rule);
+      });
+    }
+
+    it('drops the row that painted the same colour twice', () => {
+      // `.shell-terminals-row` carries --task-container-bg directly on top of
+      // .task-column's --task-container-bg. Mixing it would be one more
+      // multiplication in the stack for no visible difference at any alpha.
+      expect(blurBlock).toMatch(
+        /html\[data-window-blur\] \.shell-terminals-row \{\s*background: transparent !important;/,
+      );
+    });
+
+    it('needs !important on each, to beat the inline style it is overriding', () => {
+      // Every one of these backgrounds is written as a component inline style,
+      // which no stylesheet rule outranks without it.
+      for (const selector of [
+        '.task-column',
+        '.shell-terminals-row',
+        '.shell-terminal-container',
+      ]) {
+        const rule = blurBlock.slice(blurBlock.indexOf(`${selector} {`));
+        expect(rule.slice(0, rule.indexOf('}'))).toContain('!important');
+      }
+    });
   });
 
   /**
@@ -151,17 +202,22 @@ describe('the veil never rewrites a theme value', () => {
     it('removes the veil rather than merely opacifying it', () => {
       expect(reduced).toMatch(/#root::before\s*\{\s*display: none;/);
     });
+
+    it('forces the surface alpha back to 1, which neutralises every color-mix', () => {
+      // One declaration instead of repeating each surface rule with a different
+      // value — and `!important` because App.tsx writes `--surface-alpha` as an
+      // inline style on the same element, which otherwise wins the cascade.
+      expect(reduced).toMatch(/html\[data-window-blur\] \{\s*--surface-alpha: 1 !important;\s*\}/);
+    });
   });
 
-  it('leaves panel, island and terminal surfaces alone', () => {
-    // Terminal text sits on --task-panel-bg. If the veil ever touched these,
-    // scrollback legibility would become a function of the user's wallpaper.
-    for (const surface of [
-      '--task-panel-bg',
-      '--island-bg',
-      '--task-container-bg',
-      '--bg-elevated',
-    ]) {
+  it('leaves the floating surfaces alone', () => {
+    // Dialogs, popovers and cards sit on --island-bg and --bg-elevated. They
+    // float above the app rather than forming the background stack behind the
+    // terminal, so thinning them would cost readability without revealing any
+    // vibrancy the surfaces below have not already revealed. No terminal
+    // emulator makes its settings window see-through either.
+    for (const surface of ['--island-bg', '--bg-elevated']) {
       expect(blurBlock, `${surface} must not appear in the blur block`).not.toContain(surface);
     }
   });

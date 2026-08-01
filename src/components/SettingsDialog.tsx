@@ -547,36 +547,41 @@ function AppIconSection() {
 }
 
 /**
- * Window opacity, or an explanation of its absence.
+ * Transparency, or an explanation of its absence.
  *
- * Electron 40 implements `setOpacity` on macOS and Windows and documents it as
- * doing nothing on Linux — and Linux is one of this app's two published targets.
- * So the slider is not rendered there at all: a control that moves and changes
- * nothing is worse than no control, and worse than a sentence saying why.
+ * The same control over the same persisted number, now meaning something
+ * entirely different. It used to drive `win.setOpacity()`, which fades the
+ * composited window — glyphs, chrome and traffic-light buttons along with the
+ * background. No terminal emulator works that way; all six surveyed fade the
+ * background and leave text at full opacity. It now drives the `--surface-alpha`
+ * custom property, which `styles.css` applies to background layers only, so the
+ * description leads with exactly that.
  *
- * That sentence is now the card's description rather than a line inside it,
- * which is why the description is computed instead of literal: on Linux the
- * honest summary of this card is that it does nothing, and a card that led with
- * "fades the whole window" there would be lying in its first line.
+ * It depends on blur, and the copy says so rather than leaving the user to find
+ * out. Painting a background at 80% only reveals the desktop if the window is
+ * translucent, and the only thing that makes it translucent here is a vibrancy
+ * material — which is also why the slider is withheld on Linux, where vibrancy
+ * does not exist at all.
  *
- * The readability note is not decoration. Window opacity fades the glyphs along
- * with everything else, which is not what transparency means in a terminal
- * emulator — the same 80% that looks fine in iTerm2 costs real contrast here.
- * `windowOpacityReadability` puts a WCAG number behind that rather than a vibe.
+ * What is *gone* from this card is the note saying the setting was paused while
+ * blur was on. That exclusion existed because `setOpacity` faded the vibrancy
+ * layer along with everything else and produced a doubled image; nothing in the
+ * CSS path does that, so the two settings are now one mechanism instead of two
+ * that had to be kept apart.
  */
 function WindowOpacitySection() {
   const supported = isWindowOpacitySupported(rendererPlatform);
   const readability = () => windowOpacityReadability(store.windowOpacity);
   return (
     <SettingsCard
-      title={tr('Window opacity')}
+      title={tr('Transparency')}
       description={
         supported
           ? tr(
-              'Fades the whole window, text included — the desktop shows through the terminals, not just behind them.',
+              'Lets the desktop through the app’s backgrounds. Text, icons and window controls stay fully opaque. Needs window blur on to show anything.',
             )
           : tr(
-              'Not available on Linux — Electron implements window opacity on macOS only, so a slider here would do nothing.',
+              'Not available on Linux — the window can only be made translucent by a macOS vibrancy material, so a slider here would do nothing.',
             )
       }
     >
@@ -614,7 +619,7 @@ function WindowOpacitySection() {
             max="100"
             step={Math.round(WINDOW_OPACITY_STEP * 100)}
             value={Math.round(store.windowOpacity * 100)}
-            aria-label={tr('Window opacity')}
+            aria-label={tr('Transparency')}
             onInput={(e) => setWindowOpacity(Number(e.currentTarget.value) / 100)}
             style={{ width: '100%', 'accent-color': theme.accent, cursor: 'pointer' }}
           />
@@ -637,10 +642,17 @@ function WindowOpacitySection() {
             )}
           </div>
         </Show>
-        <Show when={store.windowBlur !== 'off'}>
+        <Show when={store.windowBlur === 'off'}>
           <div style={{ 'font-size': '12px', color: theme.fgMuted }}>
             {tr(
-              'Paused while window blur is on — fading a blurred backdrop over the desktop it was blurred from doubles the image rather than dimming it. This setting is kept and returns when blur goes off.',
+              'Has no effect while window blur is off — without a vibrancy material there is nothing behind the window for the backgrounds to reveal.',
+            )}
+          </div>
+        </Show>
+        <Show when={store.windowOpacity < 1}>
+          <div style={{ 'font-size': '12px', color: theme.fgMuted }}>
+            {tr(
+              'Below 100% the terminal switches to transparent rendering, which xterm.js draws with greyscale rather than subpixel antialiasing — text may look slightly lighter. Set this back to 100% to compare.',
             )}
           </div>
         </Show>
@@ -672,11 +684,13 @@ const WINDOW_BLUR_LABELS: Record<WindowBlurMaterial, string> = {
  * controls (menu, popover, tooltip) rather than windows, and read as flat wash
  * when stretched across one.
  *
- * The description says plainly that panels stay opaque, because that is the
- * question a terminal user actually has here — whether this is about to make
- * their scrollback hard to read. It is not, structurally: no theme variable is
- * touched, so every panel keeps the background its theme author wrote and only
- * the frame around them becomes translucent.
+ * The description no longer claims panels stay opaque, because they no longer
+ * do — that sentence was an accurate description of why the feature did not
+ * work. Vibrancy is painted behind the web contents, and the terminal surface
+ * covered nearly all of it, so the effect was visible only in the gaps. What
+ * replaced the claim is the honest one: turning this on is what makes the
+ * Transparency slider mean anything, and on its own it changes nothing, because
+ * that slider defaults to fully opaque.
  */
 function WindowBlurSection() {
   const supported = isWindowBlurSupported(rendererPlatform);
@@ -686,7 +700,7 @@ function WindowBlurSection() {
       description={
         supported
           ? tr(
-              'Frosts the desktop behind the window. Panels and terminals stay opaque, so only the frame around them lets the desktop through.',
+              'Frosts the desktop behind the window. On its own it changes nothing — turn Transparency below 100% to let it show through.',
             )
           : tr(
               'Not available on Linux — Electron implements window blur on macOS only, so a control here would do nothing.',

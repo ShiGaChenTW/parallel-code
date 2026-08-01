@@ -255,21 +255,23 @@ const ZH_TW: Record<string, string> = {
   'App icon': 'App 圖示',
   'Changes the Dock icon on macOS and the window icon on Linux.':
     '更換 macOS 的 Dock 圖示與 Linux 的視窗圖示。',
-  'Window opacity': '視窗透明度',
+  Transparency: '透明度',
   Opacity: '透明度',
-  'Fades the whole window, text included — the desktop shows through the terminals, not just behind them.':
-    '整個視窗連同文字一起淡化——桌面會直接透過終端機顯示出來，不只是襯在後面。',
-  'Not available on Linux — Electron implements window opacity on macOS only, so a slider here would do nothing.':
-    'Linux 無法使用——Electron 只在 macOS 上實作視窗透明度，在這裡放滑桿也不會有任何作用。',
+  'Lets the desktop through the app’s backgrounds. Text, icons and window controls stay fully opaque. Needs window blur on to show anything.':
+    '讓桌面透過 App 的背景顯示出來。文字、圖示與視窗控制項維持完全不透明。需要先開啟視窗模糊才看得到效果。',
+  'Not available on Linux — the window can only be made translucent by a macOS vibrancy material, so a slider here would do nothing.':
+    'Linux 無法使用——只有 macOS 的 vibrancy 材質能讓視窗變成半透明，在這裡放滑桿也不會有任何作用。',
   'At this level, text over a bright desktop falls below the contrast the built-in themes are checked against.':
     '在這個透明度下，文字疊在明亮桌面上的對比度會低於內建主題所檢查的標準。',
+  'Has no effect while window blur is off — without a vibrancy material there is nothing behind the window for the backgrounds to reveal.':
+    '視窗模糊關閉時沒有作用——沒有 vibrancy 材質，視窗後面就沒有東西可以讓背景透出來。',
+  'Below 100% the terminal switches to transparent rendering, which xterm.js draws with greyscale rather than subpixel antialiasing — text may look slightly lighter. Set this back to 100% to compare.':
+    '低於 100% 時終端機會改用透明繪製，xterm.js 會以灰階而非次像素反鋸齒繪製——文字看起來可能略微變細。調回 100% 即可比對。',
   'Window blur': '視窗模糊',
-  'Frosts the desktop behind the window. Panels and terminals stay opaque, so only the frame around them lets the desktop through.':
-    '把視窗後方的桌面變成毛玻璃。面板與終端機維持不透明，只有周圍的外框會透出桌面。',
+  'Frosts the desktop behind the window. On its own it changes nothing — turn Transparency below 100% to let it show through.':
+    '把視窗後方的桌面變成毛玻璃。單獨開啟不會有任何變化——要把「透明度」調到 100% 以下才會透出來。',
   'Not available on Linux — Electron implements window blur on macOS only, so a control here would do nothing.':
     'Linux 無法使用——Electron 只在 macOS 上實作視窗模糊，在這裡放控制項也不會有任何作用。',
-  'Paused while window blur is on — fading a blurred backdrop over the desktop it was blurred from doubles the image rather than dimming it. This setting is kept and returns when blur goes off.':
-    '視窗模糊開啟時暫停——把模糊後的背景再淡化疊回它模糊自的那張桌面，只會產生疊影而不是變淡。這項設定會保留，關閉模糊後就會回來。',
   Off: '關閉',
   Window: '視窗',
   Sidebar: '側邊欄',

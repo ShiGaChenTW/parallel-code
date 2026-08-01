@@ -10,7 +10,6 @@ import {
   WINDOW_VISUAL_EFFECT_STATE,
   applyWindowBlur,
   effectiveWindowBlur,
-  effectiveWindowOpacity,
   isWindowBlurSupported,
   normalizeWindowBlur,
   windowBlurFromState,
@@ -106,9 +105,8 @@ describe('effectiveWindowBlur', () => {
   });
 
   it('does not consume the stored value, so the choice comes back', () => {
-    // Same reversibility contract as `effectiveWindowOpacity`: someone who turns
-    // "Reduce transparency" off again gets the material they picked, not a
-    // setting the app quietly forgot on their behalf.
+    // Someone who turns "Reduce transparency" off again gets the material they
+    // picked, not a setting the app quietly forgot on their behalf.
     const stored = 'under-window';
     expect(effectiveWindowBlur(stored, true)).toBe('off');
     expect(effectiveWindowBlur(stored, false)).toBe(stored);
@@ -148,28 +146,37 @@ describe('WINDOW_VISUAL_EFFECT_STATE', () => {
 });
 
 /**
- * The rule that keeps the two settings from being composited together. See
- * `effectiveWindowOpacity` for why the combination is a ghosted image rather
- * than a fainter one.
+ * Blur and transparency are no longer mutually exclusive, and main no longer
+ * knows what transparency is.
+ *
+ * The exclusion existed because `setOpacity` fades everything the window has
+ * drawn — including the vibrancy layer, which is itself a blurred picture of the
+ * desktop. Fading that toward the desktop it was blurred from doubles the image
+ * rather than dimming it, so one setting had to win. CSS alpha is applied by the
+ * renderer, above the vibrancy layer and never to it, so the conflict is gone
+ * along with the code that arbitrated it.
  */
-describe('effectiveWindowOpacity', () => {
-  it('honours the stored opacity while blur is off', () => {
-    expect(effectiveWindowOpacity(0.7, 'off')).toBe(0.7);
-    expect(effectiveWindowOpacity(1, 'off')).toBe(1);
+describe('the blur/opacity exclusion is gone', () => {
+  const source = readFileSync(resolve(__dirname, 'window-blur.ts'), 'utf8');
+  const register = readFileSync(resolve(__dirname, 'register.ts'), 'utf8');
+
+  it('no longer arbitrates between the two settings', () => {
+    expect(source).not.toContain('effectiveWindowOpacity');
   });
 
-  it('holds the window fully opaque while blur is on', () => {
-    for (const material of WINDOW_BLUR_MATERIALS) {
-      expect(effectiveWindowOpacity(0.6, material)).toBe(1);
-    }
+  it('leaves main with no opacity call at all', () => {
+    // The *call*, not the word: both files still name `setOpacity` in prose
+    // explaining why it is gone, and that prose is the point. What must not come
+    // back is an invocation.
+    expect(source).not.toMatch(/\.setOpacity\(/);
+    expect(register).not.toMatch(/\.setOpacity\(/);
+    expect(register).not.toContain('applyWindowOpacity(');
   });
 
-  it('does not consume the stored value, so switching blur off restores it', () => {
-    // The whole point of this being a pure function rather than a write into
-    // the stored opacity: on -> off is a round trip, not a data loss.
-    const stored = 0.75;
-    expect(effectiveWindowOpacity(stored, 'hud')).toBe(1);
-    expect(effectiveWindowOpacity(stored, 'off')).toBe(stored);
+  it('carries only the blur on the one remaining channel', () => {
+    // The payload used to be `{ blur, opacity }` so main could decide which won.
+    expect(register).toContain('ipcMain.handle(IPC.SetWindowBlur');
+    expect(register).not.toContain('IPC.SetWindowOpacity');
   });
 });
 

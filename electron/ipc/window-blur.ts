@@ -138,9 +138,9 @@ export function windowBlurFromState(json: string | null): WindowBlur {
  * `styles.css`, which Chromium derives from the same OS flag; this is the
  * main-process half, and the two have to agree or the hole simply moves.
  *
- * The stored setting is deliberately not rewritten — same reasoning as
- * `effectiveWindowOpacity`. Someone who turns the accessibility flag off again
- * gets the material they chose back, rather than an app that quietly forgot.
+ * The stored setting is deliberately not rewritten. Someone who turns the
+ * accessibility flag off again gets the material they chose back, rather than an
+ * app that quietly forgot on their behalf.
  *
  * Kept a pure function of an explicitly passed boolean rather than reading
  * `nativeTheme` here, so this module still imports nothing from `electron` at
@@ -148,30 +148,6 @@ export function windowBlurFromState(json: string | null): WindowBlur {
  */
 export function effectiveWindowBlur(blur: unknown, reducedTransparency: boolean): WindowBlur {
   return reducedTransparency ? 'off' : normalizeWindowBlur(blur);
-}
-
-/**
- * The opacity the window should actually run at, given the blur setting.
- *
- * Blur and opacity are two independent settings that must not be composited
- * together, so blur wins while it is on and the stored opacity is held in
- * reserve, unmodified, until blur is switched off.
- *
- * The reason is in the compositor rather than in taste. `setOpacity` sets the
- * NSWindow's alpha, which fades *everything the window has drawn* — including
- * the vibrancy layer, which is itself a blurred picture of the desktop behind
- * the window. Fading that toward the desktop blends a blurred copy of the
- * desktop with the sharp original, which is a doubled, ghosted image rather than
- * a fainter one. Neither setting is degraded by the other's absence, and the
- * combination degrades both.
- *
- * Keeping this a pure function of the two stored values, rather than writing 1
- * into the stored opacity, is what makes it reversible: the user's opacity is
- * still there when blur goes off, so switching blur on and off again is a
- * no-op rather than a quiet data loss.
- */
-export function effectiveWindowOpacity(storedOpacity: number, blur: WindowBlur): number {
-  return blur === 'off' ? storedOpacity : 1;
 }
 
 /**

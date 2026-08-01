@@ -12,14 +12,12 @@ import { stopAllHandoffWatchers } from './ipc/handoff.js';
 import { stopTokenUsageWatcher } from './ipc/token-usage.js';
 import { IPC } from './ipc/channels.js';
 import { loadAppState } from './ipc/persistence.js';
-import { isWindowOpacitySupported, windowOpacityFromState } from './ipc/window-opacity.js';
 import {
   WINDOW_BACKDROP_OPAQUE,
   WINDOW_BACKDROP_TRANSPARENT,
   WINDOW_VISUAL_EFFECT_STATE,
   applyWindowBlur,
   effectiveWindowBlur,
-  effectiveWindowOpacity,
   isWindowBlurSupported,
   windowBlurFromState,
 } from './ipc/window-blur.js';
@@ -102,9 +100,11 @@ function getIconPath(): string | undefined {
  * The cost is one `state.json` read and parse before the window opens; the
  * renderer reads the same file moments later anyway.
  *
- * One read serves both settings, which also makes them consistent by
- * construction: they are derived from a single snapshot of the file rather than
- * from two reads that could straddle a write.
+ * Transparency is no longer read here, and that is the point of the change it
+ * came from: it is a CSS custom property now, so it lands with the renderer's
+ * first paint like every other theme value, and there is no `opacity` on the
+ * window for a stale state file to get wrong. What is left is the native half,
+ * which genuinely cannot wait for the renderer.
  *
  * `backgroundColor` is set explicitly in both directions, and that matters more
  * than it looks. The runtime off path (`applyWindowBlur`) restores
@@ -121,7 +121,6 @@ function getIconPath(): string | undefined {
  * still get a window, and it gets the plain one.
  */
 function initialWindowChrome(): {
-  opacity: number | undefined;
   vibrancy: WindowBlurMaterial | undefined;
   visualEffectState: typeof WINDOW_VISUAL_EFFECT_STATE | undefined;
   backgroundColor: string | undefined;
@@ -131,7 +130,6 @@ function initialWindowChrome(): {
   // appearance option that must not depend on the read below succeeding.
   const visualEffectState = blurSupported ? WINDOW_VISUAL_EFFECT_STATE : undefined;
   const none = {
-    opacity: undefined,
     vibrancy: undefined,
     visualEffectState,
     backgroundColor: undefined,
@@ -150,15 +148,8 @@ function initialWindowChrome(): {
   const blur = blurSupported
     ? effectiveWindowBlur(windowBlurFromState(state), nativeTheme.prefersReducedTransparency)
     : 'off';
-  const storedOpacity = isWindowOpacitySupported(process.platform)
-    ? windowOpacityFromState(state)
-    : undefined;
 
   return {
-    // Blur and opacity are never composited together — see
-    // `effectiveWindowOpacity` for why the combination is a ghosted image
-    // rather than a fainter one.
-    opacity: storedOpacity === undefined ? undefined : effectiveWindowOpacity(storedOpacity, blur),
     vibrancy: blur === 'off' ? undefined : blur,
     visualEffectState,
     backgroundColor: blurSupported
@@ -209,7 +200,6 @@ function createWindow() {
     width: 1400,
     height: 900,
     icon: getIconPath(),
-    opacity: chrome.opacity,
     vibrancy: chrome.vibrancy,
     visualEffectState: chrome.visualEffectState,
     backgroundColor: chrome.backgroundColor,
