@@ -1,6 +1,7 @@
-import { Show, createEffect, createMemo, createSignal } from 'solid-js';
+import { Show, createEffect, createMemo, createSignal, createUniqueId, type JSX } from 'solid-js';
 
 import { Dialog } from './Dialog';
+import { SettingsCard } from './SettingsCard';
 import { theme, bannerStyle } from '../lib/theme';
 import { sf } from '../lib/fontScale';
 import { tr } from '../store/i18n';
@@ -21,6 +22,115 @@ import {
 import { normalizeCloneUrl, suggestedFolderName } from '../lib/clone-url';
 
 /**
+ * One titled paragraph inside the S.CodingFlow explainer.
+ *
+ * The sentence it wraps is a whole `tr()` key, never a concatenation: word
+ * order is the translator's to decide, and a sentence assembled from a heading
+ * plus a fragment cannot be reordered in Traditional Chinese.
+ */
+function SpecgateInfoSection(props: { title: string; children: JSX.Element }) {
+  return (
+    <div style={{ display: 'flex', 'flex-direction': 'column', gap: '3px' }}>
+      <h3
+        style={{
+          margin: '0',
+          'font-size': sf(12),
+          color: theme.fg,
+          'font-weight': '600',
+        }}
+      >
+        {props.title}
+      </h3>
+      <p
+        style={{
+          margin: '0',
+          'font-size': sf(12),
+          color: theme.fgMuted,
+          'line-height': '1.6',
+        }}
+      >
+        {props.children}
+      </p>
+    </div>
+  );
+}
+
+/**
+ * The S.CodingFlow checkbox and the button that explains it.
+ *
+ * THE POINT OF THIS SHAPE
+ *
+ * The row is a flex parent with two *independent* children. The checkbox and
+ * its text sit inside the `<label>`; the button is the label's sibling, not its
+ * descendant. A label only activates its control for clicks that land inside
+ * it, so a click on the button cannot reach the checkbox — there is no event to
+ * stop, and therefore no `stopPropagation` here for a later edit to quietly
+ * drop.
+ *
+ * The whole block used to be one `<label>`, which is what made this a hazard:
+ * adding a button anywhere inside it would have made "read the explanation"
+ * also mean "silently change what the button does". Suppressing the event would
+ * have worked too, right up until someone moved the handler or wrapped the row.
+ * Structure holds without anyone having to remember why.
+ *
+ * Exported so `create-project-card.test.ts` can render it and assert the
+ * ordering that makes the claim true — the label closes before the button
+ * opens. A refactor that pulls the button under the label fails there rather
+ * than silently re-arming the toggle.
+ */
+export function SpecgateOption(props: {
+  checked: boolean;
+  disabled: boolean;
+  infoOpen: boolean;
+  onChange: (checked: boolean) => void;
+  onShowInfo: () => void;
+}) {
+  return (
+    <div style={{ display: 'flex', 'align-items': 'center', gap: '10px' }}>
+      <label
+        style={{
+          display: 'flex',
+          'align-items': 'center',
+          gap: '8px',
+          flex: '1',
+          'min-width': '0',
+          'font-size': sf(12),
+          color: theme.fgMuted,
+          cursor: props.disabled ? 'default' : 'pointer',
+        }}
+      >
+        <input
+          type="checkbox"
+          checked={props.checked}
+          disabled={props.disabled}
+          onChange={(e) => props.onChange(e.currentTarget.checked)}
+        />
+        <span>{tr('Start S.CodingFlow in the new folder')}</span>
+      </label>
+      <button
+        type="button"
+        class="icon-btn"
+        aria-haspopup="dialog"
+        aria-expanded={props.infoOpen}
+        onClick={() => props.onShowInfo()}
+        style={{
+          padding: '4px 10px',
+          background: 'transparent',
+          border: `1px solid ${theme.border}`,
+          'border-radius': '6px',
+          color: theme.fgMuted,
+          'font-size': sf(11),
+          cursor: 'pointer',
+          'flex-shrink': '0',
+        }}
+      >
+        {tr('What this does')}
+      </button>
+    </div>
+  );
+}
+
+/**
  * One dialog for both new ways to get a project.
  *
  * Cloning and creating differ in exactly two places — the first field, and what
@@ -37,6 +147,8 @@ export function CreateProjectDialog() {
   const [initSpecgate, setInitSpecgate] = createSignal(true);
   /** True once the user has edited the folder name, which stops it tracking the URL. */
   const [folderNameTouched, setFolderNameTouched] = createSignal(false);
+  const [showSpecgateInfo, setShowSpecgateInfo] = createSignal(false);
+  const specgateInfoTitleId = createUniqueId();
 
   const mode = () => store.createProjectMode;
   const busy = () => store.createProjectBusy;
@@ -51,6 +163,10 @@ export function CreateProjectDialog() {
     setProjectName('');
     setFolderNameTouched(false);
     setInitSpecgate(true);
+    // The explainer is reset for the same reason as the fields: this component
+    // mounts once and lives for the app's lifetime, so a panel left open when
+    // the dialog was dismissed would still be open the next time it is reached.
+    setShowSpecgateInfo(false);
   });
 
   /** The folder name in force: what the user typed, else what the URL implies. */
@@ -162,30 +278,99 @@ export function CreateProjectDialog() {
           />
         </div>
 
-        <label
-          style={{
-            display: 'flex',
-            'align-items': 'flex-start',
-            gap: '8px',
-            'font-size': sf(12),
-            color: theme.fgMuted,
-          }}
+        <SettingsCard
+          title="S.CodingFlow"
+          description={tr('Sets the new folder up as a spec-driven project before you start work.')}
         >
-          <input
-            type="checkbox"
+          <SpecgateOption
             checked={initSpecgate()}
             disabled={busy()}
-            onChange={(e) => setInitSpecgate(e.currentTarget.checked)}
+            infoOpen={showSpecgateInfo()}
+            onChange={setInitSpecgate}
+            onShowInfo={() => setShowSpecgateInfo(true)}
           />
-          <span>
-            {tr('Start S.CodingFlow in the new folder')}
-            <span style={{ display: 'block', color: theme.fgSubtle, 'font-size': sf(11) }}>
-              {tr(
-                'Runs `scvb-specgate init`, which adds openspec/, PRD.md and facet-brief.md. Nothing is overwritten. Skipped with a note if the CLI is not installed.',
-              )}
-            </span>
-          </span>
-        </label>
+        </SettingsCard>
+
+        {/* Reuses `Dialog` rather than `ConfirmDialog`: this asks nothing, so a
+            confirm/cancel pair would be two buttons for a panel with no
+            decision in it. Going straight to `Dialog` also gets the three
+            behaviours this needs for free and identically to every other modal
+            — the focus trap, Escape, and handing focus back.
+
+            Escape closes this and leaves the create dialog open, because
+            `Dialog`'s handler returns early unless `isTopmost(dialogId)`, and
+            this panel pushed onto `dialog-stack` after its parent.
+
+            Focus returns to the button that opened it via `createFocusRestore`:
+            it saves `document.activeElement` — the button, which Chromium
+            focuses on click — and restores it once the panel unmounts and
+            focus has fallen back to `<body>`. All three exits (Escape, the
+            Close button, an overlay click) end that way. */}
+        <Dialog
+          open={showSpecgateInfo()}
+          onClose={() => setShowSpecgateInfo(false)}
+          width="480px"
+          // Above the create dialog's default 1000, matching how
+          // `CustomThemeDialog` (1200) sits over `SettingsDialog` (1100).
+          zIndex={1100}
+          labelledBy={specgateInfoTitleId}
+        >
+          <h2
+            id={specgateInfoTitleId}
+            style={{ margin: '0', 'font-size': sf(16), color: theme.fg, 'font-weight': '600' }}
+          >
+            {tr('About S.CodingFlow')}
+          </h2>
+
+          <SpecgateInfoSection title={tr('What it runs')}>
+            {tr(
+              'Runs `scvb-specgate init` once, with the new folder as its working directory. Nothing else is run.',
+            )}
+          </SpecgateInfoSection>
+
+          <SpecgateInfoSection title={tr('What it adds')}>
+            {tr(
+              'Seven template items: an `openspec/` folder holding its config, the gate profiles, and empty `specs/` and `changes/` directories — plus `PRD.md` and `facet-brief.md` in the new folder itself.',
+            )}
+          </SpecgateInfoSection>
+
+          <SpecgateInfoSection title={tr('What it leaves alone')}>
+            {tr(
+              'The command is idempotent: anything already there is skipped, never overwritten or merged. `setup` and `doctor` are deliberately not run, so your agent hooks and `.claude/settings.json` are untouched.',
+            )}
+          </SpecgateInfoSection>
+
+          <SpecgateInfoSection title={tr('What is still yours to do')}>
+            {tr(
+              'The PRD template ships with its Non-Goals left blank on purpose, so S.CodingFlow keeps blocking until you fill them in. That is the scaffold working, not a fault.',
+            )}
+          </SpecgateInfoSection>
+
+          <SpecgateInfoSection title={tr('If the CLI is missing')}>
+            {tr(
+              'Nothing fails. The folder is still created and the project is still added — you get a note saying the step was skipped. Install `scvb-specgate`, or relaunch Parallel Code from a terminal so it inherits your shell PATH.',
+            )}
+          </SpecgateInfoSection>
+
+          <div style={{ display: 'flex', 'justify-content': 'flex-end' }}>
+            <button
+              type="button"
+              class="icon-btn"
+              onClick={() => setShowSpecgateInfo(false)}
+              style={{
+                padding: '8px 14px',
+                background: 'transparent',
+                border: `1px solid ${theme.border}`,
+                'border-radius': '6px',
+                color: theme.fgMuted,
+                'font-size': sf(13),
+                cursor: 'pointer',
+              }}
+            >
+              {tr('Close')}
+            </button>
+          </div>
+        </Dialog>
       </Show>
 
       {/* Destination. Remembered between launches, and shown rather than

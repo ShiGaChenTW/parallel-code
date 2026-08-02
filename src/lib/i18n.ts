@@ -211,8 +211,29 @@ const ZH_TW: Record<string, string> = {
   'Change…': '變更…',
   'Choose…': '選擇…',
   'Start S.CodingFlow in the new folder': '在新資料夾中啟動 S.CodingFlow',
-  'Runs `scvb-specgate init`, which adds openspec/, PRD.md and facet-brief.md. Nothing is overwritten. Skipped with a note if the CLI is not installed.':
-    '執行 `scvb-specgate init`，會建立 openspec/、PRD.md 與 facet-brief.md，不會覆蓋既有檔案。若未安裝該 CLI 則跳過並顯示說明。',
+  'Sets the new folder up as a spec-driven project before you start work.':
+    '在你開始動工之前，先把新資料夾設定成一個 spec 驅動的專案。',
+  // The explainer behind "What this does". One run-on sentence used to sit under
+  // the checkbox saying three things at once in 11px grey; it is now five titled
+  // paragraphs in a panel, and each is a whole key so the translation owns its
+  // own word order rather than being assembled from a heading and a fragment.
+  'What this does': '這會做什麼',
+  'About S.CodingFlow': '關於 S.CodingFlow',
+  'What it runs': '會執行什麼',
+  'Runs `scvb-specgate init` once, with the new folder as its working directory. Nothing else is run.':
+    '以新資料夾作為工作目錄，執行一次 `scvb-specgate init`。不會執行其他任何指令。',
+  'What it adds': '會建立什麼',
+  'Seven template items: an `openspec/` folder holding its config, the gate profiles, and empty `specs/` and `changes/` directories — plus `PRD.md` and `facet-brief.md` in the new folder itself.':
+    '七個範本項目：一個 `openspec/` 資料夾，裡面放它的 config、gate profiles，以及空的 `specs/` 與 `changes/` 目錄；另外還有直接放在新資料夾根目錄的 `PRD.md` 與 `facet-brief.md`。',
+  'What it leaves alone': '不會動到什麼',
+  'The command is idempotent: anything already there is skipped, never overwritten or merged. `setup` and `doctor` are deliberately not run, so your agent hooks and `.claude/settings.json` are untouched.':
+    '這個指令是冪等的：已經存在的東西一律略過，不會被覆蓋，也不會被合併。`setup` 與 `doctor` 是刻意不執行的，所以你的 agent hooks 與 `.claude/settings.json` 都不會被更動。',
+  'What is still yours to do': '還有什麼要你自己做',
+  'The PRD template ships with its Non-Goals left blank on purpose, so S.CodingFlow keeps blocking until you fill them in. That is the scaffold working, not a fault.':
+    'PRD 範本刻意把 Non-Goals 留白，所以在你填完之前，S.CodingFlow 會一直擋著。這是骨架正常運作，不是壞掉。',
+  'If the CLI is missing': '如果沒安裝這個 CLI',
+  'Nothing fails. The folder is still created and the project is still added — you get a note saying the step was skipped. Install `scvb-specgate`, or relaunch Parallel Code from a terminal so it inherits your shell PATH.':
+    '不會有任何失敗。資料夾照樣建立、專案照樣加入，只會收到一則說明這一步被跳過的提示。請安裝 `scvb-specgate`，或從終端機重新啟動 Parallel Code，讓它繼承你的 shell PATH。',
   'Clone progress': 'clone 進度',
   // 'Clone' and 'Create' are already in this catalogue further down; a second
   // entry for either is a duplicate key, not a second translation.
