@@ -9,19 +9,32 @@ import type { MenuAction } from './sidebar-menu';
 /**
  * The box geometry every framed control in the sidebar column shares.
  *
- * These numbers are not new. They are the ones the "New Task" button carried
- * until it was removed — that button was the biggest, most deliberate box in
- * the column, so it is what the section headings were asked to look like. The
- * button is gone; the measurements outlived it and live here.
+ * These numbers used to be the removed "New Task" button's. The reference is
+ * now the "Connect Phone" button at the foot of the same column — the one
+ * framed control in the sidebar that survived every pass, and the one the
+ * headings were asked to be indistinguishable from. Its radius was already
+ * 8px, so only the horizontal inset moved: 14px to 12px.
+ *
+ * The phone button also carries `margin: 4px 8px`, and that is deliberately
+ * *not* copied here. Its margin is not part of how the button looks, it is
+ * where the button sits — a standalone footer control inset from the panel's
+ * own 16px padding. The headings label the lists directly beneath them, and
+ * those lists (plus "Link Project" and the task list) all start flush at that
+ * 16px. Insetting only the headings would pull each label 8px off the rows it
+ * names, which is a worse mismatch than the one it fixes.
  *
  * Exported rather than inlined because two things still need to agree: the
  * section headings below, and the full-width "Link Project" button that is all
  * a user with no projects sees. Those two stack directly on top of each other
  * in the same column, so a radius or padding that drifts on one shows up
- * immediately as a mismatched edge on the other.
+ * immediately as a mismatched edge on the other. Link Project was already the
+ * closest thing in the column to the phone button — same 13px text, same
+ * muted token, same 14px leading icon — so moving the shared inset to 12px
+ * carries it the last step rather than dragging it somewhere it did not want
+ * to go.
  */
 export const SECTION_BOX_RADIUS = '8px';
-export const SECTION_BOX_PADDING = '8px 14px';
+export const SECTION_BOX_PADDING = '8px 12px';
 
 /**
  * A framed, transparent-backed heading for one region of the sidebar.
@@ -78,12 +91,18 @@ export function SidebarSectionHeader(props: {
  * component, so the frame's own `SECTION_BOX_PADDING` is the only inset —
  * keeping the old value here would inset the text a second time and leave the
  * label floating well off the frame's left edge.
+ *
+ * 13px, not 12px, because the "Connect Phone" button sets 13px and these
+ * headings are meant to read as the same control. `theme.fgMuted` was already
+ * the phone button's colour in its resting state and did not have to move; the
+ * connected state tints it `theme.success`, which a heading has no equivalent
+ * of and must not fake.
  */
 export function SidebarSectionLabel(props: { children: JSX.Element }) {
   return (
     <span
       style={{
-        'font-size': sf(12),
+        'font-size': sf(13),
         'text-transform': 'uppercase',
         'letter-spacing': '0.05em',
         color: theme.fgMuted,
