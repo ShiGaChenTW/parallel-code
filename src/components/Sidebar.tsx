@@ -39,6 +39,7 @@ import { ConnectPhoneModal } from './ConnectPhoneModal';
 import { RemoveProjectConfirm } from './RemoveProjectConfirm';
 import { EditProjectDialog } from './EditProjectDialog';
 import { SidebarFooter } from './SidebarFooter';
+import { SidebarActionButton } from './SidebarActionButton';
 import { IconButton } from './IconButton';
 import {
   ProjectsGlyph,
@@ -326,6 +327,8 @@ export function TaskRowShell(props: {
 /** The bindings whose combos the Session menu advertises in its tooltips. */
 const NEW_TERMINAL_BINDING_ID = 'app.new-terminal';
 const NEW_TASK_BINDING_ID = 'app.new-task';
+/** The binding both Settings entry points advertise. */
+const SETTINGS_BINDING_ID = 'app.toggle-settings';
 
 /**
  * Tooltip for the Session menu's terminal entry.
@@ -364,6 +367,25 @@ export function newTaskTooltip(bindings: KeyBinding[], isMac?: boolean): string 
   const binding = bindings.find((b) => b.id === NEW_TASK_BINDING_ID);
   if (!binding) return tr('New task');
   return tr('New task ({shortcut})', { shortcut: formatKeyCombo(binding, isMac) });
+}
+
+/**
+ * Tooltip for both Settings entry points, on the same terms as the two above.
+ *
+ * The header gear used to build this string as `` `${mod}+,` `` — the platform
+ * modifier glued to a literal comma. That is a hardcoded combo wearing a
+ * helper's clothes: `app.toggle-settings` is reboundable like any other
+ * binding, so the gear went on advertising `Cmd+,` to a user who had moved it.
+ * Reading the resolved binding is the fix, and it is why the footer row and the
+ * gear now share one function rather than two strings that agree by luck.
+ *
+ * Degrades to the bare label when the user has cleared the binding, so a dead
+ * key is never advertised.
+ */
+export function settingsTooltip(bindings: KeyBinding[], isMac?: boolean): string {
+  const binding = bindings.find((b) => b.id === SETTINGS_BINDING_ID);
+  if (!binding) return tr('Settings');
+  return tr('Settings ({shortcut})', { shortcut: formatKeyCombo(binding, isMac) });
 }
 
 /**
@@ -710,7 +732,7 @@ export function Sidebar() {
                 </svg>
               }
               onClick={() => toggleSettingsDialog(true)}
-              title={tr('Settings ({shortcut})', { shortcut: `${mod}+,` })}
+              title={settingsTooltip(resolvedBindings())}
             />
             <IconButton
               icon={
@@ -1092,44 +1114,56 @@ export function Sidebar() {
           </Show>
         </div>
 
-        {/* Connect / Disconnect Phone button */}
+        {/* Sidebar actions: Connect Phone, then Settings.
+            One container rather than two loose buttons. The `4px 8px` inset
+            that used to sit on the phone button now sits here, so the pair
+            shares one edge and one 6px rhythm between them; two siblings each
+            carrying their own margin would collapse to `4px` between the rows
+            and drift the moment either margin was edited.
+
+            Stacked rather than side by side. Both labels are full words that
+            grow under translation and under the font-scale setting, and the
+            sidebar is user-resizable down to a narrow column — a two-up row
+            would truncate first and unequally. Stacked, they are the same
+            width at every size, which is the point of the pair. */}
         {(() => {
           const connected = () =>
             store.remoteAccess.enabled && store.remoteAccess.connectedClients > 0;
           const accent = () => (connected() ? theme.success : theme.fgMuted);
           return (
-            <button
-              onClick={() => setShowConnectPhone(true)}
+            <div
               style={{
                 display: 'flex',
-                'align-items': 'center',
-                gap: '8px',
-                padding: '8px 12px',
+                'flex-direction': 'column',
+                gap: '6px',
                 margin: '4px 8px',
-                background: 'transparent',
-                border: `1px solid ${connected() ? theme.success : theme.border}`,
-                'border-radius': '8px',
-                color: accent(),
-                'font-size': sf(13),
-                cursor: 'pointer',
                 'flex-shrink': '0',
               }}
             >
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke={accent()}
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <rect x="5" y="2" width="14" height="20" rx="2" ry="2" />
-                <line x1="12" y1="18" x2="12.01" y2="18" />
-              </svg>
-              {connected() ? tr('Phone Connected') : tr('Connect Phone')}
-            </button>
+              <SidebarActionButton
+                onClick={() => setShowConnectPhone(true)}
+                accent={accent()}
+                border={connected() ? theme.success : theme.border}
+                label={connected() ? tr('Phone Connected') : tr('Connect Phone')}
+                icon={
+                  <>
+                    <rect x="5" y="2" width="14" height="20" rx="2" ry="2" />
+                    <line x1="12" y1="18" x2="12.01" y2="18" />
+                  </>
+                }
+              />
+              <SidebarActionButton
+                onClick={() => toggleSettingsDialog(true)}
+                label={tr('Settings')}
+                title={settingsTooltip(resolvedBindings())}
+                icon={
+                  <>
+                    <circle cx="12" cy="12" r="3" />
+                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                  </>
+                }
+              />
+            </div>
           );
         })()}
 

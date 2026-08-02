@@ -382,7 +382,6 @@ const ZH_TW: Record<string, string> = {
   'Display Claude Code plan files in a tab next to Notes':
     '在筆記旁邊的分頁顯示 Claude Code 的 plan 檔案',
   'Enable antialiasing and geometric text rendering': '啟用反鋸齒與幾何文字算繪',
-  'Keyboard shortcut hints at the bottom of the sidebar': '在側欄底部顯示快捷鍵提示',
   'Pre-tick Steps tracking in the New Task dialog': '在新增任務對話框中預先勾選步驟追蹤',
   'Show native notifications when tasks finish or need attention':
     '任務完成或需要處理時顯示系統通知',
@@ -443,7 +442,6 @@ const ZH_TW: Record<string, string> = {
   'Show plans': '顯示 plan',
   'Show prompt input box below terminal': '在終端機下方顯示 prompt 輸入框',
   'Show progress section in sidebar': '在側欄顯示進度區塊',
-  'Show tips section in sidebar': '在側欄顯示提示區塊',
   'Pre-tick skip-permissions for every new task. The agent will run without asking for confirmation. Only honoured when the selected agent supports it.':
     '為每個新任務預先勾選 skip-permissions。agent 將不再詢問確認即執行。僅在所選 agent 支援時生效。',
   Editor: '編輯器',
@@ -599,7 +597,6 @@ const ZH_TW: Record<string, string> = {
   'Review this task': '審查此任務',
   'Review Plan': '審查 plan',
   Progress: '進度',
-  Tips: '提示',
   Changes: '變更',
   Change: '變更',
   'No changes to display': '沒有可顯示的變更',

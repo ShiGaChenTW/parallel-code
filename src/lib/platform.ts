@@ -3,11 +3,19 @@ export const isLinux = navigator.userAgent.includes('Linux');
 
 export const windowChromeTopInset = isMac ? 32 : isLinux ? 34 : 0;
 
-/** Display name for the primary modifier key: "Cmd" on macOS, "Ctrl" elsewhere. */
+/**
+ * Display name for the primary modifier key: "Cmd" on macOS, "Ctrl" elsewhere.
+ *
+ * Only ever correct for the *modifier*. A tooltip that names a whole combo
+ * wants `formatKeyCombo` against a resolved binding — gluing a literal key onto
+ * this constant produces a string that ignores the user's rebinding, which is
+ * exactly what the sidebar's Settings tooltip used to do.
+ *
+ * The `alt` twin that stood here went with the sidebar Tips block, its only
+ * caller. `formatModifiers` spells Opt/Alt for anything that resolves a real
+ * binding, so nothing else needed it.
+ */
 export const mod = isMac ? 'Cmd' : 'Ctrl';
-
-/** Display name for the Alt/Option key: "Opt" on macOS, "Alt" elsewhere. */
-export const alt = isMac ? 'Opt' : 'Alt';
 
 /**
  * The running platform, spelled the way `process.platform` spells it, so

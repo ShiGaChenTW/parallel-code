@@ -31,7 +31,6 @@ import {
   setAutoTrustFolders,
   setShowPlans,
   setShowPromptInput,
-  setShowSidebarTips,
   setShowSidebarProgress,
   setFontSmoothing,
   setDesktopNotificationsEnabled,
@@ -1114,12 +1113,9 @@ export function SettingsDialog(props: SettingsDialogProps) {
                     'Daily completed-task count and merged-line totals at the bottom of the sidebar',
                   )}
                 />
-                <SettingsCheckboxRow
-                  label={tr('Show tips section in sidebar')}
-                  checked={store.showSidebarTips}
-                  onChange={setShowSidebarTips}
-                  description={tr('Keyboard shortcut hints at the bottom of the sidebar')}
-                />
+                {/* "Show tips section in sidebar" stood here. The tips section
+                    it gated is gone, and a checkbox that shows and hides
+                    nothing is a worse defect than the block it controlled. */}
               </SettingsCard>
 
               <SettingsCard
