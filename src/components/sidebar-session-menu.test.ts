@@ -1,3 +1,4 @@
+import type { JSX } from 'solid-js';
 import { renderToString } from 'solid-js/web';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -5,7 +6,13 @@ import { DEFAULT_BINDINGS, resolveBindings } from '../lib/keybindings';
 import type { KeyBinding } from '../lib/keybindings';
 import { catalogueFor } from '../lib/i18n';
 import { newTaskTooltip, newTerminalTooltip } from './Sidebar';
-import { SidebarPlusMenu, SidebarSectionHeader, SidebarSectionLabel } from './SidebarSection';
+import {
+  ProjectsGlyph,
+  SessionGlyph,
+  SidebarPlusMenu,
+  SidebarSectionHeader,
+  SidebarSectionLabel,
+} from './SidebarSection';
 
 /** The bindings the app actually resolves with no user overrides applied. */
 function defaultResolved(): KeyBinding[] {
@@ -144,6 +151,57 @@ describe('SidebarSectionHeader', () => {
     const html = render();
     expect(html).not.toMatch(/(^|[;"])width:/);
     expect(html).toContain('min-width:0');
+  });
+});
+
+describe('SidebarSectionLabel', () => {
+  const render = (icon?: () => JSX.Element) =>
+    renderToString(() =>
+      SidebarSectionLabel({
+        get icon() {
+          return icon?.();
+        },
+        children: 'Projects',
+      }),
+    );
+
+  it('leads with the glyph it is handed', () => {
+    const html = render(() => ProjectsGlyph());
+    expect(html).toContain('<svg');
+    expect(html).toContain('viewBox="0 0 24 24"');
+  });
+
+  it('renders no glyph at all when handed none, so the slot is optional', () => {
+    expect(render()).not.toContain('<svg');
+  });
+
+  it('strokes the glyph from the same variable the text is coloured with', () => {
+    // The label sets `color: var(--fg-muted)`; the glyph must not drift off it
+    // into a literal that only looks right under one of the twelve presets.
+    const html = render(() => SessionGlyph());
+    expect(html).toContain('stroke="var(--fg-muted)"');
+    expect(html).toContain('color:var(--fg-muted)');
+    expect(html).not.toMatch(/stroke="#[0-9a-f]{3,8}"/i);
+  });
+
+  it('sits the glyph 8px off the text and refuses to let it shrink', () => {
+    const html = render(() => ProjectsGlyph());
+    expect(html).toContain('gap:8px');
+    expect(html).toContain('flex-shrink:0');
+  });
+
+  it('keeps the ellipsis on the text alone, not on the row holding the glyph', () => {
+    // A narrow sidebar must clip "Projects", never the folder in front of it.
+    const html = render(() => ProjectsGlyph());
+    const outer = html.slice(0, html.indexOf('<svg'));
+    expect(outer).not.toContain('text-overflow');
+    expect(html.slice(html.indexOf('</svg>'))).toContain('text-overflow:ellipsis');
+  });
+
+  it('hides both glyphs from screen readers — the heading text already names them', () => {
+    for (const glyph of [ProjectsGlyph, SessionGlyph]) {
+      expect(renderToString(() => glyph())).toContain('aria-hidden="true"');
+    }
   });
 });
 
