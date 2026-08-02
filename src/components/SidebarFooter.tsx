@@ -4,7 +4,6 @@ import {
   store,
   getMergedTasksTodayCount,
   getMergedLineTotals,
-  toggleHelpDialog,
   toggleArena,
   hasAnyCoordinatorTask,
   startMCPStatusPolling,
@@ -13,7 +12,6 @@ import {
 import { onboardingStage } from '../store/onboarding';
 import { theme } from '../lib/theme';
 import { sf } from '../lib/fontScale';
-import { alt, mod } from '../lib/platform';
 
 export function SidebarFooter() {
   const mergedTasksToday = createMemo(() => getMergedTasksTodayCount());
@@ -208,82 +206,11 @@ export function SidebarFooter() {
         </button>
       </div>
 
-      {/* Tips */}
-      <Show when={store.showSidebarTips}>
-        <div
-          onClick={() => toggleHelpDialog(true)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault();
-              toggleHelpDialog(true);
-            }
-          }}
-          tabIndex={0}
-          role="button"
-          style={{
-            'border-top': `1px solid ${theme.border}`,
-            'padding-top': '12px',
-            display: 'flex',
-            'flex-direction': 'column',
-            gap: '6px',
-            'flex-shrink': '0',
-            cursor: 'pointer',
-          }}
-        >
-          <span
-            style={{
-              'font-size': sf(11),
-              color: theme.fgSubtle,
-              'text-transform': 'uppercase',
-              'letter-spacing': '0.05em',
-            }}
-          >
-            {tr('Tips')}
-          </span>
-          <span
-            style={{
-              'font-size': sf(12),
-              color: theme.fgMuted,
-              'line-height': '1.4',
-            }}
-          >
-            <kbd
-              style={{
-                background: theme.bgInput,
-                border: `1px solid ${theme.border}`,
-                'border-radius': '3px',
-                padding: '1px 4px',
-                'font-size': sf(11),
-                'font-family': "'JetBrains Mono', monospace",
-              }}
-            >
-              {alt} + Arrows
-            </kbd>{' '}
-            to navigate panels
-          </span>
-          <span
-            style={{
-              'font-size': sf(12),
-              color: theme.fgMuted,
-              'line-height': '1.4',
-            }}
-          >
-            <kbd
-              style={{
-                background: theme.bgInput,
-                border: `1px solid ${theme.border}`,
-                'border-radius': '3px',
-                padding: '1px 4px',
-                'font-size': sf(11),
-                'font-family': "'JetBrains Mono', monospace",
-              }}
-            >
-              {mod} + /
-            </kbd>{' '}
-            for all shortcuts
-          </span>
-        </div>
-      </Show>
+      {/* The Tips block stood here — two <kbd> lines naming Opt+Arrows and
+          Cmd+/ — and is gone. It restated two of the ~60 bindings the help
+          dialog already lists, permanently, in the one strip of the sidebar
+          that is worth an action. The Connect Phone and Settings rows above
+          `SidebarFooter` occupy the position now. */}
     </>
   );
 }

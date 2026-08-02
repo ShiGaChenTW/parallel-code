@@ -7,6 +7,7 @@ import { SECTION_BOX_PADDING, SECTION_BOX_RADIUS } from './SidebarSection';
 const srcDir = resolve(__dirname, '..');
 const sidebarSource = readFileSync(join(srcDir, 'components/Sidebar.tsx'), 'utf8');
 const sectionSource = readFileSync(join(srcDir, 'components/SidebarSection.tsx'), 'utf8');
+const actionButtonSource = readFileSync(join(srcDir, 'components/SidebarActionButton.tsx'), 'utf8');
 const css = readFileSync(join(srcDir, 'styles.css'), 'utf8');
 const catalogue = readFileSync(join(srcDir, 'lib/i18n.ts'), 'utf8');
 
@@ -47,20 +48,36 @@ function exportedFunction(source: string, name: string): string {
 }
 
 /**
- * The "Connect Phone" button's own source, sliced out of `Sidebar.tsx`.
+ * What the "Connect Phone" row *looks* like.
  *
- * That button is the reference the section headings were asked to copy, and it
+ * That row is the reference the section headings were asked to copy, and it
  * still lives in this repo — so unlike the deleted "New Task" button it can be
  * read back rather than remembered. Pinning the literals below *and* checking
  * them against this slice is the point: the literals say what the headings
- * agreed to be, and the slice catches the day someone restyles the button and
+ * agreed to be, and the slice catches the day someone restyles the row and
  * leaves the headings behind.
+ *
+ * The look moved out of `Sidebar.tsx` when the Settings row joined it — two
+ * rows that must match cannot each own a copy of the geometry — so this now
+ * reads `SidebarActionButton`, which is the only place the numbers exist.
+ * Strictly a better anchor than the old inline slice: there is nothing left to
+ * drift *from*.
  */
-function connectPhoneButtonSource(): string {
-  const start = sidebarSource.indexOf('{/* Connect / Disconnect Phone button */}');
-  expect(start, 'no Connect Phone button in Sidebar.tsx').toBeGreaterThanOrEqual(0);
+function actionRowLookSource(): string {
+  expect(actionButtonSource.length, 'no SidebarActionButton.tsx').toBeGreaterThan(0);
+  return actionButtonSource;
+}
+
+/**
+ * Where the "Connect Phone" row *sits*, and how it tints itself — both of which
+ * stayed at the call site in `Sidebar.tsx`, because they are the row's own
+ * business rather than the shared frame's.
+ */
+function connectPhoneCallSiteSource(): string {
+  const start = sidebarSource.indexOf('{/* Sidebar actions:');
+  expect(start, 'no sidebar actions container in Sidebar.tsx').toBeGreaterThanOrEqual(0);
   const end = sidebarSource.indexOf('<SidebarFooter />', start);
-  expect(end, 'no SidebarFooter after the Connect Phone button').toBeGreaterThan(start);
+  expect(end, 'no SidebarFooter after the sidebar actions').toBeGreaterThan(start);
   return sidebarSource.slice(start, end);
 }
 
@@ -82,7 +99,7 @@ describe('sidebar section box geometry', () => {
   });
 
   it('reads those numbers off the button that is still in the tree', () => {
-    const phone = connectPhoneButtonSource();
+    const phone = actionRowLookSource();
     expect(phone).toContain(`padding: '${PHONE_BUTTON_PADDING}'`);
     expect(phone).toContain(`'border-radius': '${PHONE_BUTTON_RADIUS}'`);
     expect(phone).toContain(`'font-size': ${PHONE_BUTTON_FONT_SIZE}`);
@@ -98,11 +115,15 @@ describe('sidebar section box geometry', () => {
   });
 
   it('copies the phone button’s look but not the margin that positions it', () => {
-    // The button is inset 8px from the panel padding because it stands alone at
-    // the foot of the column. A heading names the list directly under it, and
-    // that list starts flush at the panel's own 16px — insetting the heading
-    // would pull the label off the rows it labels.
-    expect(connectPhoneButtonSource()).toContain(`margin: '${PHONE_BUTTON_MARGIN}'`);
+    // The row is inset 8px from the panel padding because it stands at the foot
+    // of the column. A heading names the list directly under it, and that list
+    // starts flush at the panel's own 16px — insetting the heading would pull
+    // the label off the rows it labels.
+    //
+    // The inset now sits on the container holding the Connect Phone and
+    // Settings rows rather than on the phone button itself, so that the pair
+    // shares one edge. Same 4px 8px, one level out.
+    expect(connectPhoneCallSiteSource()).toContain(`margin: '${PHONE_BUTTON_MARGIN}'`);
     expect(exportedFunction(sectionSource, 'SidebarSectionHeader')).not.toContain('margin');
   });
 
@@ -118,7 +139,7 @@ describe('sidebar section box geometry', () => {
     const label = exportedFunction(sectionSource, 'SidebarSectionLabel');
     expect(label).toContain('color: theme.fgMuted');
     expect(label).not.toContain('theme.success');
-    expect(connectPhoneButtonSource()).toContain('connected() ? theme.success : theme.fgMuted');
+    expect(connectPhoneCallSiteSource()).toContain('connected() ? theme.success : theme.fgMuted');
   });
 
   it('gives the heading label no padding of its own', () => {
