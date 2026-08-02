@@ -47,18 +47,45 @@ function exportedFunction(source: string, name: string): string {
 }
 
 /**
- * The geometry the removed "New Task" button carried, copied here before it was
- * deleted. It was the reference the section headings were asked to match, so it
- * is pinned as a literal rather than read back from the constants under test —
- * a test that derives its expectation from the thing it checks proves nothing.
+ * The "Connect Phone" button's own source, sliced out of `Sidebar.tsx`.
+ *
+ * That button is the reference the section headings were asked to copy, and it
+ * still lives in this repo — so unlike the deleted "New Task" button it can be
+ * read back rather than remembered. Pinning the literals below *and* checking
+ * them against this slice is the point: the literals say what the headings
+ * agreed to be, and the slice catches the day someone restyles the button and
+ * leaves the headings behind.
  */
-const NEW_TASK_BUTTON_RADIUS = '8px';
-const NEW_TASK_BUTTON_PADDING = '8px 14px';
+function connectPhoneButtonSource(): string {
+  const start = sidebarSource.indexOf('{/* Connect / Disconnect Phone button */}');
+  expect(start, 'no Connect Phone button in Sidebar.tsx').toBeGreaterThanOrEqual(0);
+  const end = sidebarSource.indexOf('<SidebarFooter />', start);
+  expect(end, 'no SidebarFooter after the Connect Phone button').toBeGreaterThan(start);
+  return sidebarSource.slice(start, end);
+}
+
+/**
+ * What the phone button draws. Pinned as literals rather than derived from the
+ * constants under test — a test that reads its expectation off the thing it
+ * checks proves nothing.
+ */
+const PHONE_BUTTON_RADIUS = '8px';
+const PHONE_BUTTON_PADDING = '8px 12px';
+const PHONE_BUTTON_FONT_SIZE = 'sf(13)';
+/** Where the button sits, not how it looks. The headings deliberately skip it. */
+const PHONE_BUTTON_MARGIN = '4px 8px';
 
 describe('sidebar section box geometry', () => {
-  it('matches the box the New Task button used to draw', () => {
-    expect(SECTION_BOX_RADIUS).toBe(NEW_TASK_BUTTON_RADIUS);
-    expect(SECTION_BOX_PADDING).toBe(NEW_TASK_BUTTON_PADDING);
+  it('matches the box the Connect Phone button draws', () => {
+    expect(SECTION_BOX_RADIUS).toBe(PHONE_BUTTON_RADIUS);
+    expect(SECTION_BOX_PADDING).toBe(PHONE_BUTTON_PADDING);
+  });
+
+  it('reads those numbers off the button that is still in the tree', () => {
+    const phone = connectPhoneButtonSource();
+    expect(phone).toContain(`padding: '${PHONE_BUTTON_PADDING}'`);
+    expect(phone).toContain(`'border-radius': '${PHONE_BUTTON_RADIUS}'`);
+    expect(phone).toContain(`'font-size': ${PHONE_BUTTON_FONT_SIZE}`);
   });
 
   it('applies that geometry to the section heading frame', () => {
@@ -70,8 +97,32 @@ describe('sidebar section box geometry', () => {
     expect(frame).not.toContain("'border-radius': '6px'");
   });
 
+  it('copies the phone button’s look but not the margin that positions it', () => {
+    // The button is inset 8px from the panel padding because it stands alone at
+    // the foot of the column. A heading names the list directly under it, and
+    // that list starts flush at the panel's own 16px — insetting the heading
+    // would pull the label off the rows it labels.
+    expect(connectPhoneButtonSource()).toContain(`margin: '${PHONE_BUTTON_MARGIN}'`);
+    expect(exportedFunction(sectionSource, 'SidebarSectionHeader')).not.toContain('margin');
+  });
+
+  it('sets the heading text at the phone button’s size', () => {
+    const label = exportedFunction(sectionSource, 'SidebarSectionLabel');
+    expect(label).toContain(`'font-size': ${PHONE_BUTTON_FONT_SIZE}`);
+    expect(label).not.toContain("'font-size': sf(12)");
+  });
+
+  it('borrows the phone button’s resting colour and never invents its lit one', () => {
+    // The button tints itself `theme.success` while a phone is attached. A
+    // heading has no such state, so faking one would light it up permanently.
+    const label = exportedFunction(sectionSource, 'SidebarSectionLabel');
+    expect(label).toContain('color: theme.fgMuted');
+    expect(label).not.toContain('theme.success');
+    expect(connectPhoneButtonSource()).toContain('connected() ? theme.success : theme.fgMuted');
+  });
+
   it('gives the heading label no padding of its own', () => {
-    // The frame now supplies 14px of horizontal inset. A label that also
+    // The frame now supplies 12px of horizontal inset. A label that also
     // padded itself would sit visibly off the frame's left edge.
     const label = exportedFunction(sectionSource, 'SidebarSectionLabel');
     expect(label).not.toContain('padding:');
