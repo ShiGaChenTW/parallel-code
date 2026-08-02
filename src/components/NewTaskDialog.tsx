@@ -46,6 +46,11 @@ import {
 import { SegmentedButtons } from './SegmentedButtons';
 import { autoTaskNameFromPrompt, nextDefaultTaskName } from '../lib/clean-task-name';
 import { extractGitHubUrl } from '../lib/github-url';
+import {
+  createSymlinkCandidateState,
+  shouldProbeSymlinkCandidates,
+  symlinkProbeBlocksSubmit,
+} from '../lib/symlink-candidates';
 import { theme, sectionLabelStyle, bannerStyle } from '../lib/theme';
 import { isMac } from '../lib/platform';
 import { AgentSelector } from './AgentSelector';
@@ -55,7 +60,7 @@ import { listDependencyCandidates } from '../lib/task-dependency';
 import { ProjectSelect } from './ProjectSelect';
 import { SymlinkDirPicker } from './SymlinkDirPicker';
 import { scrollCoordinatorIntoView } from './scrollCoordinatorIntoView';
-import type { AgentDef } from '../ipc/types';
+import type { AgentDef, GitIgnoredEntry } from '../ipc/types';
 import { DEFAULT_DOCKER_IMAGE, PROJECT_DOCKERFILE_RELATIVE_PATH } from '../lib/docker';
 import {
   clampCoordinatorConcurrentTasks,
@@ -392,8 +397,9 @@ export function NewTaskDialog(props: NewTaskDialogProps) {
   const [selectedProjectId, setSelectedProjectId] = createSignal<string | null>(null);
   const [error, setError] = createSignal('');
   const [loading, setLoading] = createSignal(false);
-  const [ignoredDirs, setIgnoredDirs] = createSignal<string[]>([]);
-  const [selectedDirs, setSelectedDirs] = createSignal<Set<string>>(new Set());
+  const symlinkCandidates = createSymlinkCandidateState((projectRoot) =>
+    invoke<GitIgnoredEntry[]>(IPC.GetGitignoredDirs, { projectRoot }),
+  );
   const [gitIsolation, setGitIsolation] = createSignal<GitIsolationMode>('worktree');
   const [baseBranch, setBaseBranch] = createSignal('');
   const [branches, setBranches] = createSignal<string[]>([]);
@@ -624,34 +630,25 @@ export function NewTaskDialog(props: NewTaskDialogProps) {
     ),
   );
 
-  // Fetch gitignored dirs when project changes
+  // Fetch gitignored dirs whenever the dialog opens or the project changes.
+  // Reading props.open makes the list reload on every open, so cancelling and
+  // reopening always starts from the default selection — each task's symlink
+  // choices are an explicit opt-in. The candidate state clears itself before
+  // fetching and drops stale responses, so a previous project's checkmarks
+  // can never leak into the next one. Reading gitIsolation makes the probe
+  // re-run when the mode changes; direct-mode tasks never send symlinkDirs,
+  // so no probe is issued for them at all.
   createEffect(() => {
+    const open = props.open;
     const pid = selectedProjectId();
-    const path = pid ? getProjectPath(pid) : undefined;
+    const path = open && pid ? getProjectPath(pid) : undefined;
     const isGit = pid ? projectIsGitRepo(pid) : true;
-    let cancelled = false;
+    const shouldProbe = shouldProbeSymlinkCandidates(isGit, gitIsolation());
 
-    if (!path || !isGit) {
-      setIgnoredDirs([]);
-      setSelectedDirs(new Set<string>());
-      return;
-    }
-
-    void (async () => {
-      try {
-        const dirs = await invoke<string[]>(IPC.GetGitignoredDirs, { projectRoot: path });
-        if (cancelled) return;
-        setIgnoredDirs(dirs);
-        setSelectedDirs(new Set(dirs)); // all checked by default
-      } catch {
-        if (cancelled) return;
-        setIgnoredDirs([]);
-        setSelectedDirs(new Set<string>());
-      }
-    })();
+    void symlinkCandidates.load(path, shouldProbe);
 
     onCleanup(() => {
-      cancelled = true;
+      symlinkCandidates.invalidate();
     });
   });
 
@@ -931,6 +928,11 @@ export function NewTaskDialog(props: NewTaskDialogProps) {
       !!selectedProjectId() &&
       !loading() &&
       !branchesLoading() &&
+      // Block submit until the symlink candidate list for THIS project has
+      // resolved — otherwise stale checkmarks could be submitted against a
+      // project whose candidates haven't loaded yet. Direct-mode submits
+      // never send symlinkDirs, so a pending probe doesn't block them.
+      !symlinkProbeBlocksSubmit(gitIsolation(), symlinkCandidates.loading()) &&
       branchOk &&
       !branchPrefixConflict()
     );
@@ -1007,7 +1009,7 @@ export function NewTaskDialog(props: NewTaskDialogProps) {
         gitIsolation: gitIsolation(),
         baseBranch: baseBranch(),
         dependsOnTaskId: gitIsolation() === 'worktree' ? dependsOnTaskId() || undefined : undefined,
-        symlinkDirs: gitIsolation() === 'worktree' ? [...selectedDirs()] : undefined,
+        symlinkDirs: gitIsolation() === 'worktree' ? [...symlinkCandidates.selected()] : undefined,
         branchPrefixOverride: gitIsolation() === 'worktree' ? prefix : undefined,
         initialPrompt: isFromDrop ? undefined : p,
         githubUrl: ghUrl,
@@ -1451,16 +1453,11 @@ export function NewTaskDialog(props: NewTaskDialogProps) {
             setMaxConcurrentTasks={setMaxConcurrentTasks}
           />
 
-          <Show when={ignoredDirs().length > 0 && gitIsolation() === 'worktree'}>
+          <Show when={symlinkCandidates.dirs().length > 0 && gitIsolation() === 'worktree'}>
             <SymlinkDirPicker
-              dirs={ignoredDirs()}
-              selectedDirs={selectedDirs()}
-              onToggle={(dir) => {
-                const next = new Set(selectedDirs());
-                if (next.has(dir)) next.delete(dir);
-                else next.add(dir);
-                setSelectedDirs(next);
-              }}
+              dirs={symlinkCandidates.dirs()}
+              selectedDirs={symlinkCandidates.selected()}
+              onToggle={symlinkCandidates.toggle}
             />
           </Show>
 

@@ -4,7 +4,7 @@ import { theme } from '../lib/theme';
 
 interface SymlinkDirPickerProps {
   dirs: string[];
-  selectedDirs: Set<string>;
+  selectedDirs: ReadonlySet<string>;
   onToggle: (dir: string) => void;
 }
 
@@ -24,6 +24,9 @@ export function SymlinkDirPicker(props: SymlinkDirPickerProps) {
       >
         {tr('Symlink into worktree')}
       </label>
+      <span style={{ 'font-size': '12px', color: theme.fgMuted }}>
+        {tr('Checked entries are written to .git/info/exclude and apply to all worktrees.')}
+      </span>
       <div
         style={{
           display: 'flex',
@@ -33,6 +36,8 @@ export function SymlinkDirPicker(props: SymlinkDirPickerProps) {
           background: theme.bgElevated,
           'border-radius': '6px',
           border: `1px solid ${theme.border}`,
+          'max-height': '160px',
+          'overflow-y': 'auto',
         }}
       >
         <For each={props.dirs}>
