@@ -47,6 +47,23 @@ function exportedFunction(source: string, name: string): string {
 }
 
 /**
+ * The body of one function, exported or not, without its leading doc comment.
+ *
+ * `exportedFunction` above slices to the next top-level `export`, which sweeps
+ * up whatever comment introduces the next declaration. That is harmless when
+ * the assertions are about style objects, and actively wrong for the glyphs
+ * below: their comments quote the very attributes under test (`fill="none"`,
+ * `viewBox`), so a slice that included them would go green on prose.
+ */
+function functionSource(source: string, name: string): string {
+  const start = source.indexOf(`function ${name}(`);
+  expect(start, `no function ${name}`).toBeGreaterThanOrEqual(0);
+  const end = source.indexOf('\n}', start);
+  expect(end, `no close for ${name}`).toBeGreaterThan(start);
+  return source.slice(start, end + 2);
+}
+
+/**
  * The "Connect Phone" button's own source, sliced out of `Sidebar.tsx`.
  *
  * That button is the reference the section headings were asked to copy, and it
@@ -136,6 +153,104 @@ describe('sidebar section box geometry', () => {
   });
 });
 
+describe('section headings are set like the phone button, not like a legend', () => {
+  it('sets the heading text plain, with no uppercasing and no tracking', () => {
+    // Not a concession to make a red test green — nothing asserted this before.
+    // The heading spent one release shouting because that was all it had: no
+    // frame, no glyph, nothing but weight to separate it from the rows beneath.
+    // It has both now, so the emphasis is a third signal doing a job already
+    // done twice, and it is the one signal the reference control does not use.
+    const label = exportedFunction(sectionSource, 'SidebarSectionLabel');
+    expect(label).not.toContain('text-transform');
+    expect(label).not.toContain('letter-spacing');
+  });
+
+  it('reads that back off the button rather than taking the rule on trust', () => {
+    // Same coupling as the geometry tests above: the literals say what the
+    // headings agreed to be, this says the button still is it. If someone ever
+    // tracks out "Connect Phone", the headings are the next thing to move.
+    const phone = connectPhoneButtonSource();
+    expect(phone).not.toContain('text-transform');
+    expect(phone).not.toContain('letter-spacing');
+  });
+});
+
+describe('each section heading leads with a glyph', () => {
+  it('gives both headings one, drawn by the same component', () => {
+    // Two call sites, one path. A heading that hand-rolled its own <svg> is
+    // how the pair drifts apart four rows from each other.
+    expect(sidebarSource).toContain('icon={<ProjectsGlyph />}');
+    expect(sidebarSource).toContain('icon={<SessionGlyph />}');
+    for (const glyph of ['ProjectsGlyph', 'SessionGlyph']) {
+      expect(functionSource(sectionSource, glyph), glyph).toContain('<SectionGlyph>');
+    }
+  });
+
+  it('wears the icon treatment the Connect Phone button already wears', () => {
+    const glyph = functionSource(sectionSource, 'SectionGlyph');
+    const phone = connectPhoneButtonSource();
+    for (const attribute of [
+      'width="14"',
+      'height="14"',
+      'viewBox="0 0 24 24"',
+      'fill="none"',
+      'stroke-width="2"',
+      'stroke-linecap="round"',
+      'stroke-linejoin="round"',
+    ]) {
+      expect(glyph, attribute).toContain(attribute);
+      expect(phone, attribute).toContain(attribute);
+    }
+  });
+
+  it('strokes the glyph with the token, never a literal colour', () => {
+    // Twelve presets swap --fg-muted. A hex would be right in one of them.
+    const glyph = functionSource(sectionSource, 'SectionGlyph');
+    expect(glyph).toContain('stroke={theme.fgMuted}');
+    expect(glyph).not.toMatch(/stroke="#[0-9a-f]{3,8}"/i);
+  });
+
+  it('holds the glyph at size while the label beside it ellipsises', () => {
+    // The sidebar resizes to 160px. Whatever gives, it must not be the icon.
+    expect(functionSource(sectionSource, 'SectionGlyph')).toContain("'flex-shrink': '0'");
+    expect(exportedFunction(sectionSource, 'SidebarSectionLabel')).toContain(
+      "'text-overflow': 'ellipsis'",
+    );
+  });
+
+  it('sets the two glyphs 8px off their text, as the phone button does', () => {
+    expect(exportedFunction(sectionSource, 'SidebarSectionLabel')).toContain("gap: '8px'");
+    expect(connectPhoneButtonSource()).toContain("gap: '8px'");
+  });
+
+  it('draws two different paths, so the sections are told apart and not doubled', () => {
+    const pathOf = (name: string): string => {
+      const path = / d="([^"]+)"/.exec(functionSource(sectionSource, name))?.[1];
+      if (path === undefined) throw new Error(`no path in ${name}`);
+      return path;
+    };
+    expect(pathOf('ProjectsGlyph')).not.toBe(pathOf('SessionGlyph'));
+  });
+
+  it('leaves the terminal glyph to the menu row that already spends it', () => {
+    // `>_` names "New terminal" inside this heading's own menu. A heading
+    // wearing it would announce itself as one of the two things it contains.
+    const session = functionSource(sectionSource, 'SessionGlyph');
+    expect(session).not.toContain('polyline');
+    expect(sidebarSource).toContain('icon: <TerminalGlyph />');
+  });
+
+  it('leaves the Link Project button’s own leading icon alone', () => {
+    // It shares SECTION_BOX_* with the headings and stacks right under one, so
+    // it is the thing most likely to be caught by a change up here. Its glyph
+    // is a filled 16-unit Octicon folder and stays that way this pass.
+    expect(sidebarSource).toContain(
+      '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">',
+    );
+    expect(sidebarSource).toContain("{tr('Link Project')}");
+  });
+});
+
 describe('the Projects section can no longer be collapsed shut', () => {
   it('keeps no reference to the retired persisted flag in shipped code', () => {
     // The chevron was the only control that set this flag, and the flag was
@@ -148,7 +263,12 @@ describe('the Projects section can no longer be collapsed shut', () => {
   });
 
   it('renders the Projects heading as a plain label, not a toggle', () => {
-    expect(sidebarSource).toContain("<SidebarSectionLabel>{tr('Projects')}</SidebarSectionLabel>");
+    // The label now carries a leading glyph. That is decoration on a <span>,
+    // not a control: the two lines below are what actually hold the "not a
+    // toggle" line, and neither of them moved.
+    expect(sidebarSource).toContain(
+      "<SidebarSectionLabel icon={<ProjectsGlyph />}>{tr('Projects')}</SidebarSectionLabel>",
+    );
     expect(sidebarSource).not.toContain('projects-toggle');
     expect(sidebarSource).not.toContain('aria-controls="sidebar-projects-list"');
   });

@@ -83,7 +83,101 @@ export function SidebarSectionHeader(props: {
 }
 
 /**
- * The heading text for a section.
+ * The one treatment every heading glyph wears.
+ *
+ * Every number here is read off the "Connect Phone" button's icon, which is the
+ * control these headings were asked to be indistinguishable from: 14px box, a
+ * 24-unit viewBox, `fill="none"`, 2-unit stroke, round caps and joins. That
+ * button is a Feather icon (`smartphone`), and so is the sidebar's existing
+ * `TerminalGlyph` (`terminal`) — one 24-unit stroke family already runs through
+ * this column, so the two glyphs below are drawn from it rather than invented.
+ *
+ * `stroke` is the token, not `currentColor`, for the same reason the phone
+ * button passes its own `accent()`: twelve presets swap `--fg-muted`, and a
+ * glyph that inherits its colour silently changes meaning the day someone
+ * nests it somewhere that sets a different one.
+ *
+ * `flex-shrink: 0` because the sidebar resizes down to 160px. The label text
+ * beside it is the thing that ellipsises; an icon that squashed instead would
+ * turn a folder into a smear before a single character was dropped.
+ *
+ * Wrapping the treatment in one component rather than repeating the `<svg>` at
+ * each glyph is the whole point: two headings sit four rows apart, and the day
+ * one of them gains a 1.5 stroke or a 16-unit viewBox is the day they stop
+ * reading as a pair. Only the path differs.
+ */
+function SectionGlyph(props: { children: JSX.Element }) {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={theme.fgMuted}
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      aria-hidden="true"
+      style={{ 'flex-shrink': '0' }}
+    >
+      {props.children}
+    </svg>
+  );
+}
+
+/**
+ * A folder, for the Projects heading.
+ *
+ * The most literal thing the section could be given, which at 14px is the
+ * point — the tabbed top-left step is legible as a silhouette even when the
+ * 1.2px strokes it is drawn with stop resolving individually.
+ *
+ * The 16-unit filled folder already in the tree (the "Link Project" button, and
+ * `TaskBranchInfoBar`) is deliberately *not* reused. It is a solid Octicon; the
+ * treatment these headings were told to copy is a 24-unit Feather outline, and
+ * rescaling a filled path into a stroked box would produce neither. The two do
+ * appear together in the empty state — a stroked folder on the heading, a
+ * filled one on the button directly beneath it. That is a real seam, and
+ * unifying it means restyling the Link Project button, which this pass was
+ * explicitly told not to touch.
+ */
+export function ProjectsGlyph() {
+  return (
+    <SectionGlyph>
+      <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+    </SectionGlyph>
+  );
+}
+
+/**
+ * Two panes side by side, for the Session heading.
+ *
+ * A session is not a container of files, it is the set of panes running right
+ * now — the tasks and terminals the `+` beside this very label adds. Feather's
+ * `columns` says exactly that, and in an app called Parallel Code a split pane
+ * is close to a self-portrait.
+ *
+ * Not the terminal `>_`: that glyph is already spoken for by the "New terminal"
+ * row inside this heading's own menu, so a heading wearing it would announce
+ * itself as one of the two things it can contain.
+ *
+ * Not `layers` or `grid` either, which are the other obvious "several things at
+ * once" glyphs. Both stack three or four shapes inside 24 units; at 14px the
+ * gaps between them fall below the stroke weight and the icon fills in. This is
+ * one closed outline and one straight line — the simplest silhouette that still
+ * means something, and the furthest from the folder above it that the same
+ * family allows: symmetric and flat-topped against asymmetric and stepped.
+ */
+export function SessionGlyph() {
+  return (
+    <SectionGlyph>
+      <path d="M12 3h7a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-7m0-18H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h7m0-18v18" />
+    </SectionGlyph>
+  );
+}
+
+/**
+ * The heading text for a section, and the glyph that leads it.
  *
  * Carries no padding of its own. It used to carry `2px 4px` to match the
  * padding on the Projects collapse toggle, so the two headings started their
@@ -97,22 +191,46 @@ export function SidebarSectionHeader(props: {
  * the phone button's colour in its resting state and did not have to move; the
  * connected state tints it `theme.success`, which a heading has no equivalent
  * of and must not fake.
+ *
+ * The text is set plain. It spent one release uppercased and tracked out at
+ * 0.05em, which is what a heading looks like when it has nothing but weight to
+ * distinguish it from the rows below. It has a frame and now a glyph, so the
+ * borrowed emphasis is spare capacity — and the button these headings copy sets
+ * "Connect Phone" in ordinary Title Case. Copying its box, its size and its
+ * colour while shouting its text would have left one visible tell.
+ *
+ * The icon lives here rather than at the call site because there are two call
+ * sites and they must not drift. Passing the glyph into the frame's `children`
+ * slot instead would put it on the far side of the frame's own 4px gap — the
+ * one holding the `+` off the label — where 8px is what the phone button sets
+ * between its icon and its text. Nesting it in the label makes that gap the
+ * label's business, and leaves the ellipsis on the text alone: the inner span
+ * is what overflows, so a narrow sidebar clips "Projects" and never the folder.
  */
-export function SidebarSectionLabel(props: { children: JSX.Element }) {
+export function SidebarSectionLabel(props: { icon?: JSX.Element; children: JSX.Element }) {
   return (
     <span
       style={{
+        display: 'flex',
+        'align-items': 'center',
+        gap: '8px',
         'font-size': sf(13),
-        'text-transform': 'uppercase',
-        'letter-spacing': '0.05em',
         color: theme.fgMuted,
         'min-width': '0',
         overflow: 'hidden',
-        'text-overflow': 'ellipsis',
-        'white-space': 'nowrap',
       }}
     >
-      {props.children}
+      <Show when={props.icon}>{props.icon}</Show>
+      <span
+        style={{
+          'min-width': '0',
+          overflow: 'hidden',
+          'text-overflow': 'ellipsis',
+          'white-space': 'nowrap',
+        }}
+      >
+        {props.children}
+      </span>
     </span>
   );
 }

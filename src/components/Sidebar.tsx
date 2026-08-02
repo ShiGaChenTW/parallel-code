@@ -41,8 +41,10 @@ import { EditProjectDialog } from './EditProjectDialog';
 import { SidebarFooter } from './SidebarFooter';
 import { IconButton } from './IconButton';
 import {
+  ProjectsGlyph,
   SECTION_BOX_PADDING,
   SECTION_BOX_RADIUS,
+  SessionGlyph,
   SidebarPlusMenu,
   SidebarSectionHeader,
   SidebarSectionLabel,
@@ -742,7 +744,7 @@ export function Sidebar() {
               empty project. The items and all their wiring live in
               ProjectPlusMenu; this file only says where the trigger goes. */}
           <SidebarSectionHeader trailing={<ProjectPlusMenu />}>
-            <SidebarSectionLabel>{tr('Projects')}</SidebarSectionLabel>
+            <SidebarSectionLabel icon={<ProjectsGlyph />}>{tr('Projects')}</SidebarSectionLabel>
           </SidebarSectionHeader>
 
           {/* Scrollable project list. The two wrappers that used to sit here —
@@ -869,7 +871,7 @@ export function Sidebar() {
             />
           }
         >
-          <SidebarSectionLabel>{tr('Session')}</SidebarSectionLabel>
+          <SidebarSectionLabel icon={<SessionGlyph />}>{tr('Session')}</SidebarSectionLabel>
         </SidebarSectionHeader>
 
         {/* Link project button, shown only while nothing is linked.
