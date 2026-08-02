@@ -530,6 +530,8 @@ const ZH_TW: Record<string, string> = {
   'Worktree at {path}': 'Worktree 位於 {path}',
   'Branch {branch} will be kept': 'branch {branch} 會保留',
   'Symlink into worktree': '以 symlink 連進 worktree',
+  'Checked entries are written to .git/info/exclude and apply to all worktrees.':
+    '勾選的項目會寫入 .git/info/exclude，並套用到所有 worktree。',
   'Always delete branch and worktree on close': '關閉時一律刪除 branch 與 worktree',
   'Creates a git branch and worktree so the AI agent can work in isolation without affecting your current branch.':
     '建立 git branch 與 worktree，讓 AI agent 能隔離工作而不影響你目前的 branch。',

@@ -4,11 +4,15 @@ import fs from 'fs';
 import path from 'path';
 import type { BrowserWindow } from 'electron';
 import { debug as logDebug } from '../log.js';
-import { appendGitInfoExcludeBlockAtPath, resolveGitInfoExcludePath } from './git-exclude.js';
+import {
+  appendGitInfoExcludeBlockAtPath,
+  normalizeExcludeLine,
+  resolveGitInfoExcludePath,
+} from './git-exclude.js';
 import { OfflineModeError, isOfflineMode } from './offline.js';
-import type { ChangedFile, CommitInfo, FileDiffResult } from './shared-types.js';
+import type { ChangedFile, CommitInfo, FileDiffResult, GitIgnoredEntry } from './shared-types.js';
 
-export type { ChangedFile, CommitInfo, FileDiffResult } from './shared-types.js';
+export type { ChangedFile, CommitInfo, FileDiffResult, GitIgnoredEntry } from './shared-types.js';
 
 const _exec = promisify(execFile);
 
@@ -123,6 +127,7 @@ const SYMLINK_CANDIDATES = [
   '.env',
   'node_modules',
 ];
+const DEFAULT_SYMLINK_CANDIDATES = new Set(SYMLINK_CANDIDATES);
 
 /**
  * Entries inside `.claude/` that must NOT be seeded from the main repo's
@@ -156,6 +161,11 @@ const SANDBOX_EXCLUDE_PATTERNS = [
   '/.zprofile',
   '/.zshrc',
 ];
+const INTERNAL_SYMLINK_EXCLUSIONS = new Set([
+  '.claude',
+  '.worktrees',
+  ...SANDBOX_EXCLUDE_PATTERNS.map((pattern) => pattern.slice(1)),
+]);
 const SANDBOX_EXCLUDE_HEADER = '# parallel-code: sandbox bind-mount artifacts';
 const seededSandboxExcludes = new Set<string>();
 
@@ -165,6 +175,53 @@ const seededSandboxExcludes = new Set<string>();
  * added in later worktrees are also covered.
  */
 const SYMLINK_EXCLUDE_HEADER = '# parallel-code: worktree symlinks';
+
+/**
+ * Single name-validation rule shared by the symlink producer
+ * (`getSymlinkCandidates`) and consumer (`createWorktree`) — anything the
+ * dialog can offer must be creatable, and anything creatable must pass here.
+ * `..` is only rejected as a full name: as a substring (`foo..bar`) it is a
+ * legal filename, not a traversal.
+ */
+export function isValidSymlinkName(name: string): boolean {
+  if (name.length === 0 || name === '.' || name === '..') return false;
+  if (name.includes('/') || name.includes('\\')) return false;
+  // CR/LF would inject arbitrary rules when written to .git/info/exclude.
+  if (name.includes('\n') || name.includes('\r')) return false;
+  return true;
+}
+
+/** Escape a filename so it matches literally as a gitignore pattern. */
+function escapeGitignoreLiteral(name: string): string {
+  const escaped = name.replace(/[\\*?[\]]/g, '\\$&');
+  const anchored = escaped.startsWith('!') || escaped.startsWith('#') ? `\\${escaped}` : escaped;
+  // Gitignore strips unescaped trailing spaces — escape each so a name like
+  // `foo ` matches itself instead of `foo`.
+  return anchored.replace(/ +$/, (spaces) => '\\ '.repeat(spaces.length));
+}
+
+/** Whether the repo treats paths case-insensitively (macOS default). */
+async function getCoreIgnoreCase(repoRoot: string): Promise<boolean> {
+  try {
+    // --bool normalizes yes/on/1 and case variants to true/false; an invalid
+    // value exits non-zero and lands in the catch below.
+    const { stdout } = await exec('git', ['config', '--bool', '--get', 'core.ignorecase'], {
+      cwd: repoRoot,
+    });
+    return stdout.trim() === 'true';
+  } catch {
+    return false;
+  }
+}
+
+/** Reserved/default names are all-lowercase; fold the candidate when the fs is case-insensitive. */
+function isReservedSymlinkName(name: string, ignoreCase: boolean): boolean {
+  return INTERNAL_SYMLINK_EXCLUSIONS.has(ignoreCase ? name.toLowerCase() : name);
+}
+
+function isDefaultSymlinkCandidate(name: string, ignoreCase: boolean): boolean {
+  return DEFAULT_SYMLINK_CANDIDATES.has(ignoreCase ? name.toLowerCase() : name);
+}
 
 // --- Internal helpers ---
 
@@ -805,14 +862,20 @@ export async function createWorktree(
   if (baseBranch) worktreeArgs.push(baseBranch);
   await exec('git', worktreeArgs, { cwd: repoRoot });
 
-  // Symlink selected directories. `.claude` is handled separately below — it
-  // can't be a symlink because Claude Code's bwrap sandbox binds specific
-  // entries inside it, and bwrap refuses to bind-mount at symlink paths.
+  // Symlink selected directories. Reserved names (`.claude`, the `.worktrees`
+  // container, sandbox bind-mount artifacts) are rejected here as a defensive
+  // backstop — the backend does not trust the UI's candidate list. `.claude`
+  // in particular can never be a symlink: Claude Code's bwrap sandbox binds
+  // specific entries inside it and refuses to bind-mount at symlink paths.
+  // Comparisons fold case when the repo's core.ignorecase says the filesystem
+  // is case-insensitive, so `.WORKTREES`/`.CLAUDE` variants can't slip through.
+  const ignoreCase = await getCoreIgnoreCase(repoRoot);
   const createdSymlinks: string[] = [];
   for (const name of symlinkDirs) {
-    if (name === '.claude') continue;
-    // Reject names that could escape the worktree directory
-    if (name.includes('/') || name.includes('\\') || name.includes('..') || name === '.') continue;
+    // Reject names that could escape the worktree directory or inject rules
+    // into .git/info/exclude
+    if (!isValidSymlinkName(name)) continue;
+    if (isReservedSymlinkName(name, ignoreCase)) continue;
     const source = path.join(repoRoot, name);
     const target = path.join(worktreePath, name);
     try {
@@ -942,7 +1005,14 @@ export function ensureSandboxExcludes(worktreePath: string): void {
  * duplicating already-present entries.
  */
 export function ensureSymlinkExcludes(worktreePath: string, symlinkNames: string[]): void {
-  if (symlinkNames.length === 0) return;
+  // Names containing CR/LF would inject arbitrary ignore rules — refuse them
+  // outright rather than writing a corrupted exclude file.
+  const validNames = symlinkNames.filter((name) => {
+    if (isValidSymlinkName(name)) return true;
+    console.warn(`Refusing to exclude invalid symlink name: ${JSON.stringify(name)}`);
+    return false;
+  });
+  if (validNames.length === 0) return;
 
   const excludePath = resolveGitInfoExcludePath(worktreePath);
   if (!excludePath) return;
@@ -959,9 +1029,15 @@ export function ensureSymlinkExcludes(worktreePath: string, symlinkNames: string
 
   // Root-anchored, no trailing slash — matches the symlink file itself, not
   // just directories, so `node_modules/` gitignore entries can't sneak through.
-  const toAdd = symlinkNames
-    .map((name) => `/${name}`)
-    .filter((pattern) => !existing.includes(pattern));
+  // Names are escaped to gitignore literals so `*`/`?` in a filename can't act
+  // as wildcards against unrelated files. Dedup compares Git-normalized lines
+  // (CRLF and unescaped trailing ASCII spaces stripped) — exact match would
+  // rewrite a hand-written `/foo ` line, and substring matching would let an
+  // existing `/foobar` swallow a needed `/foo`.
+  const existingLines = new Set(splitContentLines(existing).map(normalizeExcludeLine));
+  const toAdd = validNames
+    .map((name) => `/${escapeGitignoreLiteral(name)}`)
+    .filter((pattern) => !existingLines.has(pattern));
 
   if (toAdd.length === 0) return;
 
@@ -973,6 +1049,9 @@ export function ensureSymlinkExcludes(worktreePath: string, symlinkNames: string
     `${header}${toAdd.join('\n')}\n`,
     (err) => console.warn(`Failed to append to ${excludePath}:`, err),
     existing,
+    // `toAdd` already holds exactly the missing lines — the helper's
+    // single-marker recheck must not gate this multi-line block.
+    true,
   );
 }
 
@@ -1044,23 +1123,43 @@ export async function removeWorktree(
 
 // --- IPC command functions ---
 
-export async function getGitIgnoredDirs(projectRoot: string): Promise<string[]> {
-  const results: string[] = [];
-  for (const name of SYMLINK_CANDIDATES) {
-    const dirPath = path.join(projectRoot, name);
-    try {
-      await fs.promises.stat(dirPath); // throws if entry doesn't exist
-    } catch {
-      continue;
-    }
-    try {
-      await exec('git', ['check-ignore', '-q', name], { cwd: projectRoot });
-      results.push(name);
-    } catch {
-      /* not ignored */
-    }
+export async function getSymlinkCandidates(projectRoot: string): Promise<GitIgnoredEntry[]> {
+  try {
+    const ignoreCase = await getCoreIgnoreCase(projectRoot);
+    // Single git call returning the full candidate set: root-level, ignored,
+    // untracked. The `:(glob)` pathspec magic keeps `*` from crossing `/`, so
+    // `:(glob)*` matches only root-level non-dot entries and `:(glob).*`
+    // catches root-level dotfiles (glob `*` skips a leading dot). Output size
+    // is bounded by the root entry count, nested ignored files inside tracked
+    // directories never appear, and `--others` excludes tracked files — so no
+    // per-candidate check-ignore re-verification is needed.
+    const { stdout } = await exec(
+      'git',
+      [
+        'ls-files',
+        '-z',
+        '--others',
+        '--ignored',
+        '--exclude-standard',
+        '--directory',
+        '--',
+        ':(glob)*',
+        ':(glob).*',
+      ],
+      { cwd: projectRoot, maxBuffer: MAX_BUFFER },
+    );
+    return stdout
+      .split('\0')
+      .filter(Boolean)
+      .map((entry) => (entry.endsWith('/') ? entry.slice(0, -1) : entry))
+      .filter((name) => isValidSymlinkName(name) && !isReservedSymlinkName(name, ignoreCase))
+      .map((name) => ({ name, isDefault: isDefaultSymlinkCandidate(name, ignoreCase) }));
+  } catch (err) {
+    // Degrade, never fail: a missing git binary or broken repo must not block
+    // task creation — the worktree is simply created without symlinks.
+    console.warn(`Failed to probe symlink candidates in ${projectRoot}:`, err);
+    return [];
   }
-  return results;
 }
 
 export async function getMainBranch(projectRoot: string): Promise<string> {
