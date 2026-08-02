@@ -1613,6 +1613,17 @@ textarea::placeholder {
     background 0.15s ease;
 }
 
+/* ponytail: hidden until the pointer is in the rail — no accent, just fades in */
+.new-task-line {
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.new-task-line:hover,
+.new-task-line:focus-visible {
+  opacity: 1;
+}
+
 .new-task-placeholder:hover {
   border-color: var(--accent) !important;
   color: var(--accent) !important;

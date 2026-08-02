@@ -34,7 +34,7 @@ export function NewTaskPlaceholder() {
       {/* Add task button — fills remaining space */}
       <div
         ref={addTaskRef}
-        class="new-task-placeholder"
+        class="new-task-line"
         role="button"
         tabIndex={0}
         aria-label={tr('New task')}
@@ -48,18 +48,23 @@ export function NewTaskPlaceholder() {
         style={{
           flex: '1',
           display: 'flex',
+          'flex-direction': 'column',
           'align-items': 'center',
           'justify-content': 'center',
+          gap: '8px',
           cursor: 'pointer',
           'border-radius': '12px',
-          border: `2px dashed ${theme.border}`,
+          background: 'transparent', // no box, so the hover tint would just be a floating slab
           color: theme.fgSubtle,
           'font-size': '21px',
+          'line-height': '1',
           'user-select': 'none',
         }}
         title={tr('New task ({shortcut})', { shortcut: `${mod}+N` })}
       >
-        +
+        {/* ponytail: two segments instead of a box — the gap between them is the "+" slot */}
+        <div style={{ flex: '1', width: '0', 'border-left': '2px dashed currentColor' }} />+
+        <div style={{ flex: '1', width: '0', 'border-left': '2px dashed currentColor' }} />
       </div>
 
       {/* Terminal button — same width, fixed height */}
