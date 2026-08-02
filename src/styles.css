@@ -1999,6 +1999,20 @@ body.dragging-task * {
   outline-offset: 2px;
 }
 
+/* Session map — only the two rules a style object cannot express.
+   Everything else about the overlay is inline, like the token cards and
+   hierarchy rails before it: this stylesheet is render-blocking and
+   `SessionMapDialog` is lazy, so a byte of layout here is a byte every launch
+   pays for a panel most launches never open. */
+.session-map-row:hover {
+  background: color-mix(in srgb, var(--fg) 7%, transparent);
+}
+
+.session-map-row:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 80%, white 20%);
+  outline-offset: -2px;
+}
+
 /* macOS native titlebar spacer (overlay style) */
 .mac-titlebar-spacer {
   height: 32px;

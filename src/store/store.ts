@@ -104,6 +104,7 @@ export {
   clearPendingAction,
   toggleHelpDialog,
   toggleSettingsDialog,
+  toggleSessionMap,
   sendActivePrompt,
   scrollTaskElementIntoView,
 } from './focus';

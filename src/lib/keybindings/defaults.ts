@@ -298,6 +298,27 @@ export const DEFAULT_BINDINGS: KeyBinding[] = [
     action: 'toggleFocusMode',
     global: true,
   },
+  // The map lists every open section and jumps to one. `global` because the
+  // caret is almost always inside a terminal when you want it, and `dialogSafe`
+  // so the same key closes it again — `toggleSessionMap` refuses to open over
+  // another overlay, which is the part `dialogSafe` cannot express here.
+  //
+  // Cmd/Ctrl+K is free in both layers and is what this audience's other tools
+  // bind "jump to anything" to. It is a default, not a fixture: the map reads
+  // its own combo back out of `resolvedBindings()`, so a rebind moves the key
+  // and the hint together.
+  {
+    id: 'app.toggle-session-map',
+    layer: 'app',
+    category: 'App',
+    description: 'Toggle session map',
+    platform: 'both',
+    key: 'k',
+    modifiers: { cmdOrCtrl: true },
+    action: 'toggleSessionMap',
+    global: true,
+    dialogSafe: true,
+  },
   {
     id: 'app.toggle-help',
     layer: 'app',

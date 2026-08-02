@@ -56,6 +56,7 @@ import {
   setPendingAction,
   toggleHelpDialog,
   toggleSettingsDialog,
+  toggleSessionMap,
   sendActivePrompt,
   openTerminalForTask,
   closeShell,
@@ -124,6 +125,15 @@ const HelpDialog = lazy(async () => ({
 // It brings CustomThemeDialog along with it. Cost is paid on first open.
 const SettingsDialog = lazy(async () => ({
   default: (await import('./components/SettingsDialog')).SettingsDialog,
+}));
+
+// SessionMapDialog keeps nothing across a close — the highlighted row is reset
+// to the active section on every open — so a `<Show>` is the same end state,
+// exactly like HelpDialog. Deferred for the same reason as the other three:
+// this file is the startup path, and an overlay nobody has asked for yet is not
+// startup work. Cost is paid the first time the user opens the map.
+const SessionMapDialog = lazy(async () => ({
+  default: (await import('./components/SessionMapDialog')).SessionMapDialog,
 }));
 
 const MIN_WINDOW_DIMENSION = 100;
@@ -783,7 +793,14 @@ function App() {
       toggleFocusMode: () => toggleTaskFocusMode(),
       toggleHelp: () => toggleHelpDialog(),
       toggleSettings: () => toggleSettingsDialog(),
+      toggleSessionMap: () => toggleSessionMap(),
       closeDialogs: () => {
+        // Ahead of the rest: `toggleSessionMap` refuses to open over another
+        // overlay, so the map is only ever the topmost thing when it is up.
+        if (store.showSessionMap) {
+          toggleSessionMap(false);
+          return;
+        }
         if (store.showArena) {
           closeArena();
           return;
@@ -1016,6 +1033,14 @@ function App() {
         </Show>
         <Show when={store.showArena}>
           <ArenaOverlay onClose={closeArena} />
+        </Show>
+        {/* Outside the mac/non-mac split above: the map is a centered overlay,
+            not titlebar furniture, so it has nothing to do with which window
+            chrome the platform draws. `FocusModeTaskIndicators` is already
+            mounted on both platforms — inside `mac-titlebar-spacer` on macOS
+            and inside `WindowTitleBar` elsewhere — and stays untouched. */}
+        <Show when={store.showSessionMap}>
+          <SessionMapDialog />
         </Show>
         <Show when={showDropOverlay()}>
           <DropOverlay />

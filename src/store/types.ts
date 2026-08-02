@@ -445,6 +445,14 @@ export interface AppStore {
   placeholderFocusedButton: 'add-task' | 'add-terminal';
   showHelpDialog: boolean;
   showSettingsDialog: boolean;
+  /**
+   * Session map overlay — the list of open sections, on demand.
+   *
+   * Not persisted, and deliberately not in the autosave snapshot: it is a
+   * transient view over `taskOrder`, and restoring it on launch would open a
+   * modal over an app the user has not looked at yet.
+   */
+  showSessionMap: boolean;
   pendingAction: PendingAction | null;
   notification: string | null;
   completedTaskDate: string;

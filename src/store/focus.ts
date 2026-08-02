@@ -516,6 +516,32 @@ export function toggleSettingsDialog(show?: boolean): void {
   setStore('showSettingsDialog', show ?? !store.showSettingsDialog);
 }
 
+/**
+ * Open or close the session map.
+ *
+ * Refuses to open over another dialog. The map's shortcut has to be
+ * `dialogSafe` so the same key closes it again, and `dialogSafe` is a blanket
+ * "fires while any overlay is up" — without this guard, hitting it inside
+ * Settings would stack a modal on a modal. Closing is always allowed, so the
+ * key never becomes inert.
+ */
+export function toggleSessionMap(show?: boolean): void {
+  const shouldShow = show ?? !store.showSessionMap;
+  if (shouldShow && !store.showSessionMap && anyDialogOpen()) return;
+  setStore('showSessionMap', shouldShow);
+}
+
+/** Whether an overlay the session map must not cover is currently up. */
+function anyDialogOpen(): boolean {
+  return (
+    store.showHelpDialog ||
+    store.showSettingsDialog ||
+    store.showNewTaskDialog ||
+    store.showArena ||
+    store.pendingAction !== null
+  );
+}
+
 export function sendActivePrompt(): void {
   const taskId = store.activeTaskId;
   if (!taskId) return;
