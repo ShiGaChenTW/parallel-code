@@ -1138,6 +1138,20 @@ const ZH_TW: Record<string, string> = {
 
   // Merge workflow
   'Conflicts in {files}': '{files} 有衝突',
+
+  // Session map. The row's kind is drawn as a shape, so it appears only in the
+  // accessible name — as a whole sentence rather than a bare 'Task' /
+  // 'Terminal' label glued onto the front, which is what this file asks for and
+  // which also keeps the bare 'Terminal' key out of the catalogue, where
+  // `settings-sections.test.ts` pins its absence.
+  'Open sections': '開啟中的區塊',
+  'Nothing is open yet.': '目前還沒有開啟任何項目。',
+  current: '目前',
+  'Task {name}': '任務 {name}',
+  'Task {name}, current section': '任務 {name}，目前所在區塊',
+  'Terminal {name}': '終端機 {name}',
+  'Terminal {name}, current section': '終端機 {name}，目前所在區塊',
+  'Arrows to move, Enter to jump, Esc to close.': '方向鍵移動，Enter 跳過去，Esc 關閉。',
 };
 
 const CATALOGUES: Record<Locale, Record<string, string>> = {
