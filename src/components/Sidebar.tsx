@@ -36,6 +36,8 @@ import {
   isDraggableTask,
 } from '../store/sidebar-order';
 import { ConnectPhoneModal } from './ConnectPhoneModal';
+import { Dialog } from './Dialog';
+import { DashboardCard } from './DashboardCard';
 import { RemoveProjectConfirm } from './RemoveProjectConfirm';
 import { EditProjectDialog } from './EditProjectDialog';
 import { SidebarFooter } from './SidebarFooter';
@@ -456,6 +458,7 @@ export function Sidebar() {
   const [confirmRemove, setConfirmRemove] = createSignal<string | null>(null);
   const [editingProject, setEditingProject] = createSignal<Project | null>(null);
   const [showConnectPhone, setShowConnectPhone] = createSignal(false);
+  const [showDashboard, setShowDashboard] = createSignal(false);
   const [dragFromIndex, setDragFromIndex] = createSignal<number | null>(null);
   const [dragFromTaskId, setDragFromTaskId] = createSignal<string | null>(null);
   const [dropTargetIndex, setDropTargetIndex] = createSignal<number | null>(null);
@@ -1141,6 +1144,18 @@ export function Sidebar() {
               }}
             >
               <SidebarActionButton
+                onClick={() => setShowDashboard(true)}
+                label={tr('Dashboard')}
+                icon={
+                  <>
+                    <rect x="3" y="3" width="7" height="9" rx="1" />
+                    <rect x="14" y="3" width="7" height="5" rx="1" />
+                    <rect x="14" y="12" width="7" height="9" rx="1" />
+                    <rect x="3" y="16" width="7" height="5" rx="1" />
+                  </>
+                }
+              />
+              <SidebarActionButton
                 onClick={() => setShowConnectPhone(true)}
                 accent={accent()}
                 border={connected() ? theme.success : theme.border}
@@ -1170,6 +1185,10 @@ export function Sidebar() {
         <SidebarFooter />
 
         <ConnectPhoneModal open={showConnectPhone()} onClose={() => setShowConnectPhone(false)} />
+
+        <Dialog open={showDashboard()} onClose={() => setShowDashboard(false)} width="720px">
+          <DashboardCard embedded />
+        </Dialog>
 
         <EditProjectDialog project={editingProject()} onClose={() => setEditingProject(null)} />
 

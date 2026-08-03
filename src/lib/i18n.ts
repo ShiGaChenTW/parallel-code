@@ -1172,6 +1172,32 @@ const ZH_TW: Record<string, string> = {
   'Terminal {name}': '終端機 {name}',
   'Terminal {name}, current section': '終端機 {name}，目前所在區塊',
   'Arrows to move, Enter to jump, Esc to close.': '方向鍵移動，Enter 跳過去，Esc 關閉。',
+
+  // Dashboard card
+  Dashboard: '儀表板',
+  'Dashboard card': 'Dashboard 卡片',
+  'Open tasks': '開啟中的 task',
+  '{running} running · {idle} idle · {tasks} tasks':
+    '{running} 個執行中 · {idle} 個閒置 · {tasks} 個 tasks',
+  'No open tasks yet. Create one to start parallel work.':
+    '目前還沒有開啟中的 task。建立一個 task 就能開始平行作業。',
+  'Project overview': '專案總覽',
+  'Completed tasks': '已完成 task 數',
+  'Merged lines': '已合併行數',
+  'Merged tasks': '累計已合併 task 數',
+  'Peak concurrent tasks': '最高同時 task 數',
+  'Token usage': 'Token 使用量',
+  'Total tokens': '總計 token',
+  'Input tokens': '輸入 token',
+  'Output tokens': '輸出 token',
+  'Cached tokens': '快取 token',
+  'Git snapshot may be stale': 'Git 快照可能不是最新狀態',
+  'Current Branch: {branchName}': '目前 Branch：{branchName}',
+  Stale: '資料較舊',
+  'Agent: {count}': 'Agent：{count}',
+  'Git unknown': 'Git 狀態未知',
+  'Git error: {message}': 'Git 錯誤：{message}',
+  Committed: '已有 commit',
 };
 
 const CATALOGUES: Record<Locale, Record<string, string>> = {
