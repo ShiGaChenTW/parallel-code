@@ -61,7 +61,18 @@ export function SidebarSectionHeader(props: {
   children: JSX.Element;
   /** Trailing control, normally the `+` button or its menu. */
   trailing?: JSX.Element;
+  /**
+   * Makes the whole frame the hit target for the trailing control.
+   *
+   * The `+` was a 24px square in a box eight times its width, and every pixel
+   * of the rest of that box looked clickable and was not. Only pass this where
+   * `children` is a plain label: a heading whose label is itself a button would
+   * fire both handlers on one click.
+   */
+  activatesTrailing?: boolean;
 }) {
+  let trailingRef: HTMLDivElement | undefined;
+
   return (
     <div
       style={{
@@ -74,10 +85,21 @@ export function SidebarSectionHeader(props: {
         border: `1px solid ${theme.border}`,
         'border-radius': SECTION_BOX_RADIUS,
         'flex-shrink': '0',
+        cursor: props.activatesTrailing ? 'pointer' : undefined,
+      }}
+      onClick={(e) => {
+        if (!props.activatesTrailing) return;
+        // The trailing control owns its own clicks — and its popup renders
+        // inside it, so a click on a menu row must not bounce back here and
+        // re-open what the row just closed.
+        if (trailingRef?.contains(e.target as Node)) return;
+        trailingRef?.querySelector('button')?.click();
       }}
     >
       {props.children}
-      {props.trailing}
+      <div ref={trailingRef} style={{ display: 'contents' }}>
+        {props.trailing}
+      </div>
     </div>
   );
 }

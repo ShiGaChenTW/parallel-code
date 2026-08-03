@@ -728,15 +728,9 @@ export function Sidebar() {
           </div>
           <div style={{ display: 'flex', gap: '6px' }}>
             <UpdateButton />
-            <IconButton
-              icon={
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                  <path d="M8 2.25a.75.75 0 0 1 .73.56l.2.72a4.48 4.48 0 0 1 1.04.43l.66-.37a.75.75 0 0 1 .9.13l.75.75a.75.75 0 0 1 .13.9l-.37.66c.17.33.31.68.43 1.04l.72.2a.75.75 0 0 1 .56.73v1.06a.75.75 0 0 1-.56.73l-.72.2a4.48 4.48 0 0 1-.43 1.04l.37.66a.75.75 0 0 1-.13.9l-.75.75a.75.75 0 0 1-.9.13l-.66-.37a4.48 4.48 0 0 1-1.04.43l-.2.72a.75.75 0 0 1-.73.56H6.94a.75.75 0 0 1-.73-.56l-.2-.72a4.48 4.48 0 0 1-1.04-.43l-.66.37a.75.75 0 0 1-.9-.13l-.75-.75a.75.75 0 0 1-.13-.9l.37-.66a4.48 4.48 0 0 1-.43-1.04l-.72-.2a.75.75 0 0 1-.56-.73V7.47a.75.75 0 0 1 .56-.73l.72-.2c.11-.36.26-.71.43-1.04l-.37-.66a.75.75 0 0 1 .13-.9l.75-.75a.75.75 0 0 1 .9-.13l.66.37c.33-.17.68-.31 1.04-.43l.2-.72a.75.75 0 0 1 .73-.56H8Zm-.53 3.22a2.5 2.5 0 1 0 1.06 4.88 2.5 2.5 0 0 0-1.06-4.88Z" />
-                </svg>
-              }
-              onClick={() => toggleSettingsDialog(true)}
-              title={settingsTooltip(resolvedBindings())}
-            />
+            {/* The header gear stood here. Settings is one row at the bottom of
+                the sidebar now — a labelled button beside Connect Phone — and two
+                entries to the same dialog is one more than the sidebar needs. */}
             <IconButton
               icon={
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
@@ -768,7 +762,7 @@ export function Sidebar() {
           {/* The `+` is a menu now — local folder, clone from a URL, or a new
               empty project. The items and all their wiring live in
               ProjectPlusMenu; this file only says where the trigger goes. */}
-          <SidebarSectionHeader trailing={<ProjectPlusMenu />}>
+          <SidebarSectionHeader activatesTrailing trailing={<ProjectPlusMenu />}>
             <SidebarSectionLabel icon={<ProjectsGlyph />}>{tr('Projects')}</SidebarSectionLabel>
           </SidebarSectionHeader>
 
@@ -888,6 +882,7 @@ export function Sidebar() {
             heading that names the second region does that job and says what the
             region is, so keeping both would be drawing the same boundary twice. */}
         <SidebarSectionHeader
+          activatesTrailing
           trailing={
             <SidebarPlusMenu
               triggerLabel={tr('Add to session')}
